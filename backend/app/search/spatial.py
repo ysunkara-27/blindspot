@@ -104,6 +104,34 @@ def relation_text(
     return f"Your mark was in the {mz}; the {name} is in the {fz}."
 
 
+def relation_label(
+    finding_zone: str | None,
+    finding_side: str | None,
+    finding_xy: tuple[float, float],
+    mark_zone: str | None,
+    mark_xy: tuple[float, float],
+    zones: Mapping[str, np.ndarray],
+) -> str:
+    """Short on-film label (≤ 6 words) for the arrow; same logic as relation_text, compressed."""
+    fz = zone_human(finding_zone)
+    f_lung = finding_side if finding_side in ("right", "left") else lung_of(finding_zone)
+    m_lung = lung_of(mark_zone)
+    if mark_zone is None:
+        return fz
+    if f_lung and m_lung and f_lung != m_lung:
+        return f"other lung: {fz}"
+    parts = []
+    fr, mr = zone_row(finding_zone), zone_row(mark_zone)
+    if fr is not None and mr is not None and fr != mr and f_lung == m_lung:
+        steps = abs(fr - mr)
+        parts.append(f"{STEP_WORDS.get(steps, f'{steps} zones')} {'lower' if fr > mr else 'higher'}")
+    dirs = direction_words(mark_xy, finding_xy, f_lung, lung_box(zones, f_lung) if f_lung else None)
+    if parts:
+        dirs = [d for d in dirs if d not in ("lower", "higher")]
+    desc = ", ".join(parts + dirs)
+    return desc if desc else fz
+
+
 def no_mark_text(finding_label: str, relative_location: str | None, finding_zone: str | None) -> str:
     where = relative_location or zone_human(finding_zone)
     return f"The {display(finding_label).lower()} is in the {where}."

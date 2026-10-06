@@ -473,6 +473,10 @@ export interface Arrow {
    * @maxItems 2
    */
   to_xy?: [number, number] | null;
+  /**
+   * short on-film label (≤ 6 words), e.g. 'higher, other lung'
+   */
+  label?: string | null;
 }
 
 export interface SearchSummary {

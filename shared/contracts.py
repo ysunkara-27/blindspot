@@ -225,6 +225,7 @@ class Arrow(_Strict):
     from_mark: str | None
     to_finding: str
     text: str
+    label: str | None = None
     from_xy: XY | None = None
     to_xy: XY | None = None
 

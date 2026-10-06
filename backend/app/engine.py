@@ -13,6 +13,7 @@ import numpy as np
 
 from backend.app import config
 from backend.app.cases import CaseRepository
+from backend.app.config import zone_human
 from backend.app.facts_card import build_facts_card
 from backend.app.scoring.hit import hits, tolerance_px
 from backend.app.scoring.matching import match
@@ -28,7 +29,7 @@ from backend.app.search.coverage import (
 )
 from backend.app.search.dwell import dwell_in, dwell_samples, first_time_reaching
 from backend.app.search.heatmap import heatmap_png_b64
-from backend.app.search.spatial import no_mark_text, relation_text
+from backend.app.search.spatial import no_mark_text, relation_label, relation_text
 from shared.contracts import (
     Arrow,
     AttemptSubmit,
@@ -184,15 +185,28 @@ def evaluate(case: Case, submit: AttemptSubmit, repo: CaseRepository, hints_used
             mk = min(wrong, key=lambda k: (k.x - f.centroid[0]) ** 2 + (k.y - f.centroid[1]) ** 2)
             mz = mark_zones.get(mk.mark_id) or nearest_zone(mk.x, mk.y, zones, MARK_ZONE_PRIORITY)
             text = relation_text(f.label, f.primary_zone, f.side, f.centroid, mz, (mk.x, mk.y), zones)
+            label = relation_label(f.primary_zone, f.side, f.centroid, mz, (mk.x, mk.y), zones)
             arrows.append(
-                Arrow(from_mark=mk.mark_id, to_finding=f.short_id, text=text, from_xy=(mk.x, mk.y), to_xy=f.centroid)
+                Arrow(
+                    from_mark=mk.mark_id,
+                    to_finding=f.short_id,
+                    text=text,
+                    label=label,
+                    from_xy=(mk.x, mk.y),
+                    to_xy=f.centroid,
+                )
             )
             relations.append(SpatialRelation(**{"from": mk.mark_id, "to": f.short_id, "text": text}))
         else:
             text = no_mark_text(f.label, f.relative_location, f.primary_zone)
             arrows.append(
                 Arrow(
-                    from_mark=None, to_finding=f.short_id, text=text, from_xy=(W / 2, case.height / 2), to_xy=f.centroid
+                    from_mark=None,
+                    to_finding=f.short_id,
+                    text=text,
+                    label=zone_human(f.primary_zone),
+                    from_xy=(W / 2, case.height / 2),
+                    to_xy=f.centroid,
                 )
             )
     # FP marks without a missed finding to point at still get a relation to the nearest finding (for the tutor)
