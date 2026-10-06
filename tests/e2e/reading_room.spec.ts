@@ -6,7 +6,9 @@ import { expect, test, type Page } from '@playwright/test';
 const REAL = process.env.E2E_REAL === '1';
 const ROOT = REAL ? '/?mock=0' : '/?mock=1';
 const SHOTS = 'tests/e2e/__screenshots__';
-const shot = (page: Page, name: string) => page.screenshot({ path: `${process.cwd().endsWith('frontend') ? '../' : ''}${SHOTS}/${name}.png` });
+// Real-API runs show dataset radiographs: name those shots live-*.png (gitignored). Mock runs keep their names.
+const shot = (page: Page, name: string) =>
+  page.screenshot({ path: `${process.cwd().endsWith('frontend') ? '../' : ''}${SHOTS}/${REAL ? 'live-' : ''}${name}.png` });
 
 test.use({ viewport: { width: 1280, height: 800 } });
 

@@ -11,7 +11,7 @@ export default defineConfig({
   use: { baseURL: 'http://127.0.0.1:5173', viewport: { width: 1280, height: 800 }, ...devices['Desktop Chrome'] },
   webServer: [
     {
-      command: 'cd .. && BLINDSPOT_OFFLINE=1 uv run uvicorn backend.app.main:app --host 127.0.0.1 --port 8000',
+      command: 'cd .. && BLINDSPOT_OFFLINE=1 BLINDSPOT_DB_PATH=./data/e2e.sqlite uv run uvicorn backend.app.main:app --host 127.0.0.1 --port 8000',
       url: 'http://127.0.0.1:8000/api/health',
       reuseExistingServer: true,
       timeout: 60_000,
