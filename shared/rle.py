@@ -13,6 +13,7 @@ Anatomy file: data/processed/anatomy/<case_id>.npz with key "masks" = np.packbit
 
 from __future__ import annotations
 
+import gzip
 import json
 from pathlib import Path
 from typing import Any
@@ -61,7 +62,16 @@ def write_zones(path: Path, case_id: str, zones: dict[str, np.ndarray], *, appro
 
 
 def read_zones(path: Path) -> tuple[dict[str, np.ndarray], dict[str, Any]]:
-    doc = json.loads(Path(path).read_text())
+    """Read a zones file. Accepts `<name>.json` or a gzipped `<name>.json.gz` (deploy bundles ship gzipped;
+    a plain path is resolved to the .gz sibling when the plain file is absent)."""
+    path = Path(path)
+    if not path.exists() and path.with_name(path.name + ".gz").exists():
+        path = path.with_name(path.name + ".gz")
+    if path.suffix == ".gz":
+        with gzip.open(path, "rt", encoding="utf-8") as fh:
+            doc = json.load(fh)
+    else:
+        doc = json.loads(path.read_text())
     h, w = doc["height"], doc["width"]
     masks = {k: decode(v, h, w) for k, v in doc["zones"].items()}
     meta = {k: v for k, v in doc.items() if k != "zones"}
