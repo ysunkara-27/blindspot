@@ -1,6 +1,7 @@
 // General-use / hosting e2e. Author: frontend-engineer (qa-reviewer owns this directory).
-// Landing, "Try the demo", the access and reviewer gates (401s mocked with page.route), the small-screen note,
+// Landing, the sample set, the access and reviewer gates (401s mocked with page.route), the small-screen note,
 // the key help overlay, empty-state nudges, debrief source/provenance tags and "Show anatomy".
+// Round 3: the form moved to /start (see round3_pages.spec.ts for the start flow, end screen and case review).
 // Gate and debrief-tag tests always use the real API (?mock=0): the webServer starts one, and page.route can only
 // intercept real network calls. E2E_REAL=1 also runs the reading-room checks on real films (shots named live-*.png).
 import { expect, test, type Page, type Route } from '@playwright/test';
@@ -21,10 +22,10 @@ async function filmReady(page: Page) {
   });
 }
 
+/** A mixed practice set from the start screen (/start; the landing only links to it). */
 async function startPractice(page: Page, root = ROOT) {
-  await page.goto(root);
+  await page.goto(`/start${root.slice(1)}`);
   await page.getByTestId('name').fill('E2E general (test)');
-  await page.getByLabel(/^Practice/).check();
   await page.getByTestId('start').click();
   await filmReady(page);
 }
@@ -33,8 +34,10 @@ async function startPractice(page: Page, root = ROOT) {
 async function submitNormal(page: Page) {
   await page.mouse.move(2, 400);
   await page.keyboard.press('n');
+  // A normal call needs a confidence before Submit enables (round 3): the chips, or a digit key.
   const conf = page.getByRole('radio', { name: /Confidence 3 of 5/ }).first();
   if (await conf.isVisible().catch(() => false)) await conf.click();
+  else await page.keyboard.press('3');
   await page.getByTestId('submit').click();
   await expect(page.getByTestId('outcomes')).toBeVisible();
 }
@@ -42,46 +45,45 @@ async function submitNormal(page: Page) {
 const json = (route: Route, status: number, body: unknown) =>
   route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 
-test('landing explains Blindspot and offers the demo, the form and the links', async ({ page }) => {
+test('landing explains Blindspot and offers Start reading, a sample set and the links', async ({ page }) => {
   await page.goto(ROOT);
   await expect(page).toHaveTitle(/Blindspot/);
   await expect(page.getByRole('heading', { level: 1, name: 'Blindspot' })).toBeVisible();
   await expect(page.getByTestId('three-lines')).toContainText("Mark what you see. We'll show you how you looked.");
   await expect(page.getByTestId('three-lines')).toContainText('a proxy for where you looked');
-  await expect(page.getByTestId('try-demo')).toHaveText('Try the demo');
-  for (const id of ['mode-practice', 'mode-drill', 'mode-assessment']) await expect(page.getByTestId(id)).toBeVisible();
-  await expect(page.getByTestId('drill-label')).toBeVisible();
-  await expect(page.getByLabel(/^Assessment A/)).toBeVisible();
-  await expect(page.getByLabel(/^Assessment B/)).toBeVisible();
+  await expect(page.getByTestId('start-reading')).toHaveText('Start reading');
+  await expect(page.getByTestId('try-sample')).toHaveText('Try a sample set');
+  await expect(page.getByText('About half the films are normal — finding nothing is a real answer.')).toBeVisible();
+  await expect(page.getByTestId('hero-film')).toBeVisible();
   const how = page.getByTestId('how-it-works');
-  for (const t of ['radiologists outlined', 'cursor', 'Kundel', 'validator', 'not eye tracking']) await expect(how).toContainText(t);
+  for (const t of ['Radiologists outlined', 'cursor', 'validator', 'not eye tracking', 'never looked there']) await expect(how).toContainText(t);
+  for (const t of ['A mixed set', 'Your weak spots', 'One finding type', 'A test']) await expect(page.getByTestId('what-you-can-do')).toContainText(t);
   const links = page.getByTestId('landing-links');
-  for (const t of ['Reading log', 'About', 'Instructor (cohort)', 'Expert review']) await expect(links.getByRole('link', { name: t })).toBeVisible();
+  for (const t of ['Finding library', 'Reading log', 'About Blindspot']) await expect(links.getByRole('link', { name: t })).toBeVisible();
   await expect(page.getByTestId('disclaimer')).toContainText('For education. Not for clinical use.');
-  // Three mode columns side by side on a laptop.
-  const p = (await page.getByTestId('mode-practice').boundingBox())!;
-  const d = (await page.getByTestId('mode-drill').boundingBox())!;
-  expect(Math.abs(p.y - d.y)).toBeLessThan(2);
-  // Picking a drill finding selects Drill.
-  await page.getByTestId('drill-label').selectOption('nodule');
-  await expect(page.getByRole('radio', { name: 'Drill' })).toBeChecked();
-  await page.getByLabel(/^Practice/).check();
+  // The form is not on the landing any more, and nobody is asked for a training level anywhere.
+  await expect(page.getByTestId('name')).toHaveCount(0);
+  await expect(page.getByTestId('level')).toHaveCount(0);
   await shot(page, '01-landing');
   await page.screenshot({ path: `${process.cwd().endsWith('frontend') ? '../' : ''}${SHOTS}/general-01-landing-full.png`, fullPage: true });
+  await page.getByTestId('start-reading').click();
+  await expect(page).toHaveURL(/\/start$/);
+  await expect(page.getByRole('heading', { level: 1, name: 'Start reading' })).toBeVisible();
 });
 
-test('"Try the demo" starts a Practice session as Demo and lands on case 1', async ({ page }) => {
+test('"Try a sample set" starts the curated set and lands on film 1; the word "demo" is never shown', async ({ page }) => {
   const created: unknown[] = [];
   page.on('request', (r) => { if (r.url().endsWith('/api/sessions') && r.method() === 'POST') created.push(r.postDataJSON()); });
   await page.goto(ROOT);
-  await page.getByTestId('try-demo').click();
-  await expect(page).toHaveURL(/\/read$/);
+  await page.getByTestId('try-sample').click();
+  await expect(page).toHaveURL(/\/read(\?|$)/);
   await filmReady(page);
   await expect(page.getByTestId('case-index')).toHaveText(/^Case 1\b/);
-  await expect(page.getByTestId('mode')).toHaveText('Practice');
   await expect(page).toHaveTitle('Case 1 · Reading room · Blindspot');
-  if (REAL) expect(created).toEqual([expect.objectContaining({ display_name: 'Demo', mode: 'practice', participant_code: null })]);
-  await shot(page, '02-demo-case1', true);
+  // The backend still keys the curated playlist on this display name; the learner never sees it.
+  if (REAL) expect(created).toEqual([expect.objectContaining({ display_name: 'Demo', level: 'other', mode: 'practice', participant_code: null })]);
+  await expect(page.getByText(/\bdemo\b/i)).toHaveCount(0);
+  await shot(page, '02-sample-case1', true);
 });
 
 test('access gate: a 401 shows one calm page; a wrong code says so; the right code unlocks and retries', async ({ page }) => {
@@ -103,11 +105,19 @@ test('access gate: a 401 shows one calm page; a wrong code says so; the right co
   await page.goto('/?mock=0');
   const gate = page.getByTestId('access-gate');
   await expect(gate).toBeVisible();
-  await expect(gate).toContainText('Blindspot is a private preview.');
-  await expect(gate).toContainText('Enter the access code.');
-  await expect(page).toHaveTitle('Private preview · Blindspot');
+  // Someone without a code still sees what this is: the hero, the three lines, how to get a code, and About.
+  await expect(page).toHaveTitle('Blindspot · chest X-ray perception trainer');
+  await expect(gate.getByRole('heading', { level: 1, name: 'Blindspot' })).toBeVisible();
+  await expect(gate.getByTestId('hero-film')).toBeVisible();
+  await expect(gate.getByTestId('three-lines')).toContainText("Mark what you see. We'll show you how you looked.");
+  await expect(gate).toContainText('Enter your access code to start reading');
+  await expect(gate.getByTestId('request-access')).toContainText('Ask the person who shared this link for the code');
+  await expect(gate.getByRole('link', { name: 'read about Blindspot' })).toBeVisible();
+  await expect(gate).not.toContainText(/private preview/i);
+  await expect(gate.locator('a[href^="mailto:"]')).toHaveCount(0);
   await expect(page.getByTestId('disclaimer')).toBeVisible();
-  await expect(page.getByTestId('try-demo')).toHaveCount(0);
+  await expect(page.getByTestId('try-sample')).toHaveCount(0);
+  await expect(page.getByTestId('start-reading')).toHaveCount(0);
   await shot(page, '03-access-gate');
 
   await page.getByTestId('access-code').fill('wrong');
@@ -116,9 +126,9 @@ test('access gate: a 401 shows one calm page; a wrong code says so; the right co
   await page.getByTestId('access-code').fill('open-sesame');
   await page.getByTestId('access-submit').click();
   await expect(gate).toHaveCount(0);
-  await expect(page.getByTestId('try-demo')).toBeVisible();
+  await expect(page.getByTestId('try-sample')).toBeVisible();
   // The failed health query is retried after unlocking.
-  await expect(page.getByTestId('health')).toContainText('Server: ok', { timeout: 15_000 });
+  await expect(page.getByTestId('health')).toContainText('Library:', { timeout: 15_000 });
   expect(posted).toEqual(['wrong', 'open-sesame']);
   // The code is never kept client-side (the server's httpOnly cookie carries the grant).
   const stored = await page.evaluate(() => JSON.stringify({ ...localStorage }) + JSON.stringify({ ...sessionStorage }) + document.cookie);
@@ -129,13 +139,13 @@ test('access gate also appears when a later call is refused, and About stays pub
   let gated = false;
   await page.route('**/api/sessions', (route) => (gated ? json(route, 401, { error: 'access_code_required' }) : route.fallback()));
   await page.goto('/?mock=0');
-  await expect(page.getByTestId('health')).toContainText('Server: ok', { timeout: 15_000 });
+  await expect(page.getByTestId('health')).toContainText('Library:', { timeout: 15_000 });
   gated = true;
-  await page.getByTestId('try-demo').click();
+  await page.getByTestId('try-sample').click();
   await expect(page.getByTestId('access-gate')).toBeVisible();
   await page.getByTestId('access-gate').getByRole('link', { name: 'read about Blindspot' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'About Blindspot' })).toBeVisible();
-  await expect(page.getByTestId('about-run')).toContainText('Private repo during the hackathon');
+  await expect(page.getByTestId('about-run').getByRole('link', { name: 'github.com/ysunkara-27/blindspot' })).toHaveAttribute('href', 'https://github.com/ysunkara-27/blindspot');
 });
 
 for (const what of ['review', 'cohort'] as const) {
@@ -187,22 +197,24 @@ test('below 900 px: a polite note instead of the reading room; landing and About
   await expect(note.getByRole('link', { name: 'Read about Blindspot' })).toBeVisible();
   await expect(page.getByTestId('stage')).toHaveCount(0);
   await shot(page, '05-small-screen');
-  for (const path of ['/review', '/cohort', '/progress']) {
+  for (const path of ['/review', '/cohort', '/progress', '/start']) {
     await page.goto(path);
     await expect(page.getByTestId('small-screen')).toBeVisible();
   }
   await page.goto(ROOT);
   await expect(page.getByTestId('landing-small-screen')).toBeVisible();
-  await expect(page.getByTestId('try-demo')).toHaveCount(0);
-  await expect(page.getByTestId('start')).toHaveCount(0);
-  const p = (await page.getByTestId('mode-practice').boundingBox())!;
-  const d = (await page.getByTestId('mode-drill').boundingBox())!;
-  expect(d.y).toBeGreaterThan(p.y + p.height - 2); // one column
+  await expect(page.getByTestId('try-sample')).toHaveCount(0);
+  await expect(page.getByTestId('start-reading')).toHaveCount(0);
+  await expect(page.getByTestId('how-it-works')).toBeVisible();
   const o = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, iw: window.innerWidth }));
   expect(o.sw).toBeLessThanOrEqual(o.iw + 1);
   await shot(page, '06-small-landing');
   await page.goto('/about');
   await expect(page.getByRole('heading', { level: 1, name: 'About Blindspot' })).toBeVisible();
+  // The finding library is text first, so it reads on a phone too.
+  await page.goto('/reference');
+  await expect(page.getByRole('heading', { level: 1, name: 'Finding library' })).toBeVisible();
+  await expect(page.getByTestId('small-screen')).toHaveCount(0);
 });
 
 test('narrowing an open reading room shows the note but keeps the marks', async ({ page }) => {
@@ -224,22 +236,23 @@ test('narrowing an open reading room shows the note but keeps the marks', async 
   await expect(page).not.toHaveTitle('Use a larger screen · Blindspot');
 });
 
-test('reading room for strangers: key help, nudges, loupe indicator, progress', async ({ page }) => {
+test('reading room for strangers: key help, nudges, magnifier indicator', async ({ page }) => {
   await startPractice(page);
-  // First-visit auto-open is skipped under automation; "?" and the Keys button open it.
+  // Nothing opens by itself under automation; "?" and the Keys button open the key list.
   await expect(page.getByTestId('keys-help')).toHaveCount(0);
   const nudge = page.getByTestId('nudge');
-  await expect(nudge).toContainText('Click the film to mark a finding');
+  await expect(nudge).toContainText('Pick what you see on the right, then click where it is');
   await expect(nudge).toContainText('Use the wheel to zoom');
-  await expect(page.getByTestId('loupe-toggle')).toHaveText('Loupe on');
+  // The magnifier is off until asked for (round 3), in every mode.
+  await expect(page.getByTestId('loupe-toggle')).toContainText('Magnifier off');
   await page.mouse.move(2, 400);
   await page.keyboard.press('Shift+Slash');
   const help = page.getByTestId('keys-help');
   await expect(help).toBeVisible();
-  for (const t of ['Click the film', 'Mouse wheel', 'Loupe on or off', 'Call it normal', 'Show anatomy', 'Next case']) await expect(help).toContainText(t);
+  for (const t of ['Click the film', 'Mouse wheel', 'Magnifier on or off', 'Call it normal', 'Show anatomy', 'Next case']) await expect(help).toContainText(t);
   // Shortcuts do not fire behind the dialog.
-  await page.keyboard.press('l');
-  await expect(page.getByTestId('loupe-toggle')).toHaveText('Loupe on');
+  await page.keyboard.press('m');
+  await expect(page.getByTestId('loupe-toggle')).toContainText('Magnifier off');
   await shot(page, '07-keys-help', true);
   await page.keyboard.press('Escape');
   await expect(help).toHaveCount(0);
@@ -248,25 +261,27 @@ test('reading room for strangers: key help, nudges, loupe indicator, progress', 
   await page.getByTestId('keys-close').click();
   await expect(help).toHaveCount(0);
 
-  await page.keyboard.press('l');
-  await expect(page.getByTestId('loupe-toggle')).toHaveText('Loupe off');
-  await page.keyboard.press('l');
+  await page.keyboard.press('m');
+  await expect(page.getByTestId('loupe-toggle')).toContainText('Magnifier on');
+  await page.keyboard.press('m');
+  await expect(page.getByTestId('loupe-toggle')).toContainText('Magnifier off');
   const st = (await page.getByTestId('stage').boundingBox())!;
   await page.mouse.move(st.x + st.width / 2, st.y + st.height / 2);
   await page.mouse.wheel(0, -400);
   await expect(nudge).not.toContainText('Use the wheel to zoom');
-  await expect(nudge).toContainText('Click the film to mark a finding');
+  await expect(nudge).toContainText('Pick what you see on the right');
 });
 
-test('assessment header shows "Case n of 20" with a progress bar', async ({ page }) => {
-  await page.goto('/?mock=0');
-  await page.getByTestId('name').fill('E2E general assess (test)');
-  await page.getByLabel(/^Assessment A/).check();
+test('the test set header shows "Case n of 20" with a progress bar', async ({ page }) => {
+  await page.goto('/start?mock=0');
+  await page.getByTestId('name').fill('E2E general test set (test)');
+  await page.getByTestId('practice-test').check();
+  await expect(page.getByTestId('count-fixed')).toHaveText('The test is always 20 films.');
   await page.getByTestId('start').click();
   await filmReady(page);
   await expect(page.getByTestId('case-index')).toHaveText(/^Case 1 of \d+$/);
   await expect(page.getByRole('progressbar', { name: 'Cases read' })).toHaveAttribute('aria-valuenow', '0');
-  await expect(page.getByTestId('loupe-toggle')).toHaveText('Loupe off');
+  await expect(page.getByTestId('loupe-toggle')).toContainText('Magnifier off');
 });
 
 const DEBRIEF = {
@@ -336,7 +351,8 @@ test('Show anatomy (A) after submit: zone outlines with names on hover; not befo
 });
 
 test('page titles name the page', async ({ page }) => {
-  for (const [path, title] of [['/about', 'About · Blindspot'], ['/progress?mock=0', 'Reading log · Blindspot'], ['/nope', 'Page not found · Blindspot']] as const) {
+  for (const [path, title] of [['/about', 'About · Blindspot'], ['/progress?mock=0', 'Reading log · Blindspot'], ['/start', 'Start reading · Blindspot'],
+    ['/reference', 'Finding library · Blindspot'], ['/nope', 'Page not found · Blindspot']] as const) {
     await page.goto(path);
     await expect(page).toHaveTitle(title, { timeout: 15_000 }); // lazy page chunks
   }

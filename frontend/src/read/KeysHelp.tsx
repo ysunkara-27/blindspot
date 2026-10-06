@@ -1,4 +1,4 @@
-// Keyboard help for first-time readers: opens on the first visit, with "?" and with the "Keys" button.
+// Keyboard and mouse help: opens with "?" and with the "Keys" button.
 // While open it owns the keyboard (capture phase), so reading-room shortcuts cannot fire behind it.
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import { markKeysSeen, SHORTCUTS } from './keys';
@@ -29,12 +29,12 @@ export function KeysHelp({ onClose }: { onClose: () => void }) {
     <div className={s.backdrop} onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }} data-testid="keys-help">
       <div className={s.sheet} role="dialog" aria-modal="true" aria-labelledby="keys-h">
         <div className={s.head}>
-          <h2 id="keys-h" className={s.title}>How to read here</h2>
+          <h2 id="keys-h" className={s.title}>Keys and mouse</h2>
           <button ref={closeRef} type="button" className={s.close} onClick={onClose} data-testid="keys-close">Close</button>
         </div>
         <p className={s.lede}>
-          Mark each finding you see, or call the film normal, then submit. <span className={s.cyan}>Cyan</span> is the expert
-          outline; <span className={s.amber}>amber</span> is you.
+          Pick what you see and click where it is, tick whole-film findings, or call the film normal; then submit.{' '}
+          <span className={s.cyan}>Cyan</span> is the expert outline; <span className={s.amber}>amber</span> is you.
         </p>
         <table className={s.table}>
           <tbody>

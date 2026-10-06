@@ -30,10 +30,11 @@ async function filmReady(page: Page) {
   });
 }
 
-async function start(page: Page, mode: 'Practice' | 'Assessment A' | 'Assessment B' = 'Practice', query = '') {
-  await page.goto(`/?mock=0${query}`);
+// Round 3: the form moved from the landing to /start; "Assessment A" is now "Test myself" (set A the first time).
+async function start(page: Page, mode: 'Practice' | 'Assessment A' = 'Practice', query = '') {
+  await page.goto(`/start?mock=0${query}`);
   await page.getByTestId('name').fill('QA gate');
-  await page.getByLabel(new RegExp(`^${mode}`)).check();
+  if (mode === 'Assessment A') await page.getByTestId('practice-test').check();
   await page.getByTestId('start').click();
   await expect(page.getByTestId('film')).toBeVisible();
   await page.waitForFunction(() => {
@@ -128,9 +129,20 @@ test('assessment: DOM and network show no feedback until the summary', async ({ 
     await expect(page.getByTestId('submit')).toBeVisible();
     await filmReady(page);
     await page.waitForTimeout(300);
-    if (i % 2 === 0) await mark(page, 400 + i * 10, 500, 'Nodule', 3);
-    else await page.getByTestId('call-normal').click();
-    await page.mouse.move(2, 400);
+    if (i % 2 === 0) {
+      await mark(page, 400 + i * 10, 500, 'Nodule', 3);
+      await page.mouse.move(2, 400);
+    } else {
+      // Round 3: a normal call needs its own confidence (nothing is preselected). By button on some films, and by
+      // keys alone on others: N, then a digit 1–5, then Enter.
+      await page.mouse.move(2, 400);
+      if (i % 4 === 1) await page.getByTestId('call-normal').click();
+      else await page.keyboard.press('n');
+      await expect(page.getByTestId('normal-called')).toBeVisible();
+      await expect(page.getByTestId('submit')).toBeDisabled();
+      await page.keyboard.press('3');
+      await expect(page.getByTestId('confidence-normal').getByRole('radio', { name: 'Confidence 3 of 5' })).toHaveAttribute('aria-checked', 'true');
+    }
     await page.keyboard.press('Enter');
     await expect(page.getByTestId('recorded')).toBeVisible();
     for (const id of forbidden) await expect(page.getByTestId(id), `testid ${id} must be absent`).toHaveCount(0);
@@ -169,7 +181,7 @@ test('footer disclaimer on every page; /about attributions', async ({ page }) =>
   await shot(page, 'about-full');
 });
 
-test('keyboard: H gives a hint, L toggles loupe, 1-5 sets confidence, Backspace deletes, Enter submits, Arrow advances', async ({ page }) => {
+test('keyboard: H gives a hint, M (and L) toggle the magnifier, 1-5 sets confidence, Backspace deletes, Enter submits, Arrow advances', async ({ page }) => {
   await start(page);
   await page.mouse.move(2, 400);
   await page.keyboard.press('h');
@@ -180,8 +192,26 @@ test('keyboard: H gives a hint, L toggles loupe, 1-5 sets confidence, Backspace 
   await expect(page.getByTestId('hints-left')).toContainText('0 left');
   await page.keyboard.press('h'); // a fourth press must not break the page
   await expect(page.getByTestId('hint-list').locator('li')).toHaveCount(3);
+  // Round 3: the magnifier starts off in every mode; M turns it on and the old key L still toggles it.
+  await expect(page.getByTestId('loupe-toggle')).toHaveAttribute('aria-pressed', 'false');
+  await page.keyboard.press('m');
+  await expect(page.getByTestId('loupe-toggle')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('loupe-toggle')).toHaveText(/Magnifier on/);
   await page.keyboard.press('l');
   await expect(page.getByTestId('loupe-toggle')).toHaveAttribute('aria-pressed', 'false');
+  // 1-5 for the selected mark, Backspace deletes it; N, a digit, Enter submits a normal call; the arrow advances.
+  await mark(page, 420, 520, 'Nodule', 2);
+  await page.mouse.move(2, 400);
+  await page.keyboard.press('5');
+  await expect(page.getByTestId('confidence-M1').getByRole('radio', { name: 'Confidence 5 of 5' })).toHaveAttribute('aria-checked', 'true');
+  await page.keyboard.press('Backspace');
+  await expect(page.getByTestId('mark-count')).toHaveText('0');
+  await page.keyboard.press('n');
+  await page.keyboard.press('4');
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('reveal-layer')).toBeVisible();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByTestId('case-index')).toHaveText(/Case 2/);
 });
 
 test('projector mode on the real film: label/outline legibility', async ({ page }) => {

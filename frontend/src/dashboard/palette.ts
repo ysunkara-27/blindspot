@@ -1,8 +1,11 @@
-// Chart colours on report paper (#F3F5F6). Validated with the dataviz validator (2026-10-05):
-// - learner ink #A86A00 (4.06:1) and truth ink #0F8496 (4.03:1): the cyan/amber logic of SPEC §14.1, stepped dark for paper.
-// - miss types: Kundel's stages are ordered (search → recognition → decision → interpretation), so they take a one-hue
-//   cyan ordinal ramp (--ordinal: monotone L, light end 2.37:1, PASS); overcalls are the learner's own call → amber
-//   (adjacent to the ramp's light end: CVD ΔE 19.5, normal ΔE 23.2, PASS). No red/green anywhere.
+// Chart colours on report paper (#F3F5F6). One colour logic, the same as the reading room (SPEC §14.1):
+//   cyan  = expert truth, and what you found of it
+//   amber = you: your marks, your misses, your false alarms
+// Validated with the dataviz palette validator (2026-10-06, --pairs all, surface #F3F5F6): learner #A86A00 and truth
+// #0086A0 pass the lightness band, chroma floor (the old #0F8496 sat just under it), CVD ΔE 17.5 (protan), normal ΔE 21.9
+// and 3:1 contrast. No red/green anywhere.
+// Miss types are NOT told apart by colour: every miss bar is the learner's amber, and identity comes from position and a
+// direct label (a labelled row per type). Four teal shades could not be told apart; a legend should not be a puzzle.
 import type { MissBucket } from './types';
 
 export const C = {
@@ -11,29 +14,23 @@ export const C = {
   muted: '#5B6672',
   grid: '#DDE2E6',
   axis: '#B9C2CA',
+  track: '#E2E7EB',
   learner: '#A86A00',
-  truth: '#0F8496',
-  // On the dark film panel (blind-spot map) the full-strength tokens read best.
+  truth: '#0086A0',
+  // On the dark film panel (blind-spot map) the full-strength SPEC tokens read best; found and missed also differ in
+  // shape (filled dot vs hollow ring), so the pair never rests on hue alone.
   filmCyan: '#35C9DD',
   filmAmber: '#F0A92E',
   graticule: '#8C99A6',
 } as const;
 
-export const MISS_COLOR: Record<MissBucket, string> = {
-  search: '#093A42',
-  recognition: '#0F6170',
-  decision: '#18899B',
-  interpretation: '#3BAFC1',
-  overcall: '#C27D0A',
-};
-
-/** Plain-language names first (SPEC §14.3 chip copy), the Kundel term second. */
-export const MISS_NAME: Record<MissBucket, { plain: string; term: string }> = {
-  search: { plain: 'Never looked there', term: 'search' },
-  recognition: { plain: 'Looked past it', term: 'recognition' },
-  decision: { plain: 'Looked, judged it normal', term: 'decision' },
-  interpretation: { plain: 'Found it, named it wrong', term: 'interpretation' },
-  overcall: { plain: "Called something that isn't there", term: 'overcall' },
+/** Plain-language name first (SPEC §14.3 chip copy), one line of explanation, the Kundel term last (tooltip, table). */
+export const MISS_NAME: Record<MissBucket, { plain: string; explain: string; term: string }> = {
+  search: { plain: 'Never looked there', explain: 'Your cursor, magnifier and zoom never reached the finding.', term: 'search' },
+  recognition: { plain: 'Looked past it', explain: 'You passed over the finding without stopping.', term: 'recognition' },
+  decision: { plain: 'Looked, judged it normal', explain: 'You stopped on the finding, then left it unmarked.', term: 'decision' },
+  interpretation: { plain: 'Found it, named it wrong', explain: 'Your mark was on the finding, under a different name.', term: 'interpretation' },
+  overcall: { plain: "Called something that isn't there", explain: 'A mark or a call with no finding behind it.', term: 'overcall' },
 };
 
 export const AXIS_TICK = { fill: C.muted, fontSize: 13, fontFamily: 'var(--font)' } as const;

@@ -17,5 +17,7 @@
 .optOn span { background: var(--report-ink); color: #fff; border-color: var(--report-ink); font-weight: 700; }
 .primary { padding: 10px 22px; border: none; border-radius: var(--radius); background: var(--report-ink); color: #fff; font-size: var(--fs-2); font-weight: 700; cursor: pointer; }
 .primary:disabled { background: #a7b0b8; cursor: default; }
+.secondary { padding: 9px 20px; border: 1px solid var(--report-ink); border-radius: var(--radius); background: transparent; color: var(--report-ink); font-size: var(--fs-2); font-weight: 700; cursor: pointer; }
+.secondary:focus-visible { outline: 2px solid var(--grease-amber); outline-offset: 2px; }
 .primary:focus-visible { outline: 2px solid var(--grease-amber); outline-offset: 2px; }
 .error { background: #fbecd2; border-left: 3px solid var(--grease-amber); padding: 8px 10px; }

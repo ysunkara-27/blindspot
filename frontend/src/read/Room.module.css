@@ -1,0 +1,82 @@
+/* Reading-room chrome owned by the reading room: the header row, the progress bar, the View menu, focus rings. */
+.root :is(button, a, input, select, [tabindex]):focus-visible { outline: 2px solid var(--grease-amber); outline-offset: 2px; }
+
+/* Header on the surround: quiet, light-on-dark. If the column is too narrow the page links (last item) wrap to a
+   second line that is clipped, so the controls are never cut in half. */
+.header {
+  display: flex;
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 0;
+  height: 50px;
+  padding: 0 14px;
+  color: #c9d1d8;
+  border-bottom: 1px solid #2a2f34;
+  font-size: var(--fs-1);
+  flex-shrink: 0;
+  white-space: nowrap;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  overflow: hidden;
+}
+/* The first item sets the row height; the wrap trick needs a 50px first line. */
+.header > :first-child { height: 50px; display: inline-flex; align-items: center; }
+.spacer { flex: 1; }
+.navWrap { margin-left: 4px; }
+:root[data-projector='1'] .navWrap { display: none; }
+
+/* "Case 3 of 10" over a thin bar that is easy to see: light fill on a mid-grey track. */
+.caseBlock { display: inline-flex; flex-direction: column; align-items: stretch; justify-content: center; gap: 5px; font-variant-numeric: tabular-nums; color: #f3f5f6; }
+.caseText { line-height: 1; }
+.progress { display: block; height: 5px; min-width: 84px; border-radius: 3px; background: #4a535c; box-shadow: 0 0 0 1px #5d6770; overflow: hidden; }
+.progress span { display: block; height: 100%; min-width: 3px; background: #f3f5f6; border-radius: 3px; }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid #4a535c;
+  border-radius: 999px;
+  background: transparent;
+  color: #c9d1d8;
+  cursor: pointer;
+  font-size: var(--fs-1);
+}
+.btn:hover { border-color: var(--graticule); color: #fff; }
+.btnOn { background: #e6ebef; color: #111; border-color: #e6ebef; }
+.kbd { display: inline-block; padding: 0 5px; border: 1px solid #4a535c; border-radius: 3px; font: inherit; font-size: 12px; line-height: 16px; }
+.caret { font-size: 10px; opacity: 0.8; }
+
+/* View menu: fixed, so the header's clipping does not cut it. */
+.menu {
+  position: fixed;
+  z-index: 45;
+  min-width: 250px;
+  padding: 6px;
+  border-radius: var(--radius);
+  background: var(--report-paper);
+  color: var(--report-ink);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.5);
+  border: 1px solid #0d0f11;
+}
+.menuItem {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--report-ink);
+  text-align: left;
+  cursor: pointer;
+  font-size: var(--fs-1);
+}
+.menuItem:hover { background: #e3e8ec; }
+.menuItem:focus-visible { outline: 2px solid #9a6200 !important; outline-offset: -2px !important; }
+.menuNote { font-size: 13px; color: var(--report-ink-muted); white-space: normal; }
+.center { display: grid; place-items: center; color: #c9d1d8; text-align: center; padding: 24px; }
+.center a { color: #c9d1d8; }

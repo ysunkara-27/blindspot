@@ -10,7 +10,7 @@ MISS_COPY = {
     "false_positive": "Called something that isn't there",
     "found": "Found it",
 }
-PROXY_NOTE = "Based on your cursor, loupe and zoom — a proxy for where you looked."
+PROXY_NOTE = "Based on your cursor, magnifier and zoom — a proxy for where you looked."
 
 # Outcome result -> miss-type bucket for analytics.
 BUCKET = {

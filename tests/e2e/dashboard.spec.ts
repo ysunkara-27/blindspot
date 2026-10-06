@@ -1,4 +1,5 @@
-// M6 dashboards + assessment summary/SUS e2e (SPEC §10, §15.2 M6/M7). Author: frontend-engineer.
+// M6 dashboards + test-set summary/feedback e2e (SPEC §10, §15.2 M6/M7). Author: frontend-engineer.
+// Round 3: no headline numbers before the fifth film; plain labels with the technical term in a tooltip.
 // Runs against the REAL API (BLINDSPOT_OFFLINE=1). Seeds its own attempts through the API as a learner named
 // "E2E dashboard (test)" — test data, never demo data (`make db-reset` clears it). Dashboard shots show no films.
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
@@ -56,7 +57,7 @@ test('reading log renders real attempts with n on every section', async ({ page,
 
   await page.goto(`/progress?learner=${learnerId}&mock=0`);
   await expect(page.getByTestId('learner-dashboard')).toBeVisible();
-  await expect(page.getByTestId('dashboard-n')).toContainText(`n = ${api.n_attempts} cases`);
+  await expect(page.getByTestId('dashboard-n')).toContainText(`n = ${api.n_attempts} films`);
   for (const id of ['summary-stats', 'learning-curve', 'miss-mix', 'blindspot-map', 'review-areas', 'calibration', 'froc']) {
     await expect(page.getByTestId(id)).toBeVisible();
     await expect(page.getByTestId(`${id}-n`)).toContainText('n = ');
@@ -69,7 +70,23 @@ test('reading log renders real attempts with n on every section', async ({ page,
   await page.getByTestId('curve-series').selectOption({ index: 1 });
   await expect(page.getByTestId('learning-curve')).toContainText('averaged over the last');
   // Numbers agree with the API.
-  await expect(page.getByTestId('summary-stats-n')).toHaveText(`n = ${api.summary.n} cases`);
+  await expect(page.getByTestId('summary-stats-n')).toHaveText(`n = ${api.summary.n} films`);
+  // Plain labels; the technical term is one hover away, not in the label.
+  const sens = page.getByTestId('stat-sensitivity');
+  await expect(sens).toContainText('Abnormal films you caught');
+  await expect(sens.locator('abbr')).toHaveAttribute('title', /Sensitivity/);
+  await expect(page.getByTestId('stat-specificity')).toContainText('Normal films you correctly called normal');
+  await expect(page.getByTestId('stat-specificity').locator('abbr')).toHaveAttribute('title', /Specificity/);
+  await expect(page.getByTestId('froc')).toContainText('Marks vs false alarms (FROC)');
+  await expect(page.getByTestId('calibration')).toContainText('How well your confidence matched reality');
+  // Miss types are labelled rows in one colour, not a legend of shades.
+  const bars = page.getByTestId('miss-breakdown');
+  if (await bars.count()) {
+    for (const t of ['Never looked there', 'Looked past it', 'Looked, judged it normal', 'Found it, named it wrong', "Called something that isn't there"]) await expect(bars).toContainText(t);
+  }
+  // The blind-spot map says its colour logic in words: cyan = found, amber = missed.
+  await expect(page.getByTestId('blindspot-legend')).toContainText(/Cyan dot: found by you/);
+  await expect(page.getByTestId('blindspot-legend')).toContainText(/Amber ring: missed/);
   await expect(page.getByTestId('blindspot-map-n')).toHaveText(`n = ${api.blindspot_map.n} findings · ${api.blindspot_map.n_missed} missed`);
   await expect(page.getByTestId('bs-missed')).toHaveCount(api.blindspot_map.n_missed);
   await expect(page.getByTestId('confident-misses')).toHaveText(String(api.calibration.confident_misses));
@@ -82,17 +99,36 @@ test('reading log renders real attempts with n on every section', async ({ page,
 
 test('reading log empty states: no session, and a learner with no reads', async ({ page, request }) => {
   await page.goto('/progress?mock=0');
-  await expect(page.getByTestId('dashboard-no-session')).toContainText('Read 5 cases to see your first learning curve.');
+  await expect(page.getByTestId('dashboard-no-session')).toContainText('Your reading log starts with your first film.');
+  await expect(page.getByTestId('early-count')).toHaveText('0 of 5 films');
   const { learnerId } = await seed(request, 0);
   await page.goto(`/progress?learner=${learnerId}`);
-  await expect(page.getByTestId('dashboard-empty')).toContainText('Read 5 cases to see your first learning curve.');
+  await expect(page.getByTestId('dashboard-empty')).toContainText('Read 5 more to see your first numbers.');
+  await page.getByTestId('early-read').click();
+  await expect(page).toHaveURL(/\/start$/);
 });
 
-test('reading log: fewer than 5 cases shows stats but not the curve', async ({ page, request }) => {
+test('reading log: fewer than 5 films shows encouragement and no percentages at all', async ({ page, request }) => {
   const { learnerId } = await seed(request, 2);
-  await page.goto(`/progress?learner=${learnerId}`);
-  await expect(page.getByTestId('curve-empty')).toHaveText('Read 5 cases to see your first learning curve.');
-  await expect(page.getByTestId('summary-stats-n')).toHaveText('n = 2 cases');
+  await page.goto(`/progress?learner=${learnerId}&mock=0`);
+  const few = page.getByTestId('dashboard-few');
+  await expect(few).toContainText('Good start: 2 films read.');
+  await expect(few).toContainText('Read 3 more to see your first numbers.');
+  await expect(page.getByTestId('early-count')).toHaveText('2 of 5 films');
+  await expect(page.getByTestId('dashboard-n')).toContainText('n = 2 films');
+  // n is too small: no stats, no charts, not a single percentage on the page.
+  for (const id of ['learner-dashboard', 'summary-stats', 'learning-curve', 'miss-mix', 'calibration', 'froc']) await expect(page.getByTestId(id)).toHaveCount(0);
+  expect(await page.locator('main').innerText()).not.toMatch(/\d\s?%/);
+  await page.screenshot({ path: `${SHOTS}/progress-few.png`, fullPage: true });
+});
+
+test('reading log: the fifth film turns the numbers on, each with its n', async ({ page, request }) => {
+  const { learnerId } = await seed(request, 5);
+  await page.goto(`/progress?learner=${learnerId}&mock=0`);
+  await expect(page.getByTestId('learner-dashboard')).toBeVisible();
+  await expect(page.getByTestId('dashboard-few')).toHaveCount(0);
+  await expect(page.getByTestId('summary-stats-n')).toHaveText('n = 5 films');
+  await expect(page.getByTestId('stat-sensitivity')).toContainText(/of \d abnormal films?/);
 });
 
 test('reading log survives a malformed payload', async ({ page }) => {
@@ -100,7 +136,7 @@ test('reading log survives a malformed payload', async ({ page }) => {
   await page.route('**/api/learners/*/dashboard', (r) => r.fulfill({ json: { n_attempts: 9, summary: { n: 'x' }, learning_curve: 'oops', calibration: { bins: [{}] } } }));
   await page.goto('/progress?learner=fake&mock=0');
   await expect(page.getByTestId('learner-dashboard')).toBeVisible();
-  await expect(page.getByTestId('summary-stats')).toContainText('No cases read yet.');
+  await expect(page.getByTestId('summary-stats')).toContainText('No films read yet.');
   await expect(page.getByTestId('curve-empty')).toBeVisible();
   await expect(page.getByTestId('calibration')).toContainText('No confidence-rated calls yet.');
   expect(errors).toEqual([]);
@@ -113,7 +149,7 @@ test('cohort dashboard: aggregates, difficulty table, filters as query params', 
   await page.goto('/cohort?mock=0');
   const api = await (await resp).json();
   await expect(page.getByTestId('cohort-dashboard')).toBeVisible();
-  await expect(page.getByTestId('cohort-n')).toContainText(`n = ${api.n_attempts} cases from ${api.n_learners} learners`);
+  await expect(page.getByTestId('cohort-n')).toContainText(`n = ${api.n_attempts} films from ${api.n_learners} learners`);
   for (const id of ['summary-stats', 'miss-mix', 'label-difficulty', 'blindspot-map', 'review-areas', 'calibration', 'froc', 'cohort-learners']) {
     await expect(page.getByTestId(`${id}-n`)).toContainText('n = ');
   }
@@ -133,23 +169,28 @@ test('cohort dashboard: aggregates, difficulty table, filters as query params', 
   await expect(page.getByTestId('cohort-empty')).toBeVisible();
 });
 
-test('assessment summary shows n and the SUS survey posts a score', async ({ page, request }) => {
+test('test-set summary shows n, and the optional feedback form posts a score', async ({ page, request }) => {
   const { sessionId, learnerId } = await seed(request, 25, 'assess_A');
   await page.goto('/?mock=0');
   await page.evaluate(([sid, lid]) => sessionStorage.setItem('blindspot.session', JSON.stringify({
-    state: { session: { sessionId: sid, learnerId: lid, displayName: 'E2E dashboard (test)', level: 'MS3', mode: 'assess_A' }, projector: false }, version: 0,
+    state: { session: { sessionId: sid, learnerId: lid, displayName: 'E2E dashboard (test)', level: 'other', mode: 'assess_A' }, projector: false }, version: 0,
   })), [sessionId, learnerId]);
   await page.goto('/read');
   await expect(page.getByTestId('assessment-summary')).toBeVisible();
-  await expect(page.getByTestId('summary-stats-n')).toHaveText('n = 20 cases');
-  await expect(page.getByTestId('summary-miss-mix-n')).toContainText('over 20 cases');
-  await page.getByTestId('sus-open').click();
-  await expect(page.getByTestId('sus-submit')).toBeDisabled();
+  await expect(page.getByTestId('summary-title')).toHaveText('Test complete');
+  await expect(page.getByTestId('summary-stats-n')).toHaveText('n = 20 films');
+  await expect(page.getByTestId('summary-miss-mix-n')).toContainText('over 20 films');
+  await expect(page.getByTestId('common-miss')).toContainText(/You most often|No misses/);
+  // No jargon on the way in: the button says what it does.
+  await expect(page.getByTestId('feedback-open')).toHaveText('Give feedback');
+  await expect(page.getByTestId('assessment-summary')).not.toContainText(/\bSUS\b|System Usability Scale|survey/i);
+  await page.getByTestId('feedback-open').click();
+  await expect(page.getByTestId('feedback-submit')).toBeDisabled();
   // All "agree" on positive items (odd) and "disagree" on negative items (even) → 100.
-  for (let i = 0; i < 10; i++) await page.getByTestId(`sus-${i}-${i % 2 === 0 ? 5 : 1}`).check({ force: true });
+  for (let i = 0; i < 10; i++) await page.getByTestId(`feedback-${i}-${i % 2 === 0 ? 5 : 1}`).check({ force: true });
   const res = page.waitForResponse((r) => r.url().endsWith('/api/sus') && r.request().method() === 'POST');
-  await page.getByTestId('sus-submit').click();
+  await page.getByTestId('feedback-submit').click();
   expect((await res).ok()).toBeTruthy();
-  await expect(page.getByTestId('sus-score')).toHaveText('100.0');
+  await expect(page.getByTestId('feedback-score')).toHaveText('100.0');
   await page.screenshot({ path: `${SHOTS}/assessment-summary.png`, fullPage: true });
 });

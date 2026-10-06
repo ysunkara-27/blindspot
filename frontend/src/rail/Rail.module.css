@@ -1,8 +1,8 @@
 /* The rail: a report sheet. Sections separated by rules, not cards (SPEC §14.2). */
 .read, .result { display: flex; flex-direction: column; min-height: 100%; }
-.h2 { font-size: var(--fs-4); font-weight: 700; margin: 0; padding: 18px 0 10px; letter-spacing: -0.01em; }
+.h2 { font-size: var(--fs-3); font-weight: 700; margin: 0; padding: 13px 0 8px; letter-spacing: -0.01em; }
 .h3 { font-size: var(--fs-2); font-weight: 700; margin: 0; }
-.section { padding: 14px 0; border-top: 1px solid var(--report-rule); }
+.section { padding: 12px 0; border-top: 1px solid var(--report-rule); }
 .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .muted { color: var(--report-ink-muted); font-size: var(--fs-1); }
 .mutedSmall { color: var(--report-ink-muted); font-size: 14px; margin: 8px 0 0; line-height: 1.4; }
@@ -25,7 +25,7 @@
   display: grid;
   grid-template-columns: 1fr auto auto;
   align-items: center;
-  gap: 8px;
+  gap: 2px 8px;
   padding: 5px 6px;
   margin: 0 -6px;
   border-radius: 4px;
@@ -76,6 +76,10 @@
 .chip:hover:not(:disabled) { border-color: var(--grease-amber); }
 .chipOn { background: var(--grease-amber); border-color: #c98a17; color: #1d1300; font-weight: 700; }
 .chipsDark .chip { background: transparent; color: #e6ebef; border-color: #4a535c; }
+/* Still unanswered: a dashed amber frame asks for it without shouting. */
+.chipsNeeded { outline: 1.5px dashed #c98a17; outline-offset: 3px; border-radius: 5px; }
+.chipsCaptioned { display: inline-flex; align-items: center; gap: 7px; }
+.chipCap { font-size: 13px; color: var(--report-ink-muted); }
 
 .btn {
   display: inline-flex;
@@ -126,30 +130,63 @@
 }
 .kbdLight { border-color: rgba(255, 255, 255, 0.35); color: rgba(255, 255, 255, 0.75); }
 
-.normalOn { padding: 10px 12px; border-left: 3px solid var(--grease-amber); background: rgba(240, 169, 46, 0.1); }
+.normalOn { scroll-margin-bottom: 128px; padding: 10px 12px; border-left: 3px solid var(--grease-amber); background: rgba(240, 169, 46, 0.1); }
 .normalText { margin: 0 0 8px; font-weight: 700; }
 .confirm { padding: 10px 12px; background: #fff; border: 1px solid var(--report-rule); border-radius: var(--radius); }
 .confirm p { margin: 0 0 10px; }
-.hintList { counter-reset: hint; margin-bottom: 10px; }
-.hintList li { padding: 6px 0 6px 12px; border-left: 3px solid var(--grease-amber); margin-bottom: 6px; line-height: 1.4; }
+.hintList { margin: 10px 0 0; }
+/* A hint is a calm card: paper white, a thin rule, no alarm colours. */
+.hintCard {
+  scroll-margin-bottom: 128px;
+  padding: 9px 12px;
+  margin-bottom: 6px;
+  background: #fff;
+  border: 1px solid var(--report-rule);
+  border-radius: var(--radius);
+  line-height: 1.45;
+  font-size: var(--fs-1);
+}
+.hintN { display: block; font-size: 13px; color: var(--report-ink-muted); margin-bottom: 2px; }
 .error { color: #7a3d00; background: #fdf1dc; padding: 6px 10px; border-radius: 4px; font-size: var(--fs-1); }
 .notice { margin: 6px 0; padding: 8px 10px; background: #e7ecef; border-radius: 4px; font-size: var(--fs-1); }
 
 .submitBar { margin-top: auto; padding: 16px 0 12px; border-top: 1px solid var(--report-rule); position: sticky; bottom: 0; background: var(--report-paper); }
 
 /* After submit */
-.score { font-size: var(--fs-1); color: var(--report-ink-muted); }
-.score strong { font-size: var(--fs-4); color: var(--report-ink); margin-left: 4px; font-variant-numeric: tabular-nums; }
+.score { font-size: var(--fs-1); color: var(--report-ink-muted); display: inline-flex; align-items: baseline; gap: 5px; white-space: nowrap; }
+.score strong { font-size: var(--fs-4); color: var(--report-ink); font-variant-numeric: tabular-nums; }
+.scoreInfo {
+  align-self: center;
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin-left: 4px;
+  border-radius: 50%;
+  border: 1px solid #8f9aa5;
+  background: #fff;
+  color: var(--report-ink);
+  font-style: italic;
+  font-weight: 700;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+}
+.scoreInfo:hover { border-color: var(--report-ink); background: #e8ecef; }
+.scoreNote { margin: 8px 0 0; padding: 8px 10px; background: #e7ecef; border-radius: 4px; font-size: 14px; line-height: 1.4; }
+.proxy { margin: 8px 0 0; font-size: 14px; line-height: 1.4; color: var(--report-ink-muted); }
 .outcomeRow {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto 1fr auto;
   column-gap: 8px;
   row-gap: 4px;
-  align-items: baseline;
-  padding: 7px 0;
+  align-items: center;
+  padding: 9px 0;
   border-bottom: 1px dashed var(--report-rule);
 }
-.outcomeRow > :nth-child(3) { grid-column: 2; justify-self: start; }
+.outcomeChipCell, .why { grid-column: 2 / -1; justify-self: start; }
+.why { font-size: 14px; line-height: 1.4; color: var(--report-ink); }
 .outcomeWhat { line-height: 1.35; }
 .oChip {
   display: inline-flex;
@@ -218,3 +255,58 @@
 .settle { animation: settle 260ms ease-out 1050ms both; }
 @keyframes settle { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .settle { animation: none; } }
+
+/* ---- Round 3: the read, in the order of thinking ---- */
+.step {
+  display: inline-grid;
+  place-items: center;
+  width: 1.45em;
+  height: 1.45em;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--report-ink);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  vertical-align: 2px;
+}
+.help { margin: 3px 0 0; color: var(--report-ink-muted); font-size: 14px; line-height: 1.4; }
+.sub { margin: 10px 0 5px; font-size: var(--fs-1); font-weight: 700; }
+.mutedLine { margin: 0; color: var(--report-ink-muted); font-size: 14px; }
+.pickGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; }
+.pickCell { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.pick {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  padding: 4px 9px;
+  border: 1px solid #b9c2ca;
+  border-radius: 4px;
+  background: #fff;
+  color: var(--report-ink);
+  font-size: var(--fs-1);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pick:hover:not(:disabled) { border-color: var(--grease-amber); }
+.pick:disabled { cursor: default; }
+.pickOn { background: var(--grease-amber); border-color: #c98a17; color: #1d1300; font-weight: 700; }
+.pickNotSure { color: var(--report-ink-muted); }
+.pickNotSure.pickOn { color: #1d1300; }
+/* The tenth cell ("not sure") has no "i": keep its button as wide as the others. */
+.pickCell:last-child { padding-right: 27px; }
+.armedLine { margin: 6px 0 0; min-height: 1.4em; font-size: 14px; color: var(--report-ink-muted); line-height: 1.4; }
+.armedLine strong { color: #7a4d00; }
+.marksBlock { margin-top: 4px; }
+.need { grid-column: 1 / -1; font-size: 13px; color: #7a4d00; padding-left: calc(2em + 8px); }
+.groupOff > :not(.offNote) { opacity: 0.45; }
+.offNote { margin: 6px 0 0; font-size: 14px; color: var(--report-ink); }
+.checkGrid { list-style: none; margin: 6px 0 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+.sureRow { display: flex; align-items: center; justify-content: space-between; gap: 6px 10px; margin: 6px 0 2px; flex-wrap: wrap; }
+.sureLabel { font-size: 14px; color: var(--report-ink-muted); }
+.sureLabel strong { color: var(--report-ink); }
+.normalOn .btn { margin-top: 4px; }
+.submitHelp { color: var(--report-ink); font-size: 14px; margin: 8px 0 0; line-height: 1.4; }
+.read :is(button, input, a):focus-visible, .result :is(button, input, a):focus-visible { outline: 2px solid #9a6200; outline-offset: 2px; }

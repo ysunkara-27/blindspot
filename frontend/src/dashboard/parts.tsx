@@ -30,15 +30,21 @@ export function TableView({ caption, head, rows }: { caption: string; head: stri
   );
 }
 
-export type StatRow = { label: string; value: string; basis: string; testid?: string };
+export type StatRow = { label: string; value: string; basis: string; explain?: string; term?: string; testid?: string };
 
+/** Ruled rows: a plain label, one line saying what it means, the basis (n), and the figure. `term` is the technical
+ *  name, kept in a tooltip (dotted underline) rather than in the label. */
 export function StatRows({ rows }: { rows: StatRow[] }) {
   return (
     <table className={s.statRows}>
       <tbody>
         {rows.map((r) => (
           <tr key={r.label} data-testid={r.testid}>
-            <th scope="row">{r.label}<span className={s.statBasis}>{r.basis}</span></th>
+            <th scope="row">
+              {r.term ? <abbr className={s.term} title={r.term} tabIndex={0}>{r.label}</abbr> : r.label}
+              {r.explain && <span className={s.statExplain}>{r.explain}</span>}
+              <span className={s.statBasis}>{r.basis}</span>
+            </th>
             <td><span className={s.statValue}>{r.value}</span></td>
           </tr>
         ))}
@@ -47,12 +53,15 @@ export function StatRows({ rows }: { rows: StatRow[] }) {
   );
 }
 
-export function Legend({ items }: { items: { key: string; color: string; text: ReactNode; shape?: 'rect' | 'dot' | 'line' | 'wash' }[] }) {
+type LegendShape = 'rect' | 'dot' | 'ring' | 'line' | 'wash';
+
+export function Legend({ items }: { items: { key: string; color: string; text: ReactNode; shape?: LegendShape }[] }) {
   return (
     <ul className={s.legend}>
       {items.map((it) => (
         <li key={it.key}>
           {it.shape === 'dot' ? <span className={s.dotSwatch} style={{ background: it.color }} />
+            : it.shape === 'ring' ? <span className={s.ringSwatch} style={{ borderColor: it.color }} />
             : it.shape === 'line' ? <span style={{ width: 16, height: 2, background: it.color }} />
             : it.shape === 'wash' ? <span className={s.washSwatch} style={{ background: it.color }} />
             : <span className={s.swatch} style={{ background: it.color }} />}

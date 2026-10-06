@@ -4,6 +4,9 @@ import { BrowserRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { BASE, isGateError } from '../api/client';
 import { routerBasename } from '../api/base';
 import { OnboardingPage } from '../pages/OnboardingPage';
+import { StartPage } from '../pages/StartPage';
+// The end-of-set summary is already in the main chunk (the reading room shows it), so its URL route is not lazy.
+import { SetSummaryPage } from '../pages/SessionSummaryView';
 import { ReadPage } from '../pages/ReadPage';
 import { AboutPage } from '../pages/AboutPage';
 import { DevCasePage } from '../pages/DevCasePage';
@@ -17,14 +20,17 @@ import { PageShell } from './Shell';
 const ProgressPage = lazy(() => import('../pages/ProgressPage').then((m) => ({ default: m.ProgressPage })));
 const CohortPage = lazy(() => import('../pages/CohortPage').then((m) => ({ default: m.CohortPage })));
 const ReviewPage = lazy(() => import('../pages/ReviewPage').then((m) => ({ default: m.ReviewPage })));
+const ReferencePage = lazy(() => import('../pages/ReferencePage').then((m) => ({ default: m.ReferencePage })));
+const CaseReviewPage = lazy(() => import('../pages/CaseReviewPage').then((m) => ({ default: m.CaseReviewPage })));
 
 // A 401 asking for a code is not worth retrying: the gate takes over instead.
 const qc = new QueryClient({
   defaultOptions: { queries: { retry: (n, e) => !isGateError(e) && n < 1, refetchOnWindowFocus: false } },
 });
 
-// Pages that still make sense on a phone: the landing (it explains, then asks for a computer) and the About report.
-const NARROW_OK = new Set(['/', '/about']);
+// Pages that still make sense on a phone: the landing (it explains, then asks for a computer), the About report and
+// the finding library (text first; its example films scale down).
+const NARROW_OK = new Set(['/', '/about', '/reference']);
 
 // A page that was already open stays mounted (hidden, inert) when the window narrows, so shrinking a window or a
 // transient resize never throws away marks, a half-written review or the card being edited. A page opened narrow
@@ -56,7 +62,11 @@ export function App() {
             <Suspense fallback={<PageShell><span /></PageShell>}>
               <Routes>
                 <Route path="/" element={<OnboardingPage />} />
+                <Route path="/start" element={<StartPage />} />
                 <Route path="/read" element={<ReadPage />} />
+                <Route path="/set/:sessionId" element={<SetSummaryPage />} />
+                <Route path="/review-case/:attemptId" element={<CaseReviewPage />} />
+                <Route path="/reference" element={<ReferencePage />} />
                 <Route path="/progress" element={<ProgressPage />} />
                 <Route path="/cohort" element={<CohortPage />} />
                 <Route path="/review" element={<ReviewPage />} />

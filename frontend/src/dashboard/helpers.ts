@@ -2,6 +2,12 @@
 import type { BlindspotPoint, Calibration, CurvePoint, Froc, LearningCurve, MissTypeMix } from './types';
 import { MISS_BUCKETS } from './types';
 
+/** Below this many reads a percentage says more about chance than about the reader, so none is shown. */
+export const MIN_READS = 5;
+export const enoughReads = (n: number | null | undefined): boolean => typeof n === 'number' && Number.isFinite(n) && n >= MIN_READS;
+/** How many more films until the first numbers appear (0 once there are enough). */
+export const readsToGo = (n: number | null | undefined): number => Math.max(0, MIN_READS - Math.max(0, Math.floor(typeof n === 'number' && Number.isFinite(n) ? n : 0)));
+
 export const pct = (v: number | null | undefined, digits = 0): string =>
   v == null || !Number.isFinite(v) ? '—' : `${(v * 100).toFixed(digits)}%`;
 

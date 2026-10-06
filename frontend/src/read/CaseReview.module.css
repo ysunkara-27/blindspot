@@ -1,0 +1,12 @@
+/* Read-only review of one read: the film on film black, the key under it. */
+.review { display: block; }
+.figure { margin: 0; }
+.film { position: relative; width: 100%; overflow: hidden; background: var(--film-black); border-radius: 3px; }
+.note { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; padding: 16px; color: #c9d1d8; text-align: center; font-size: var(--fs-1); }
+.caption { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; margin-top: 8px; font-size: 14px; color: var(--report-ink-muted); }
+.keyCyan, .keyAmber { display: inline-block; width: 18px; height: 0; margin-right: 6px; vertical-align: middle; border-top: 2px solid var(--lightbox-cyan); }
+.keyAmber { border-top-color: var(--grease-amber); }
+.toggle { margin-left: auto; padding: 3px 10px; border: 1px solid #b9c2ca; border-radius: var(--radius); background: #fff; color: var(--report-ink); font-size: 14px; cursor: pointer; }
+.toggle:focus-visible { outline: 2px solid #9a6200; outline-offset: 2px; }
+.proxy { margin: 6px 0 0; font-size: 13px; color: var(--report-ink-muted); }
+.summary { margin-top: 12px; }

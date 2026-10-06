@@ -1,0 +1,112 @@
+/* Reference drawer: report paper, same width as the rail it covers. Cyan = expert outline (SPEC §14.1). */
+.drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  width: max(var(--rail-min), 32vw);
+  max-width: 100vw;
+  overflow-y: auto;
+  padding: 0 22px 24px;
+  background: var(--report-paper);
+  color: var(--report-ink);
+  border-left: 1px solid #0d0f11;
+  box-shadow: -14px 0 40px rgba(0, 0, 0, 0.35);
+  font-size: var(--fs-1);
+  line-height: 1.45;
+}
+.head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 0 10px;
+  background: var(--report-paper);
+  border-bottom: 1px solid var(--report-rule);
+}
+.kicker { margin: 0; color: var(--report-ink-muted); font-size: 14px; }
+.title { margin: 0; font-size: var(--fs-4); font-weight: 700; letter-spacing: -0.01em; line-height: 1.15; }
+.close {
+  background: #fff;
+  border: 1px solid #b9c2ca;
+  border-radius: var(--radius);
+  padding: 5px 14px;
+  font-size: var(--fs-1);
+  color: var(--report-ink);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.close:hover { background: #e8ecef; }
+.generic { margin: 10px 0 0; color: var(--report-ink-muted); font-size: 14px; }
+.lede { margin: 12px 0 0; font-size: var(--fs-2); line-height: 1.4; }
+.section { padding: 14px 0 0; margin-top: 14px; border-top: 1px solid var(--report-rule); }
+.h3 { margin: 0 0 6px; font-size: var(--fs-1); font-weight: 700; }
+.row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.list { margin: 0; padding-left: 18px; }
+.list li { padding: 2px 0; }
+.p { margin: 0; }
+.muted { color: var(--report-ink-muted); margin: 10px 0 0; }
+.note { margin: 0 0 10px; color: var(--report-ink-muted); font-size: 14px; }
+.notice { margin: 14px 0 0; padding: 10px 12px; background: #e7ecef; border-radius: 4px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  border: 1px solid #b9c2ca;
+  background: #fff;
+  border-radius: 999px;
+  padding: 3px 12px;
+  font-size: var(--fs-1);
+  color: var(--report-ink);
+  cursor: pointer;
+}
+.chip:hover { border-color: var(--report-ink); }
+.link { background: none; border: none; padding: 0; color: var(--report-ink-muted); text-decoration: underline; cursor: pointer; font-size: 14px; }
+
+.figure { margin: 0 0 12px; }
+.film { position: relative; width: 100%; background: var(--film-black); border-radius: 3px; overflow: hidden; }
+.film img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; object-fit: fill; user-select: none; }
+.film svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.filmNote { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; padding: 12px; color: #c9d1d8; font-size: 14px; text-align: center; }
+.outline {
+  fill: var(--lightbox-cyan);
+  fill-opacity: 0.06;
+  stroke: var(--lightbox-cyan);
+  stroke-width: 2px;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+.caption { margin-top: 5px; font-size: 14px; color: var(--report-ink); }
+.normals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.figureSmall { margin: 0; }
+.key { margin: 0; font-size: 13px; color: var(--report-ink-muted); display: flex; align-items: center; gap: 6px; }
+.keyCyan { display: inline-block; width: 16px; height: 0; border-top: 2px solid var(--lightbox-cyan); }
+.foot { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--report-rule); }
+.ext { color: var(--report-ink); font-weight: 700; }
+.badge { font-size: 13px; padding: 2px 8px; border-radius: 4px; border: 1px solid var(--report-rule); color: var(--report-ink-muted); background: #fff; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* The small "i" next to a finding name. */
+.info {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 1px solid #8f9aa5;
+  background: #fff;
+  color: var(--report-ink);
+  font-style: italic;
+  font-weight: 700;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+}
+.info:hover { border-color: var(--report-ink); background: #e8ecef; }
+.infoDark { background: transparent; color: #e6ebef; border-color: #6b7680; }
+.infoDark:hover { background: #2a2f34; border-color: #c9d1d8; }
+.drawer :is(button, a):focus-visible, .info:focus-visible { outline: 2px solid var(--grease-amber); outline-offset: 2px; }

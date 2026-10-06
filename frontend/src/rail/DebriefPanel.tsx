@@ -3,7 +3,8 @@ import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api/client';
 import type { DebriefResponse, RevealFinding } from '../types/contracts';
-import { OutcomeChip } from './OutcomeList';
+import { openReference } from '../reference/store';
+import { plainText } from './copy';
 import { BUSY, PROVENANCE, SOURCE, SOURCE_TITLE } from './debriefCopy';
 import s from './Rail.module.css';
 
@@ -42,7 +43,7 @@ export function DebriefPanel({ attemptId, findings, disabled }: { attemptId: str
   return (
     <section className={`${s.section} ${s.settle}`} aria-labelledby="debrief-h" aria-live="polite" data-testid="debrief">
       <div className={s.row}>
-        <h3 id="debrief-h" className={s.h3}>Debrief</h3>
+        <h3 id="debrief-h" className={s.h3}>Tutor debrief</h3>
         {d?.status === 'ready' && d.source && (
           <span className={`${s.sourceTag} ${d.source === 'template' ? '' : s.sourceClaude}`} title={SOURCE_TITLE[d.source]} data-testid="debrief-source">
             {SOURCE[d.source] ?? d.source}
@@ -54,34 +55,38 @@ export function DebriefPanel({ attemptId, findings, disabled }: { attemptId: str
         <p className={s.muted} data-testid="debrief-pending">{slow ? 'The tutor is taking longer than usual. The facts above are complete.' : 'Writing your debrief…'}</p>
       ) : d.debrief ? (
         <div className={s.debrief}>
-          <p className={s.debriefHead}>{d.debrief.headline}</p>
+          <p className={s.debriefHead}>{plainText(d.debrief.headline)}</p>
           {d.debrief.findings.map((f) => {
             const rf = findings.find((x) => x.finding_id === f.finding_id);
             return (
               <div key={f.finding_id} className={s.dFinding}>
                 <div className={s.row}>
                   <span><span className={s.fid}>{f.finding_id}</span> {rf?.display ?? ''}</span>
-                  <OutcomeChip result={f.result} />
+                  {rf && (
+                    <button type="button" className={s.linkBtn} onClick={() => openReference(rf.label)} data-testid={`see-examples-${f.finding_id}`}>
+                      See examples
+                    </button>
+                  )}
                 </div>
                 <dl className={s.dl}>
-                  <dt>Where to look</dt><dd>{f.where_to_look}</dd>
-                  <dt>What it looks like</dt><dd><ul>{f.what_it_looks_like.map((w, i) => <li key={i}>{w}</li>)}</ul></dd>
-                  <dt>{f.result.startsWith('missed') ? 'Why it was missed' : 'Why'}</dt><dd>{f.why}</dd>
+                  <dt>Where to look</dt><dd>{plainText(f.where_to_look)}</dd>
+                  <dt>What it looks like</dt><dd><ul>{f.what_it_looks_like.map((w, i) => <li key={i}>{plainText(w)}</li>)}</ul></dd>
+                  <dt>{f.result.startsWith('missed') ? 'Why it was missed' : 'Why'}</dt><dd>{plainText(f.why)}</dd>
                 </dl>
               </div>
             );
           })}
           {d.debrief.overcalls.map((o) => (
             <div key={o.mark_id} className={s.dFinding}>
-              <div className={s.row}><span className={s.markId}>{o.mark_id}</span><OutcomeChip result="false_positive" /></div>
-              <p className={s.p}>{o.explanation}</p>
+              <div className={s.row}><span><span className={s.markId}>{o.mark_id}</span> Your mark</span></div>
+              <p className={s.p}>{plainText(o.explanation)}</p>
               {o.possible_mimics.length > 0 && <p className={s.mutedSmall}>Often mistaken for a finding: {o.possible_mimics.join(', ')}.</p>}
             </div>
           ))}
           <dl className={s.dl}>
-            {d.debrief.search_coaching && <><dt>Your search</dt><dd>{d.debrief.search_coaching}</dd></>}
-            {d.debrief.calibration_note && <><dt>Confidence</dt><dd>{d.debrief.calibration_note}</dd></>}
-            {d.debrief.next_step && <><dt>Next</dt><dd>{d.debrief.next_step}</dd></>}
+            {d.debrief.search_coaching && <><dt>Search coaching</dt><dd>{plainText(d.debrief.search_coaching)}</dd></>}
+            {d.debrief.calibration_note && <><dt>Confidence</dt><dd>{plainText(d.debrief.calibration_note)}</dd></>}
+            {d.debrief.next_step && <><dt>Next</dt><dd>{plainText(d.debrief.next_step)}</dd></>}
           </dl>
           <div className={s.debriefFoot}>
             {d.provenance && <span className={`${s.badge} ${s[`prov_${d.provenance}`] ?? ''}`} data-testid="provenance">{PROVENANCE[d.provenance]}</span>}

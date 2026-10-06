@@ -1,6 +1,8 @@
-// /about — a readable report: what Blindspot does, data sources with citations and licences, how to read the badges,
-// limitations, privacy, disclaimer. Uses GET /api/about when available; falls back to the same text built in.
+// /about — a readable report: what Blindspot does, how your search is estimated, data sources with citations and
+// licences, how to read the badges, limitations, privacy, what is planned, where the code is, disclaimer.
+// Uses GET /api/about when available; falls back to the same text built in.
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { DISCLAIMER, PageShell } from '../app/Shell';
 import rail from '../rail/Rail.module.css';
@@ -13,6 +15,8 @@ type Source = { name: string; role?: string; citation?: string; acknowledgment?:
 type About = { tutor?: string; datasets: Source[]; limitations: string[]; privacy?: string; links: { name: string; note?: string; url?: string }[] };
 
 // Licence/terms lines for the sources we use, shown when the API entry has no `license` field yet.
+export const REPO_URL = 'https://github.com/ysunkara-27/blindspot';
+
 const KNOWN_TERMS: Record<string, string> = {
   'ChestX-Det': 'Annotations by Deepwise AI Lab, released under the Apache-2.0 licence.',
   'NIH ChestX-ray14': 'Public release by the NIH Clinical Center; users are asked to cite the paper and acknowledge the NIH Clinical Center.',
@@ -26,7 +30,7 @@ const FALLBACK: About = {
     { name: 'TorchXRayVision', role: 'Anatomy segmentation (lungs, heart, hila, mediastinum) used to name zones and review areas.', citation: 'Cohen JP, Viviano JD, Bertin P, et al. TorchXRayVision: A library of chest X-ray datasets and models. MIDL 2022.', url: 'https://github.com/mlmed/torchxrayvision' },
   ],
   limitations: [
-    'Where you looked is estimated from your cursor, loupe and zoom — a proxy for gaze, not eye tracking.',
+    'Where you looked is estimated from your cursor, magnifier and zoom — a proxy for gaze, not eye tracking.',
     'Images come from a single US centre (NIH Clinical Center); findings may not generalise to other populations or equipment.',
     'Expert labels contain some noise, and not every abnormality on an image is necessarily annotated.',
     'Pixel spacing is unknown for these images, so sizes are never given in centimetres.',
@@ -43,7 +47,10 @@ function guard(v: unknown): About {
   const datasets = (Array.isArray(v.datasets) ? v.datasets : []).flatMap((d) => (isObj(d) && typeof d.name === 'string'
     ? [{ name: d.name, role: str(d.role), citation: str(d.citation), acknowledgment: str(d.acknowledgment) ?? str(d.acknowledgement), url: str(d.url), license: str(d.license) ?? str(d.licence) }]
     : []));
-  const limitations = (Array.isArray(v.limitations) ? v.limitations : []).filter((x): x is string => typeof x === 'string');
+  // The server's list still carries a line about an early usability test and calls the magnifier a loupe.
+  const limitations = (Array.isArray(v.limitations) ? v.limitations : [])
+    .filter((x): x is string => typeof x === 'string' && !/^pilot\b/i.test(x.trim()))
+    .map((x) => x.replace(/\bloupe\b/g, 'magnifier'));
   const links = (Array.isArray(v.links) ? v.links : []).flatMap((l) => (isObj(l) && typeof l.name === 'string' ? [{ name: l.name, note: str(l.note), url: str(l.url) }] : []));
   return {
     tutor: str(v.tutor),
@@ -62,14 +69,38 @@ export function AboutPage() {
     <PageShell>
       <h1 className={s.h1}>About Blindspot</h1>
       <p className={s.lede}>
-        A chest X-ray perception trainer. You mark what you see; Blindspot scores your marks against radiologist outlines,
-        replays where you looked, and explains each miss from facts the software computed.
+        A chest X-ray perception trainer for medical students and anyone curious about how films are read. You mark what
+        you see; Blindspot scores your marks against radiologist outlines, replays where you looked, and explains each
+        miss from facts the software computed.
       </p>
 
       <section className={s.ruled} data-testid="about-how">
         <h2 className={s.h2}>How the feedback works</h2>
         <p>Ground truth always comes from the radiologist annotations. Nothing on the film is decided by a language model.</p>
         <p>{about.tutor ?? 'Debriefs are written by Claude (Anthropic) from facts computed by Blindspot, then checked by a deterministic validator; if a debrief fails, a built-in explanation is shown instead.'}</p>
+      </section>
+
+      <section className={s.ruled} data-testid="about-search">
+        <h2 className={s.h2}>How your search is estimated</h2>
+        <p>
+          Blindspot does not track your eyes. While you read, it records where your cursor rests, where you hold the
+          magnifier and what you zoom into, and treats those three as a stand-in for where you looked.
+        </p>
+        <p>
+          A missed finding is then sorted by what that trace shows: none of the three reached it (never looked there),
+          they crossed it without stopping (looked past it), or they stayed on it and you left it unmarked (looked,
+          judged it normal). The categories follow Kundel and colleagues' division of search, recognition and decision errors.
+        </p>
+        <p>
+          The idea draws on research into inattentional blindness, how readers miss what they are not looking for. In
+          Drew, Võ and Wolfe's 2013 study, most radiologists searching chest CT scans for nodules did not notice a
+          gorilla placed in the lung, and eye tracking showed that many of them had looked right at it.
+        </p>
+        <p className={a.citation}>
+          Drew T, Võ MLH, Wolfe JM. The invisible gorilla strikes again: sustained inattentional blindness in expert observers.
+          Psychological Science, 2013.
+        </p>
+        <p>The cursor is a proxy for gaze, not a measurement of it. Treat a miss type as a strong hint about your search, not a verdict.</p>
       </section>
 
       <section className={s.ruled} data-testid="about-sources">
@@ -91,7 +122,7 @@ export function AboutPage() {
         ))}
       </section>
 
-      <section className={s.ruled} data-testid="about-badges">
+      <section className={s.ruled} id="badges" data-testid="about-badges">
         <h2 className={s.h2}>Reading the badges on a debrief</h2>
         <dl className={a.badges}>
           <dt><span className={`${rail.sourceTag} ${rail.sourceClaude}`}>{SOURCE.live}</span></dt><dd>Claude wrote it from this attempt's facts, and it passed the validator.</dd>
@@ -109,22 +140,43 @@ export function AboutPage() {
         <ul className={s.list}>{about.limitations.map((l) => <li key={l}>{l}</li>)}</ul>
       </section>
 
-      {about.privacy && (
-        <section className={s.ruled}>
-          <h2 className={s.h2}>Privacy</h2>
-          <p>{about.privacy}</p>
-        </section>
-      )}
+      <section className={s.ruled} data-testid="about-privacy">
+        <h2 className={s.h2}>Privacy</h2>
+        {about.privacy && <p>{about.privacy}</p>}
+        <p>
+          Your reads are stored so your reading log can be built: your marks, your confidence, and the cursor, magnifier
+          and zoom trace for each film, with the name or code you gave, if any. This browser remembers a reader id so
+          you can pick up where you left off; “Start as someone new” on the first page clears it.
+        </p>
+      </section>
+
+      <section className={s.ruled} data-testid="about-next">
+        <h2 className={s.h2}>What's next</h2>
+        <p>These are plans, not promises, and nothing here has a date.</p>
+        <ul className={s.list}>
+          <li>More finding types, and more example films for each one in the finding library.</li>
+          <li>Limb films and other radiographs beyond the chest.</li>
+        </ul>
+      </section>
 
       <section className={s.ruled} data-testid="about-run">
         <h2 className={s.h2}>Run it yourself</h2>
         <p>
-          Source code: <strong>Private repo during the hackathon.</strong> Blindspot is a FastAPI service with a React
-          reading room. With the data downloaded, <code>make setup</code>, <code>make data</code>, <code>make anatomy</code> and{' '}
-          <code>make features</code> build the case bank, and <code>make dev</code> starts the API and the web app. Without an
-          Anthropic key the tutor runs offline and shows the built-in explanations.
+          The source code is public: <a href={REPO_URL} target="_blank" rel="noreferrer">github.com/ysunkara-27/blindspot</a>.
+          Blindspot is a FastAPI service with a React reading room. With the data downloaded, <code>make setup</code>,{' '}
+          <code>make data</code>, <code>make anatomy</code> and <code>make features</code> build the case bank, and{' '}
+          <code>make dev</code> starts the API and the web app. Without an Anthropic key the tutor runs offline and shows
+          the built-in explanations.
         </p>
         <p className={s.mutedSmall}>The images are research radiographs under the NIH terms above; they are not redistributed with the code.</p>
+      </section>
+
+      <section className={s.ruled} data-testid="about-staff">
+        <h2 className={s.h2}>For instructors and reviewers</h2>
+        <p>
+          Instructors can open the <Link to="/cohort">cohort view</Link>; clinicians who check the teaching content use
+          the <Link to="/review">expert review</Link> page. Both may ask for a reviewer code.
+        </p>
       </section>
 
       <section className={s.ruled}>

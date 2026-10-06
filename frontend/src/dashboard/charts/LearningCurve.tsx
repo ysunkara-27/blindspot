@@ -2,16 +2,16 @@
 import { useState } from 'react';
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { labelDisplay } from '../../api/labels';
-import { curveLabels, curveRows, type CurveRow } from '../helpers';
+import { curveLabels, curveRows, MIN_READS, type CurveRow } from '../helpers';
 import { AXIS_TICK, C } from '../palette';
 import type { LearningCurve as LC } from '../types';
 import { Empty, Section, TableView, Tip, type TipProps } from '../parts';
 import s from '../Dashboard.module.css';
 
-export const EMPTY_CURVE = 'Read 5 cases to see your first learning curve.';
-const MIN_CASES = 5;
+export const EMPTY_CURVE = `Read ${MIN_READS} films to see your first learning curve.`;
+const MIN_CASES = MIN_READS;
 
-const seriesName = (key: string) => (key === 'overall' ? 'All cases' : key === 'normal' ? 'Normal films' : labelDisplay(key));
+const seriesName = (key: string) => (key === 'overall' ? 'All films' : key === 'normal' ? 'Normal films' : labelDisplay(key));
 
 function CurveTip({ active, payload, perLabel }: TipProps & { perLabel: boolean }) {
   if (!active || !payload?.length) return null;
@@ -19,7 +19,7 @@ function CurveTip({ active, payload, perLabel }: TipProps & { perLabel: boolean 
   return (
     <Tip>
       <div className={s.tipValue}>{Math.round(r.pct)}%</div>
-      <div>{perLabel ? `Film ${r.attempt} with this finding` : `Case ${r.attempt}`}</div>
+      <div>{perLabel ? `Film ${r.attempt} with this finding` : `Film ${r.attempt}`}</div>
       <div className={s.tipMuted}>Mean of the last {r.window_n}</div>
     </Tip>
   );
@@ -37,10 +37,10 @@ export function LearningCurve({ lc, nCases }: { lc: LC | null; nCases: number })
     <Section
       title="Learning curve"
       testid="learning-curve"
-      n={`n = ${nCases} case${nCases === 1 ? '' : 's'}`}
+      n={`n = ${nCases} film${nCases === 1 ? '' : 's'}`}
       caption={perLabel
         ? `Share of ${seriesName(key).toLowerCase()} you localized or called correctly, averaged over the last ${window} films that had it.`
-        : `Share of cases read correctly, averaged over your last ${window} cases.`}
+        : `Share of films read correctly, averaged over your last ${window} films. A rising line means you are getting better.`}
     >
       {nCases < MIN_CASES || !lc ? <Empty testid="curve-empty">{EMPTY_CURVE}</Empty> : (
         <>
@@ -48,7 +48,7 @@ export function LearningCurve({ lc, nCases }: { lc: LC | null; nCases: number })
             <label className={s.control}>
               Show
               <select className={s.select} value={key} onChange={(e) => setKey(e.target.value)} data-testid="curve-series">
-                <option value="overall">All cases ({lc.overall.length})</option>
+                <option value="overall">All films ({lc.overall.length})</option>
                 {labels.map((l) => <option key={l.id} value={l.id}>{seriesName(l.id)} ({l.n})</option>)}
               </select>
             </label>
@@ -59,7 +59,7 @@ export function LearningCurve({ lc, nCases }: { lc: LC | null; nCases: number })
                 <CartesianGrid vertical={false} stroke={C.grid} />
                 <XAxis dataKey="attempt" type="number" domain={[1, Math.max(2, rows.length)]} allowDecimals={false}
                   tick={AXIS_TICK} tickLine={false} axisLine={{ stroke: C.axis }}
-                  label={{ value: perLabel ? 'Films with this finding' : 'Case number', position: 'insideBottom', offset: -14, fill: C.muted, fontSize: 13 }} />
+                  label={{ value: perLabel ? 'Films with this finding' : 'Film number', position: 'insideBottom', offset: -14, fill: C.muted, fontSize: 13 }} />
                 <YAxis domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} tickFormatter={(v: number) => `${v}%`} tick={AXIS_TICK} tickLine={false} axisLine={false} width={48} />
                 <Tooltip content={(p) => <CurveTip {...p} perLabel={perLabel} />} cursor={{ stroke: C.axis, strokeWidth: 1 }} isAnimationActive={false} />
                 <Line type="linear" dataKey="pct" stroke={C.learner} strokeWidth={2} isAnimationActive={false}
@@ -71,7 +71,7 @@ export function LearningCurve({ lc, nCases }: { lc: LC | null; nCases: number })
               </LineChart>
             </ResponsiveContainer>
           </div>
-          <TableView caption="Learning curve values" head={[perLabel ? 'Film' : 'Case', 'Rolling accuracy', 'Window n']}
+          <TableView caption="Learning curve values" head={['Film', 'Share correct (rolling)', 'Films averaged']}
             rows={rows.map((r) => [r.attempt, `${Math.round(r.pct)}%`, r.window_n])} />
         </>
       )}

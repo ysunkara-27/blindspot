@@ -1,4 +1,4 @@
-// Calibration (SPEC §10.1): accuracy by stated confidence 1–5, plus confident misses.
+// Calibration (SPEC §10.1): accuracy by stated confidence 1–5, plus confident misses. One series, the learner's amber.
 import { Bar, BarChart, CartesianGrid, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { calibrationRows, calibrationSplit, pct, type CalibrationRow } from '../helpers';
 import { AXIS_TICK, C } from '../palette';
@@ -34,8 +34,8 @@ export function Calibration({ cal }: { cal: Cal | null }) {
   const n = cal?.n ?? 0;
   const data = rows.map((r) => ({ ...r, bar: r.pct ?? 0 }));
   return (
-    <Section title="Confidence and accuracy" testid="calibration" n={`n = ${n} calls · ${cal?.confident_misses ?? 0} confident misses`}
-      caption="How often a mark (or a normal call) was right at each confidence you gave it. Well-calibrated readers are right more often when they are sure.">
+    <Section title="How well your confidence matched reality" testid="calibration" n={`n = ${n} calls · ${cal?.confident_misses ?? 0} confident misses`}
+      caption="How often a mark or a normal call was right at each confidence you gave it. If the bars climb from left to right, your confidence means something (this is called calibration).">
       {n === 0 ? <Empty>No confidence-rated calls yet.</Empty> : (
         <>
           <p className={s.caption} data-testid="calibration-split">

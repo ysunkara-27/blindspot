@@ -1,6 +1,7 @@
 // Cohort per-label difficulty (SPEC §10.2): empirical localization success vs mean case difficulty b.
 import { pct } from '../helpers';
 import type { LabelDifficulty as LD } from '../types';
+import { C } from '../palette';
 import { Empty, Section } from '../parts';
 import s from '../Dashboard.module.css';
 
@@ -18,7 +19,7 @@ export function LabelDifficulty({ rows }: { rows: LD[] }) {
               <tr key={r.label} data-testid={`difficulty-${r.label}`}>
                 <th scope="row" style={{ fontWeight: 400 }}>{r.display}</th>
                 <td>{r.n}</td>
-                <td><span className={s.inlineBar} style={{ width: `${Math.round(r.empirical_success * 80)}px`, background: '#0F8496' }} />{pct(r.empirical_success)}</td>
+                <td><span className={s.inlineBar} style={{ width: `${Math.round(r.empirical_success * 80)}px`, background: C.truth }} />{pct(r.empirical_success)}</td>
                 <td>{r.mean_b.toFixed(2)}</td>
               </tr>
             ))}

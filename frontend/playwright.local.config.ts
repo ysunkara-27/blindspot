@@ -6,8 +6,11 @@ import { defineConfig, devices } from '@playwright/test';
 // live (real Anthropic calls) or its database: an OFFLINE API on :8011 with a throwaway DB, and Vite on :5181.
 // Run from frontend/: E2E_REAL=1 npx playwright test --config playwright.local.config.ts
 // Hosting env from the repo .env (access/review codes, base path) is blanked; pass extras through E2E_API_ENV="A=1 B=2".
-const API = 8011;
-const WEB = 5181;
+// Two agents can run at once: E2E_API_PORT / E2E_WEB_PORT pick another pair (e.g. 8012 / 5182); each API port gets
+// its own throwaway DB file, so parallel stacks never delete each other's database.
+const API = Number(process.env.E2E_API_PORT ?? 8011);
+const WEB = Number(process.env.E2E_WEB_PORT ?? 5181);
+const DB = API === 8011 ? './data/e2e-local.sqlite' : `./data/e2e-local-${API}.sqlite`;
 // Specs that seed through the API directly read these (default :8000 / :5173).
 process.env.E2E_API = `http://127.0.0.1:${API}/api`;
 process.env.E2E_WEB = `http://127.0.0.1:${WEB}`;
@@ -21,7 +24,7 @@ export default defineConfig({
   use: { ...devices['Desktop Chrome'], baseURL: `http://127.0.0.1:${WEB}`, viewport: { width: 1280, height: 800 } },
   webServer: [
     {
-      command: `cd .. && rm -f ./data/e2e-local.sqlite ./data/e2e-local.sqlite-wal ./data/e2e-local.sqlite-shm && BLINDSPOT_ACCESS_CODE= BLINDSPOT_REVIEW_CODE= BLINDSPOT_BASE_PATH= BLINDSPOT_SERVE_FRONTEND=0 ${process.env.E2E_API_ENV ?? ''} BLINDSPOT_OFFLINE=1 ANTHROPIC_API_KEY= BLINDSPOT_DB_PATH=./data/e2e-local.sqlite sh -c 'uv run python -c "from backend.app.db import connect; connect().close()" && exec uv run python -m uvicorn backend.app.main:app --host 127.0.0.1 --port ${API}'`,
+      command: `cd .. && rm -f ${DB} ${DB}-wal ${DB}-shm && BLINDSPOT_ACCESS_CODE= BLINDSPOT_REVIEW_CODE= BLINDSPOT_BASE_PATH= BLINDSPOT_SERVE_FRONTEND=0 ${process.env.E2E_API_ENV ?? ''} BLINDSPOT_OFFLINE=1 ANTHROPIC_API_KEY= BLINDSPOT_DB_PATH=${DB} sh -c 'uv run python -c "from backend.app.db import connect; connect().close()" && exec uv run python -m uvicorn backend.app.main:app --host 127.0.0.1 --port ${API}'`,
       url: `http://127.0.0.1:${API}/api/health`,
       reuseExistingServer: false,
       timeout: 90_000,

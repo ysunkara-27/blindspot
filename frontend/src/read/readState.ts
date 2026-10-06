@@ -1,29 +1,39 @@
-// The learner's read for one case: marks, global findings, normal call. Pure reducer (SPEC §5.2).
+// The learner's read for one case: marks, whole-film findings, normal call. Pure reducer (SPEC §5.2).
+// Round 3: pathology-first marking (arm a finding type, then click where it is) and no preselected confidence:
+// every mark, whole-film finding and normal call needs a confidence the learner chose before the read can be submitted.
 import type { Confidence, Mark, PatternSelection } from '../types/contracts';
-import type { PatternLabel } from '../api/labels';
+import { labelDisplay, type PatternLabel } from '../api/labels';
 
-export type DraftMark = { mark_id: string; x: number; y: number; label: Mark['label'] | null; confidence: Confidence };
+export type MarkLabel = Mark['label'];
+export type DraftMark = { mark_id: string; x: number; y: number; label: MarkLabel | null; confidence: Confidence | null };
+/** 'full' = choose a label and a confidence; 'confidence' = the label came from the armed finding, only ask how sure. */
+export type PopoverMode = 'full' | 'confidence';
 
 export type ReadState = {
   marks: DraftMark[];
   nextId: number; // M<n> ids in creation order, never reused within a case
   selectedId: string | null;
   popoverId: string | null;
-  patterns: Partial<Record<PatternLabel, Confidence>>;
+  popoverMode: PopoverMode;
+  /** The finding type picked in the rail; the next click on the film places a mark with this label. */
+  armed: MarkLabel | null;
+  /** Ticked whole-film findings; null = ticked, confidence not chosen yet. */
+  patterns: Partial<Record<PatternLabel, Confidence | null>>;
   declaredNormal: boolean;
-  normalConfidence: Confidence;
+  normalConfidence: Confidence | null;
 };
 
-export const DEFAULT_CONFIDENCE: Confidence = 3;
-
 export const initialRead: ReadState = {
-  marks: [], nextId: 1, selectedId: null, popoverId: null, patterns: {}, declaredNormal: false, normalConfidence: DEFAULT_CONFIDENCE,
+  marks: [], nextId: 1, selectedId: null, popoverId: null, popoverMode: 'full', armed: null,
+  patterns: {}, declaredNormal: false, normalConfidence: null,
 };
 
 export type ReadAction =
+  | { type: 'arm'; label: MarkLabel }
+  | { type: 'disarm' }
   | { type: 'place'; x: number; y: number }
   | { type: 'move'; id: string; x: number; y: number }
-  | { type: 'label'; id: string; label: Mark['label'] }
+  | { type: 'label'; id: string; label: MarkLabel }
   | { type: 'confidence'; id: string; confidence: Confidence }
   | { type: 'delete'; id: string }
   | { type: 'select'; id: string | null; popover?: boolean }
@@ -37,21 +47,32 @@ export type ReadAction =
 
 export function readReducer(s: ReadState, a: ReadAction): ReadState {
   switch (a.type) {
+    case 'arm':
+      // Picking the armed finding again puts it down.
+      if (s.declaredNormal) return s;
+      return { ...s, armed: s.armed === a.label ? null : a.label, popoverId: null };
+    case 'disarm':
+      return s.armed ? { ...s, armed: null } : s;
     case 'place': {
       if (s.declaredNormal) return s;
       const id = `M${s.nextId}`;
+      // Armed: the mark takes that label and only the confidence is asked. Not armed: the popover asks for both.
       return {
         ...s,
-        marks: [...s.marks, { mark_id: id, x: a.x, y: a.y, label: null, confidence: DEFAULT_CONFIDENCE }],
-        nextId: s.nextId + 1, selectedId: id, popoverId: id,
+        marks: [...s.marks, { mark_id: id, x: a.x, y: a.y, label: s.armed, confidence: null }],
+        nextId: s.nextId + 1, selectedId: id, popoverId: id, popoverMode: s.armed ? 'confidence' : 'full', armed: null,
       };
     }
     case 'move':
       return { ...s, marks: s.marks.map((m) => (m.mark_id === a.id ? { ...m, x: a.x, y: a.y } : m)) };
     case 'label':
       return { ...s, marks: s.marks.map((m) => (m.mark_id === a.id ? { ...m, label: a.label } : m)) };
-    case 'confidence':
-      return { ...s, marks: s.marks.map((m) => (m.mark_id === a.id ? { ...m, confidence: a.confidence } : m)) };
+    case 'confidence': {
+      const marks = s.marks.map((m) => (m.mark_id === a.id ? { ...m, confidence: a.confidence } : m));
+      // The short "How sure are you?" popover has one job; it closes once that is done.
+      const closes = s.popoverId === a.id && s.popoverMode === 'confidence' && !!marks.find((m) => m.mark_id === a.id)?.label;
+      return { ...s, marks, popoverId: closes ? null : s.popoverId };
+    }
     case 'delete':
       return {
         ...s,
@@ -60,38 +81,69 @@ export function readReducer(s: ReadState, a: ReadAction): ReadState {
         popoverId: s.popoverId === a.id ? null : s.popoverId,
       };
     case 'select':
-      return { ...s, selectedId: a.id, popoverId: a.popover ? a.id : null };
+      return { ...s, selectedId: a.id, popoverId: a.popover ? a.id : null, popoverMode: a.popover ? 'full' : s.popoverMode };
     case 'closePopover':
-      return { ...s, popoverId: null };
+      return s.popoverId ? { ...s, popoverId: null } : s;
     case 'togglePattern': {
       if (s.declaredNormal) return s;
       const patterns = { ...s.patterns };
-      if (patterns[a.label] !== undefined) delete patterns[a.label];
-      else patterns[a.label] = DEFAULT_CONFIDENCE;
+      if (a.label in patterns) delete patterns[a.label];
+      else patterns[a.label] = null;
       return { ...s, patterns };
     }
     case 'patternConfidence':
-      return s.patterns[a.label] === undefined ? s : { ...s, patterns: { ...s.patterns, [a.label]: a.confidence } };
+      return a.label in s.patterns ? { ...s, patterns: { ...s.patterns, [a.label]: a.confidence } } : s;
     case 'callNormal':
-      // Calling normal clears marks and global findings (the UI confirms first if any exist).
-      return { ...s, marks: [], patterns: {}, selectedId: null, popoverId: null, declaredNormal: true };
+      // Calling normal clears marks and whole-film findings (the UI confirms first if any exist).
+      return { ...s, marks: [], patterns: {}, selectedId: null, popoverId: null, armed: null, declaredNormal: true };
     case 'undoNormal':
-      return { ...s, declaredNormal: false };
+      return { ...s, declaredNormal: false, normalConfidence: null };
     case 'normalConfidence':
-      return { ...s, normalConfidence: a.confidence };
+      return s.declaredNormal ? { ...s, normalConfidence: a.confidence } : s;
     case 'reset':
       return initialRead;
   }
 }
 
-export function canSubmit(s: ReadState): boolean {
-  return s.marks.length > 0 || Object.keys(s.patterns).length > 0 || s.declaredNormal;
+export const NOTHING_YET = 'Mark a finding, tick a whole-film one, or call it normal.';
+
+/** Everything that still stands between this read and "Submit read", in the order the rail shows it.
+ *  Empty = ready. Each line names exactly what is missing ("M2 needs a confidence"). */
+export function submitBlockers(s: ReadState): string[] {
+  if (s.declaredNormal) return s.normalConfidence == null ? ['The normal call needs a confidence'] : [];
+  const out: string[] = [];
+  for (const m of s.marks) {
+    if (!m.label && m.confidence == null) out.push(`${m.mark_id} needs a label and a confidence`);
+    else if (!m.label) out.push(`${m.mark_id} needs a label`);
+    else if (m.confidence == null) out.push(`${m.mark_id} needs a confidence`);
+  }
+  for (const [label, conf] of Object.entries(s.patterns)) {
+    if (conf == null) out.push(`${labelDisplay(label)} needs a confidence`);
+  }
+  if (out.length === 0 && s.marks.length === 0 && Object.keys(s.patterns).length === 0) out.push(NOTHING_YET);
+  return out;
 }
 
-/** Contract-shaped marks/patterns for submit and hint. Unlabeled marks go as "not_sure". */
+export function canSubmit(s: ReadState): boolean {
+  return submitBlockers(s).length === 0;
+}
+
+/** What a digit key (1–5) should set right now: the selected mark, else the normal call when it is active. */
+export function confidenceTarget(s: ReadState): { kind: 'mark'; id: string } | { kind: 'normal' } | null {
+  if (s.declaredNormal) return { kind: 'normal' };
+  if (s.selectedId && s.marks.some((m) => m.mark_id === s.selectedId)) return { kind: 'mark', id: s.selectedId };
+  return null;
+}
+
+/** Contract-shaped marks for submit: only complete marks (canSubmit guarantees all of them are). */
 export function toSubmitMarks(s: ReadState): Mark[] {
-  return s.marks.map((m) => ({ mark_id: m.mark_id, x: m.x, y: m.y, label: m.label ?? 'not_sure', confidence: m.confidence }));
+  return s.marks.flatMap((m) => (m.label && m.confidence != null ? [{ mark_id: m.mark_id, x: m.x, y: m.y, label: m.label, confidence: m.confidence }] : []));
+}
+/** Marks for a hint request, which may arrive mid-read: positions matter, an unfinished label goes as "not_sure"
+ *  and an unchosen confidence as the scale midpoint (the hint ladder does not read it; nothing is recorded). */
+export function toHintMarks(s: ReadState): Mark[] {
+  return s.marks.map((m) => ({ mark_id: m.mark_id, x: m.x, y: m.y, label: m.label ?? 'not_sure', confidence: m.confidence ?? 3 }));
 }
 export function toSubmitPatterns(s: ReadState): PatternSelection[] {
-  return (Object.entries(s.patterns) as [PatternLabel, Confidence][]).map(([label, confidence]) => ({ label, confidence }));
+  return (Object.entries(s.patterns) as [PatternLabel, Confidence | null][]).flatMap(([label, confidence]) => (confidence != null ? [{ label, confidence }] : []));
 }

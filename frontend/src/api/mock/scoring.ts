@@ -7,7 +7,7 @@ import { labelDisplay, zoneDisplay } from '../labels';
 import type { MockCase, MockFinding } from './types';
 
 const RELATED = [['consolidation', 'atelectasis'], ['nodule', 'mass', 'calcification'], ['effusion', 'pleural_thickening']];
-const REVIEW_AREAS = ['right_apex', 'left_apex', 'right_hilum', 'left_hilum', 'retrocardiac', 'right_costophrenic_angle', 'left_costophrenic_angle'];
+export const REVIEW_AREAS = ['right_apex', 'left_apex', 'right_hilum', 'left_hilum', 'retrocardiac', 'right_costophrenic_angle', 'left_costophrenic_angle'];
 
 function inBox(x: number, y: number, b: [number, number, number, number], pad: number): boolean {
   return x >= b[0] - pad && x <= b[2] + pad && y >= b[1] - pad && y <= b[3] + pad;
@@ -20,7 +20,7 @@ export function mockZone(x: number, y: number, w: number, h: number): string {
   return `${side}_${third}_zone`;
 }
 
-function reviewAreaBox(area: string, w: number, h: number): [number, number, number, number] {
+export function reviewAreaBox(area: string, w: number, h: number): [number, number, number, number] {
   const L: [number, number] = [0.08 * w, 0.48 * w];
   const R: [number, number] = [0.52 * w, 0.92 * w];
   switch (area) {
@@ -137,14 +137,15 @@ export function scoreAttempt(c: MockCase, body: AttemptSubmit): SubmitResult {
   if (c.is_normal) {
     const tn = body.declared_normal && body.marks.length === 0;
     if (tn) outcomes.push({ target: 'case', result: 'true_negative' });
-    score = Math.max(0, 100 - 25 * fp - 10 * falsePatterns.length - 5 * body.hints_used);
+    score = Math.max(0, 100 - 25 * fp - 10 * falsePatterns.length);
     success = fp === 0 && falsePatterns.length === 0;
   } else {
     const nf = focal.length;
-    const patAcc = patterns.length + falsePatterns.length ? patternOk / (patterns.length + falsePatterns.length) : 1;
+    // As in backend/app/scoring/scores.py: the vacuous pattern points need at least one localized finding.
+    const patAcc = patterns.length + falsePatterns.length ? patternOk / (patterns.length + falsePatterns.length) : localized > 0 || !nf ? 1 : 0;
     score = nf
-      ? 70 * (localized / nf) + 20 * (exact / nf) + 10 * patAcc - 10 * fp - 5 * body.hints_used
-      : 100 * patAcc - 10 * fp - 5 * body.hints_used;
+      ? 70 * (localized / nf) + 20 * (exact / nf) + 10 * patAcc - 10 * fp
+      : 100 * patAcc - 10 * fp;
     score = Math.max(0, Math.round(score));
     success = localized === nf && fp <= 1 && patternOk === patterns.length;
   }
@@ -172,7 +173,7 @@ export function scoreAttempt(c: MockCase, body: AttemptSubmit): SubmitResult {
   const found = revealFindings.filter((f) => f.result === 'found' || f.result === 'pattern_found');
   const headline = c.is_normal
     ? fp ? `Normal film. ${fp} mark${fp > 1 ? 's' : ''} on healthy lung.` : body.declared_normal ? 'Normal film, called normal.' : 'Normal film.'
-    : missed.length === 0 && fp === 0 ? 'Every finding found.' : `${found.length} of ${revealFindings.length} found${fp ? `, ${fp} overcall${fp > 1 ? 's' : ''}` : ''}.`;
+    : missed.length === 0 && fp === 0 ? 'Every finding found.' : `${found.length} of ${revealFindings.length} found${fp ? `, ${fp} extra mark${fp > 1 ? 's' : ''}` : ''}.`;
   const lines: string[] = [];
   for (const f of revealFindings) {
     const where = f.relative_location ?? zoneDisplay(f.primary_zone);
@@ -180,7 +181,7 @@ export function scoreAttempt(c: MockCase, body: AttemptSubmit): SubmitResult {
   }
   for (const r of markResults.filter((r) => r.result === 'false_positive')) lines.push(`${r.mark_id} in the ${zoneDisplay(r.zone)}: nothing there on the expert read.`);
   lines.push(`Search covered about ${lungCoverage}% of the film. Not visited: ${unvisited.map(zoneDisplay).join(', ') || 'none'}.`);
-  if (body.hints_used) lines.push(`Hints used: ${body.hints_used} (−${5 * body.hints_used} points).`);
+  if (body.hints_used) lines.push(`Hints used: ${body.hints_used}.`);
 
   return {
     score, success, outcomes,
@@ -221,7 +222,7 @@ const WHY: Record<string, string> = {
   mislabeled: 'You found it. The label differs; compare the key signs.',
   found: 'Found and named correctly.',
   pattern_found: 'Called correctly.',
-  pattern_missed: 'This global finding was not selected.',
+  pattern_missed: 'This whole-film finding was not ticked.',
 };
 
 export function templateDebrief(r: SubmitResult): DebriefOutput {

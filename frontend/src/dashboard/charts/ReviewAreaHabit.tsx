@@ -9,9 +9,9 @@ export function ReviewAreaHabit({ habit }: { habit: RAH | null }) {
   const n = habit?.n ?? 0;
   const areas = habit?.areas ?? [];
   return (
-    <Section title="Review areas you check" testid="review-areas" n={`n = ${n} cases`}
-      caption="Share of cases in which your cursor, loupe or zoom reached each classic hiding place.">
-      {n === 0 || !areas.length ? <Empty>No cases read yet.</Empty> : (
+    <Section title="Hiding places you check" testid="review-areas" n={`n = ${n} films`}
+      caption="Share of films in which your cursor, magnifier or zoom reached each place where findings are classically missed.">
+      {n === 0 || !areas.length ? <Empty>No films read yet.</Empty> : (
         <>
           <ul className={s.habit}>
             {areas.map((a) => (
@@ -22,7 +22,7 @@ export function ReviewAreaHabit({ habit }: { habit: RAH | null }) {
               </li>
             ))}
           </ul>
-          <TableView caption="Review areas visited" head={['Area', 'Cases visited']} rows={areas.map((a) => [cap(a.human), a.visited_pct == null ? '—' : `${a.visited_pct}%`])} />
+          <TableView caption="Review areas visited" head={['Area', 'Films visited']} rows={areas.map((a) => [cap(a.human), a.visited_pct == null ? '—' : `${a.visited_pct}%`])} />
         </>
       )}
     </Section>

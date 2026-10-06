@@ -1,5 +1,6 @@
-// System Usability Scale (Brooke 1996): the 10 standard statements, 1 = strongly disagree … 5 = strongly agree.
-// Posts to /api/sus; the server scores it (0–100) and we show the number it returns.
+// Optional feedback after a test set. The ten statements are the standard System Usability Scale (Brooke 1996),
+// 1 = strongly disagree … 5 = strongly agree, so answers stay comparable over time; the learner just sees
+// "Give feedback". Posts to /api/sus; the server scores it (0–100) and we show the number it returns.
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { api } from '../api/client';
@@ -20,7 +21,7 @@ const SUS_ITEMS = [
 
 const SCALE = [1, 2, 3, 4, 5] as const;
 
-export function SusForm({ learnerId }: { learnerId: string }) {
+export function FeedbackForm({ learnerId }: { learnerId: string }) {
   const [open, setOpen] = useState(false);
   const [answers, setAnswers] = useState<(number | null)[]>(() => SUS_ITEMS.map(() => null));
   const m = useMutation({
@@ -31,25 +32,28 @@ export function SusForm({ learnerId }: { learnerId: string }) {
 
   if (m.data) {
     return (
-      <section className={s.sus} data-testid="sus-done">
+      <section className={s.sus} data-testid="feedback-done">
         <h2 className={s.h2}>Thank you</h2>
-        <p className={s.p}>Your System Usability Scale score is <strong data-testid="sus-score">{m.data.score.toFixed(1)}</strong> out of 100. Scores above 68 are above average.</p>
+        <p className={s.p}>
+          Your answers are saved. On the standard usability scale they come to{' '}
+          <strong data-testid="feedback-score">{m.data.score.toFixed(1)}</strong> out of 100; products average about 68.
+        </p>
       </section>
     );
   }
   if (!open) {
     return (
       <section className={s.sus}>
-        <h2 className={s.h2}>One minute of feedback</h2>
-        <p className={s.p}>Ten short statements about using Blindspot. Your answers help us improve it.</p>
-        <button type="button" className={s.primary} onClick={() => setOpen(true)} data-testid="sus-open">Take the SUS survey</button>
+        <h2 className={s.h2}>How was Blindspot to use?</h2>
+        <p className={s.p}>Optional. Ten short statements to agree or disagree with; it takes about a minute and helps us improve it.</p>
+        <button type="button" className={s.secondary} onClick={() => setOpen(true)} data-testid="feedback-open">Give feedback</button>
       </section>
     );
   }
   return (
-    <section className={s.sus} data-testid="sus-form">
-      <h2 className={s.h2}>System Usability Scale</h2>
-      <p className={s.p}>For each statement, pick how much you agree. 1 = strongly disagree, 5 = strongly agree.</p>
+    <section className={s.sus} data-testid="feedback-form">
+      <h2 className={s.h2}>Your feedback</h2>
+      <p className={s.p}>For each statement, pick how much you agree. 1 = strongly disagree, 5 = strongly agree. “This system” means Blindspot.</p>
       <form onSubmit={(e) => { e.preventDefault(); if (complete) m.mutate(); }}>
         <ol className={s.items}>
           {SUS_ITEMS.map((q, i) => (
@@ -61,7 +65,7 @@ export function SusForm({ learnerId }: { learnerId: string }) {
                   {SCALE.map((v) => (
                     <label key={v} className={`${s.opt} ${answers[i] === v ? s.optOn : ''}`}>
                       <input type="radio" name={`sus-${i}`} value={v} checked={answers[i] === v}
-                        onChange={() => setAnswers((a) => a.map((x, j) => (j === i ? v : x)))} data-testid={`sus-${i}-${v}`} />
+                        onChange={() => setAnswers((a) => a.map((x, j) => (j === i ? v : x)))} data-testid={`feedback-${i}-${v}`} />
                       <span>{v}</span>
                     </label>
                   ))}
@@ -71,9 +75,9 @@ export function SusForm({ learnerId }: { learnerId: string }) {
             </li>
           ))}
         </ol>
-        {m.isError && <p className={s.error}>Your answers were not saved. Check the connection and submit again.</p>}
-        <button type="submit" className={s.primary} disabled={!complete || m.isPending} data-testid="sus-submit">
-          {m.isPending ? 'Saving…' : complete ? 'Submit survey' : `Answer all 10 (${left} left)`}
+        {m.isError && <p className={s.error}>Your answers were not saved. Check your connection and press Send feedback again.</p>}
+        <button type="submit" className={s.primary} disabled={!complete || m.isPending} data-testid="feedback-submit">
+          {m.isPending ? 'Saving…' : complete ? 'Send feedback' : `Answer all 10 (${left} left)`}
         </button>
       </form>
     </section>

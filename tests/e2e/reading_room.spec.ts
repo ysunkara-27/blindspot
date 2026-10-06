@@ -4,7 +4,8 @@
 import { expect, test, type Page } from '@playwright/test';
 
 const REAL = process.env.E2E_REAL === '1';
-const ROOT = REAL ? '/?mock=0' : '/?mock=1';
+// Round 3: the start form lives at /start (practice-mixed, 10 films by default; practice-test = the fixed test set).
+const ROOT = REAL ? '/start?mock=0' : '/start?mock=1';
 const SHOTS = 'tests/e2e/__screenshots__';
 // Real-API runs show dataset radiographs: name those shots live-*.png (gitignored). Mock runs keep their names.
 const shot = (page: Page, name: string) =>
@@ -15,7 +16,7 @@ test.use({ viewport: { width: 1280, height: 800 } });
 async function start(page: Page, mode = 'practice', root = ROOT) {
   await page.goto(root);
   await page.getByTestId('name').fill('E2E learner');
-  await page.getByLabel(new RegExp(`^${mode === 'practice' ? 'Practice' : mode === 'assess_A' ? 'Assessment A' : mode}`)).check();
+  if (mode === 'assess_A') await page.getByTestId('practice-test').check();
   await page.getByTestId('start').click();
   await expect(page.getByTestId('film')).toBeVisible();
   await page.waitForFunction(() => {
@@ -90,14 +91,19 @@ test('practice flow: zoom, pan, loupe, marks, hint, submit, reveal, facts, debri
   await page.mouse.dblclick(cx, cy);
   await expect.poll(async () => (await view(page)).zoom).toBeCloseTo(1, 2);
 
-  // Loupe follows the cursor over the film (on by default in practice).
-  await expect(page.getByTestId('loupe-toggle')).toHaveAttribute('aria-pressed', 'true');
+  // The magnifier is off until asked for (round 3); M turns it on and the lens follows the cursor over the film.
+  await expect(page.getByTestId('loupe-toggle')).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.getByTestId('loupe-toggle')).toHaveText(/Magnifier off/);
+  await page.keyboard.press('m');
+  await expect(page.getByTestId('loupe-toggle')).toHaveText(/Magnifier on/);
   await sweep(page, 1500);
   v = await view(page);
   const [lx, ly] = v.toScreen(w * 0.3, h * 0.4);
   await page.mouse.move(lx, ly);
   await expect(page.getByTestId('loupe')).toBeVisible();
   await shot(page, 'm4-02-loupe');
+  await page.keyboard.press('m');
+  await expect(page.getByTestId('loupe')).toBeHidden();
 
   // Two marks with labels and confidence. syn_005: F1 mass (right upper), F2 nodule (left lower). M2 is an overcall.
   await placeMark(page, w * 0.31, h * 0.37, 'Mass', 4);
@@ -118,8 +124,9 @@ test('practice flow: zoom, pan, loupe, marks, hint, submit, reveal, facts, debri
   if (!REAL || (await page.locator('[data-testid^="outline-"]').count()) > 0) {
     await expect(page.locator('[data-testid^="outline-"]').first()).toBeVisible();
   }
-  if (!REAL || (await page.locator('[data-testid^="arrow-"]').count()) > 0) {
-    await expect(page.locator('[data-testid^="arrow-"]').first()).toBeVisible();
+  // M2 is a wrong mark, so an arrow runs from it to the missed finding (arrows never start from the film centre).
+  if (!REAL || (await page.locator('[data-testid^="arrow-F"]').count()) > 0) {
+    await expect(page.locator('[data-testid^="arrow-F"]').first()).toBeVisible();
   }
   await page.waitForTimeout(1400); // let the ~1.2 s sequence finish
   if (!REAL) await expect(page.getByTestId('outcomes')).toContainText('Found it');
@@ -184,12 +191,12 @@ for (const zoom of [1, 3]) {
   });
 }
 
-test('keyboard shortcuts: L, N, Enter, →, Backspace, 1–5', async ({ page }) => {
+test('keyboard shortcuts: M (and L), N, Enter, →, Backspace, 1–5', async ({ page }) => {
   await start(page);
-  await page.keyboard.press('l');
-  await expect(page.getByTestId('loupe-toggle')).toHaveAttribute('aria-pressed', 'false');
-  await page.keyboard.press('l');
+  await page.keyboard.press('m');
   await expect(page.getByTestId('loupe-toggle')).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('l'); // the old key still works
+  await expect(page.getByTestId('loupe-toggle')).toHaveAttribute('aria-pressed', 'false');
   // mark → 5 → Backspace
   const { w, h } = await filmSize(page);
   const v = await view(page);
@@ -201,10 +208,13 @@ test('keyboard shortcuts: L, N, Enter, →, Backspace, 1–5', async ({ page }) 
   await expect(page.getByTestId('confidence-M1').getByRole('radio', { name: 'Confidence 5 of 5' })).toHaveAttribute('aria-checked', 'true');
   await page.keyboard.press('Backspace');
   await expect(page.getByTestId('mark-count')).toHaveText('0');
-  // N → normal call; Enter submits; → next
+  // N → normal call; a digit says how sure (nothing is preselected); Enter submits; → next
   await page.keyboard.press('n');
   await expect(page.getByTestId('normal-called')).toBeVisible();
-  await page.mouse.move(1, 400); // leave the film; focus stays on the page body
+  await expect(page.getByTestId('submit')).toBeDisabled();
+  await page.keyboard.press('4');
+  await expect(page.getByTestId('confidence-normal').getByRole('radio', { name: 'Confidence 4 of 5' })).toHaveAttribute('aria-checked', 'true');
+  await page.mouse.move(1, 400); // leave the film
   await page.keyboard.press('Enter');
   await expect(page.getByTestId('outcomes')).toBeVisible();
   await page.keyboard.press('ArrowRight');
@@ -231,7 +241,11 @@ test('reduced motion: the reveal is instant', async ({ page }) => {
 test('projector mode: ?projector=1 boosts type and strokes', async ({ page }) => {
   await start(page, 'practice', `${ROOT}&projector=1`);
   await expect(page.locator('html')).toHaveAttribute('data-projector', '1');
+  // The toggle lives in the header's View menu as "Large-screen mode".
+  await page.getByTestId('view-menu').click();
   await expect(page.getByTestId('projector-toggle')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('projector-toggle')).toContainText('Large-screen mode: on');
+  await page.keyboard.press('Escape');
   const filter = await page.getByTestId('film').evaluate((el) => (el as HTMLElement).style.filter);
   expect(filter).toContain('contrast(1.3)');
   const { w, h } = await filmSize(page);
@@ -239,6 +253,7 @@ test('projector mode: ?projector=1 boosts type and strokes', async ({ page }) =>
   await page.getByTestId('submit').click();
   await page.waitForTimeout(1400);
   await shot(page, 'm4-07-projector');
+  await page.getByTestId('view-menu').click();
   await page.getByTestId('projector-toggle').click();
   await expect(page.locator('html')).not.toHaveAttribute('data-projector', '1');
 });
@@ -251,6 +266,7 @@ test('assessment: no reveal, "Recorded", summary at the end', async ({ page }) =
     if (await page.getByTestId('assessment-summary').isVisible()) break;
     await expect(page.getByTestId('submit')).toBeVisible();
     await page.getByTestId('call-normal').click();
+    await page.getByTestId('confidence-normal').getByRole('radio', { name: 'Confidence 3 of 5' }).click();
     await page.getByTestId('submit').click();
     await expect(page.getByTestId('recorded')).toBeVisible();
     await expect(page.getByTestId('reveal-layer')).toHaveCount(0);
@@ -268,7 +284,7 @@ test('about page and the disclaimer footer on every page', async ({ page }) => {
     await expect(page.getByTestId('disclaimer')).toContainText('For education. Not for clinical use.');
   }
   await page.goto('/about');
-  await expect(page.getByText(/cursor, loupe and zoom/).first()).toBeVisible();
+  await expect(page.getByText(/cursor, (loupe|magnifier) and zoom/).first()).toBeVisible();
   await shot(page, 'm4-09-about');
 });
 
@@ -278,6 +294,8 @@ test('no ground truth reaches the client before submit (real API only)', async (
   page.on('response', async (r) => {
     if (!r.url().includes('/api/') || r.request().method() === 'GET' && r.url().includes('/debrief')) return;
     if (r.url().includes('/submit')) return;
+    // The reference library is generic teaching material from a separate set of films, never the case being read.
+    if (/\/api\/reference(\/|$|\?)/.test(r.url())) return;
     const body = await r.text().catch(() => '');
     for (const k of ['"polygon"', '"bbox"', '"findings"', '"is_normal"', '"centroid"']) if (body.includes(k)) leaks.push(`${r.url()} ${k}`);
   });

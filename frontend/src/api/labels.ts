@@ -56,15 +56,15 @@ export const OUTCOME_COPY: Record<OutcomeResult, { text: string; tone: OutcomeTo
   duplicate: { text: 'Second mark on the same finding', tone: 'neutral' },
 };
 
-export const PROXY_TOOLTIP = 'Based on your cursor, loupe and zoom — a proxy for where you looked.';
+export const PROXY_TOOLTIP = 'Based on your cursor, magnifier and zoom — a proxy for where you looked.';
 
 export const LEVELS = ['MS1', 'MS2', 'MS3', 'MS4', 'intern', 'resident', 'PA/NP student', 'other'] as const;
 export const MODES = [
-  { id: 'practice', display: 'Practice', note: 'Cases chosen for you. Feedback after every case.' },
-  { id: 'drill', display: 'Drill', note: 'One finding at a time, mixed with normals.' },
-  { id: 'assess_A', display: 'Assessment A', note: 'Fixed 20-case set. Feedback at the end.' },
-  { id: 'assess_B', display: 'Assessment B', note: 'Fixed 20-case set. Feedback at the end.' },
-  { id: 'review', display: 'Review missed', note: 'Cases like the ones you missed before.' },
+  { id: 'practice', display: 'Practice', note: 'Films chosen for you. Feedback after every film.' },
+  { id: 'drill', display: 'One finding type', note: 'One finding at a time, mixed with normal films.' },
+  { id: 'assess_A', display: 'Test set A', note: 'A fixed set of 20 films. Feedback at the end.' },
+  { id: 'assess_B', display: 'Test set B', note: 'A fixed set of 20 films. Feedback at the end.' },
+  { id: 'review', display: 'Review missed', note: 'Films like the ones you missed before.' },
 ] as const;
 
 export function modeDisplay(mode: string): string {

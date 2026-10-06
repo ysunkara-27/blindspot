@@ -14,8 +14,8 @@ function FrocTip({ active, payload }: TipProps) {
   return (
     <Tip>
       <div className={s.tipValue}>{Math.round(r.llf * 100)}% of findings</div>
-      <div>{r.nlf.toFixed(2)} false marks per film</div>
-      <div className={s.tipMuted}>Counting {thr(r.threshold)} · {r.n_ll} hits, {r.n_nl} false marks</div>
+      <div>{r.nlf.toFixed(2)} false alarms per film</div>
+      <div className={s.tipMuted}>Counting {thr(r.threshold)} · {r.n_ll} hits, {r.n_nl} false alarms</div>
     </Tip>
   );
 }
@@ -24,18 +24,18 @@ export function Froc({ froc }: { froc: F | null }) {
   const rows = frocRows(froc);
   const maxX = Math.max(0.5, ...rows.map((r) => r.nlf));
   return (
-    <Section title="Hits against false marks (FROC)" testid="froc"
+    <Section title="Marks vs false alarms (FROC)" testid="froc"
       n={`n = ${froc?.n_images ?? 0} films · ${froc?.n_lesions ?? 0} findings · ${froc?.n_marks ?? 0} marks`}
-      caption="Each point counts only the marks at or above a confidence level, from certain (left) to all marks (right). Higher and further left is better.">
+      caption="The trade you make between finding things and raising false alarms. Each point counts only the marks at or above a confidence level, from certain (left) to all marks (right). Higher and further left is better.">
       {!froc || froc.n_marks === 0 || rows.length < 2 ? <Empty>No marks placed yet.</Empty> : (
         <>
-          <div className={s.chart} role="img" aria-label="FROC curve">
+          <div className={s.chart} role="img" aria-label="Share of findings pinpointed against false alarms per film">
             <ResponsiveContainer width="100%" height={240}>
               <LineChart data={rows} margin={{ top: 12, right: 72, bottom: 22, left: 0 }}>
                 <CartesianGrid stroke={C.grid} />
                 <XAxis dataKey="nlf" type="number" domain={[0, Math.ceil(maxX * 4) / 4]} tick={AXIS_TICK} tickLine={false} axisLine={{ stroke: C.axis }}
                   tickFormatter={(v: number) => v.toFixed(2)}
-                  label={{ value: 'False marks per film', position: 'insideBottom', offset: -14, fill: C.muted, fontSize: 13 }} />
+                  label={{ value: 'False alarms per film', position: 'insideBottom', offset: -14, fill: C.muted, fontSize: 13 }} />
                 <YAxis dataKey="llf" domain={[0, 1]} ticks={[0, 0.25, 0.5, 0.75, 1]} tickFormatter={(v: number) => `${Math.round(v * 100)}%`} tick={AXIS_TICK} tickLine={false} axisLine={false} width={48} />
                 <Tooltip content={(p) => <FrocTip {...p} />} cursor={{ stroke: C.axis, strokeWidth: 1 }} isAnimationActive={false} />
                 <Line type="linear" dataKey="llf" stroke={C.learner} strokeWidth={2} isAnimationActive={false}
@@ -47,7 +47,7 @@ export function Froc({ froc }: { froc: F | null }) {
               </LineChart>
             </ResponsiveContainer>
           </div>
-          <TableView caption="FROC operating points" head={['Counting', 'Findings localized', 'False marks per film', 'Hits', 'False marks']}
+          <TableView caption="Marks vs false alarms at each confidence level" head={['Counting', 'Findings pinpointed', 'False alarms per film', 'Hits', 'False alarms']}
             rows={rows.filter((r) => r.threshold <= 5).map((r) => [thr(r.threshold), `${Math.round(r.llf * 100)}%`, r.nlf.toFixed(2), r.n_ll, r.n_nl])} />
         </>
       )}

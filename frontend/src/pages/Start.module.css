@@ -1,0 +1,72 @@
+/* /start: one report column, four short questions separated by rules (SPEC §14.2). No cards. */
+.block { padding: 20px 0 18px; }
+.block + .block { border-top: 1px solid var(--report-rule); }
+/* A fieldset's legend would sit on its top border, so the rule belongs to the wrapper and the fieldset is bare. */
+.plain { border: none; margin: 0; padding: 0; min-width: 0; }
+.q { font-size: var(--fs-2); font-weight: 700; margin: 0 0 10px; padding: 0; }
+.hint { color: var(--report-ink-muted); font-size: var(--fs-1); line-height: 1.45; margin: 6px 0 0; }
+.input {
+  font: inherit;
+  padding: 9px 12px;
+  border: 1px solid #b9c2ca;
+  border-radius: var(--radius);
+  background: #fff;
+  color: var(--report-ink);
+  width: 100%;
+  max-width: 380px;
+}
+.input:focus-visible, .linkBtn:focus-visible, .primary:focus-visible, .select:focus-visible { outline: 2px solid var(--grease-amber); outline-offset: 2px; }
+.welcome { margin: 0; font-size: var(--fs-2); }
+.linkBtn { background: none; border: none; padding: 0; font: inherit; font-size: var(--fs-1); color: var(--report-ink); text-decoration: underline; cursor: pointer; }
+
+/* The practice choices: ruled rows; the chosen row carries an amber bar on its left edge. */
+.choices { margin-bottom: -8px; }
+.choice {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  column-gap: 10px;
+  align-items: baseline;
+  padding: 11px 10px 11px 12px;
+  border-top: 1px solid var(--report-rule);
+  border-left: 3px solid transparent;
+  cursor: pointer;
+}
+.choice input { accent-color: var(--report-ink); margin: 0; transform: translateY(2px); }
+.choiceOn { border-left-color: var(--grease-amber); background: #fbfcfc; }
+.choiceOff { cursor: default; }
+.choiceOff .name { color: var(--report-ink-muted); }
+.name { font-weight: 700; }
+.note { display: block; color: var(--report-ink-muted); font-size: var(--fs-1); line-height: 1.45; margin-top: 2px; }
+.pick { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: var(--fs-1); color: var(--report-ink-muted); }
+.select { font: inherit; font-size: var(--fs-1); color: var(--report-ink); padding: 6px 10px; border: 1px solid #b9c2ca; border-radius: var(--radius); background: #fff; }
+
+/* 5 / 10 / 20: a short segmented row. */
+.counts { display: inline-flex; border: 1px solid #b9c2ca; border-radius: var(--radius); overflow: hidden; background: #fff; }
+.count { position: relative; }
+.count input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.count span { display: inline-flex; align-items: center; justify-content: center; min-width: 64px; padding: 8px 14px; font-variant-numeric: tabular-nums; border-left: 1px solid #b9c2ca; }
+.count:first-child span { border-left: none; }
+.countOn span { background: var(--report-ink); color: #fff; font-weight: 700; }
+.count input:focus-visible + span { outline: 2px solid var(--grease-amber); outline-offset: -2px; }
+
+.scanRow { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.chip { display: inline-flex; align-items: center; gap: 7px; padding: 6px 14px; border-radius: 999px; background: var(--report-ink); color: #fff; font-weight: 700; font-size: var(--fs-1); }
+.chip::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--grease-amber); }
+.planned { color: var(--report-ink-muted); font-size: var(--fs-1); }
+
+.go { border-top: 1px solid var(--report-rule); padding: 20px 0 0; }
+.half { margin: 0 0 14px; line-height: 1.5; }
+.primary {
+  padding: 12px 28px;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--report-ink);
+  color: #fff;
+  font: inherit;
+  font-size: var(--fs-2);
+  font-weight: 700;
+  cursor: pointer;
+}
+.primary:disabled { background: #a7b0b8; cursor: default; }
+.error { padding: 10px 12px; background: #e7ecef; border-left: 3px solid var(--grease-amber); border-radius: 0 4px 4px 0; font-size: var(--fs-1); margin: 0 0 14px; }
+.health { color: var(--report-ink-muted); font-size: 14px; line-height: 1.45; margin: 14px 0 0; }

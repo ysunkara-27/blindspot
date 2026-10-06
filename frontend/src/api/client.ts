@@ -89,7 +89,8 @@ async function probeAccess(): Promise<void> {
   }
 }
 
-async function request<T>(path: string, init?: { method?: string; body?: unknown }): Promise<T> {
+/** Exported for endpoints that live outside this file (src/api/sessionOptions.ts); prefer the typed `api` below. */
+export async function request<T>(path: string, init?: { method?: string; body?: unknown }): Promise<T> {
   const method = init?.method ?? 'GET';
   if (mode === 'mock') {
     const { mockRequest } = await import('./mock');

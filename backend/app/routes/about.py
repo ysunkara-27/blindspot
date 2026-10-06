@@ -81,8 +81,8 @@ ABOUT = {
     "tutor": "Debriefs are written by Claude (Anthropic) from facts computed by Blindspot from radiologist "
     "annotations, then checked by a deterministic validator; if a debrief fails, a template is shown instead.",
     "limitations": [
-        "Where you looked is estimated from your cursor, loupe and zoom — a proxy for gaze, not eye tracking.",
-        "The miss-type engine (search, recognition, decision) uses cursor, loupe and zoom as a proxy for gaze; "
+        "Where you looked is estimated from your cursor, magnifier and zoom — a proxy for gaze, not eye tracking.",
+        "The miss-type engine (search, recognition, decision) uses cursor, magnifier and zoom as a proxy for gaze; "
         "its classifications are estimates.",
         "Images come from a single US centre (NIH Clinical Center); findings may not generalise to other "
         "populations or equipment.",

@@ -6,7 +6,7 @@ import type { OutcomeResult } from '../../types/contracts';
 import { densityGrid } from '../helpers';
 import { C } from '../palette';
 import type { BlindspotMap as BM } from '../types';
-import { Empty, Legend, Section, TableView } from '../parts';
+import { Empty, Section, TableView } from '../parts';
 import s from '../Dashboard.module.css';
 
 const W = 340;
@@ -43,8 +43,8 @@ export function BlindSpotMap({ map, title = 'Your blind-spot map', who = 'you' }
 
   return (
     <Section title={title} testid="blindspot-map" n={`n = ${map?.n ?? 0} findings · ${map?.n_missed ?? 0} missed`}
-      caption="Every focal finding on the films, placed in a standard chest frame. The amber haze shows where misses cluster.">
-      {!pts.length ? <Empty>No focal findings read yet.</Empty> : (
+      caption="Every outlined finding on the films you read, placed on one standard chest. Cyan is what you found; amber is what you missed, and the amber haze shows where misses cluster.">
+      {!pts.length ? <Empty>No outlined findings read yet.</Empty> : (
         <>
           <div className={s.mapRow}>
             <svg className={s.map} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Chest schematic with ${found.length} found and ${misses.length} missed findings`} data-testid="blindspot-svg">
@@ -75,16 +75,28 @@ export function BlindSpotMap({ map, title = 'Your blind-spot map', who = 'you' }
                 <g key={`m${i}`} data-testid="bs-missed">
                   <title>{`${labelDisplay(p.label)} · ${resultText(p.result)}`}</title>
                   <circle cx={px(p.x)} cy={py(p.y)} r={12} fill="transparent" />
-                  <circle cx={px(p.x)} cy={py(p.y)} r={5} fill={C.filmAmber} stroke={'#1C1F22'} strokeWidth={2} />
+                  {/* Missed = a hollow amber ring: shape as well as colour separates it from a found dot. */}
+                  <circle cx={px(p.x)} cy={py(p.y)} r={7.5} fill="none" stroke={'#1C1F22'} strokeWidth={5.5} />
+                  <circle cx={px(p.x)} cy={py(p.y)} r={5.5} fill="#1C1F22" fillOpacity={0.55} stroke={C.filmAmber} strokeWidth={2.5} />
                 </g>
               ))}
             </svg>
             <div className={s.mapSide}>
-              <Legend items={[
-                { key: 'found', color: C.filmCyan, shape: 'dot', text: <>Found by {who} ({found.length})</> },
-                { key: 'missed', color: C.filmAmber, shape: 'dot', text: <>Missed ({misses.length})</> },
-                { key: 'haze', color: 'rgba(240,169,46,0.45)', shape: 'wash', text: 'Where misses cluster' },
-              ]} />
+              {/* The key repeats the marks exactly as drawn, on the same dark film, so no colour has to be matched by eye. */}
+              <ul className={s.filmKey} data-testid="blindspot-legend">
+                <li>
+                  <svg width="26" height="20" viewBox="0 0 26 20" aria-hidden="true"><rect width="26" height="20" rx="4" fill="#1C1F22" /><circle cx="13" cy="10" r="5" fill={C.filmCyan} /></svg>
+                  <span>Cyan dot: found by {who} ({found.length})</span>
+                </li>
+                <li>
+                  <svg width="26" height="20" viewBox="0 0 26 20" aria-hidden="true"><rect width="26" height="20" rx="4" fill="#1C1F22" /><circle cx="13" cy="10" r="5" fill="none" stroke={C.filmAmber} strokeWidth="2.5" /></svg>
+                  <span>Amber ring: missed ({misses.length})</span>
+                </li>
+                <li>
+                  <svg width="26" height="20" viewBox="0 0 26 20" aria-hidden="true"><rect width="26" height="20" rx="4" fill="#1C1F22" /><ellipse cx="13" cy="10" rx="10" ry="7" fill={C.filmAmber} fillOpacity="0.4" /></svg>
+                  <span>Amber haze: where misses cluster</span>
+                </li>
+              </ul>
               <p>The film is shown as you read it: the patient's right is on the left (R marker).</p>
               <p className={s.legendTerm}>Positions are scaled to the lung outline on each film, so findings from different patients line up.</p>
             </div>

@@ -3,12 +3,13 @@
 import type {
   AssessmentSummary, AttemptSubmit, DebriefResponse, HintRequest, NextCase, SessionCreate, SubmitResult,
 } from '../../types/contracts';
-import { zoneDisplay } from '../labels';
+import { labelDisplay, zoneDisplay } from '../labels';
 import { MOCK_CASES } from './cases';
-import { dwellMs, scoreAttempt, templateDebrief } from './scoring';
+import { dwellMs, REVIEW_AREAS, reviewAreaBox, scoreAttempt, templateDebrief } from './scoring';
+import { mockReference } from './reference';
 import type { MockCase } from './types';
 
-type Session = { id: string; learner: string; mode: SessionCreate['mode']; order: string[]; pos: number; attempts: string[] };
+type Session = { id: string; learner: string; mode: SessionCreate['mode']; order: string[]; pos: number; attempts: string[]; total: number | null };
 type Attempt = {
   id: string; sid: string; caseId: string; hints: number; asks: number; polls: number;
   result?: SubmitResult; recorded?: boolean; submit?: AttemptSubmit;
@@ -35,6 +36,9 @@ export async function mockRequest(method: string, path: string, body: unknown): 
   const p = path.split('?')[0];
   let m: RegExpMatchArray | null;
 
+  // Generic teaching material (never about the case being read): available at any time.
+  if (method === 'GET' && p === '/reference') return mockReference();
+
   if (method === 'GET' && p === '/health') return { ok: true, offline: true, cases: MOCK_CASES.length, version: 'mock-synthetic' };
 
   if (method === 'POST' && p === '/sessions') {
@@ -51,7 +55,19 @@ export async function mockRequest(method: string, path: string, body: unknown): 
         if (normals[i]) order.push(normals[i]);
       }
     }
-    const s: Session = { id: uid('ses'), learner: uid('lrn'), mode: b.mode, order, pos: 0, attempts: [] };
+    // Round 3: a set has a length. `case_count` (3–50) fixes it; the sample learner ("Demo") gets the first six.
+    const st = (b.settings ?? {}) as { case_count?: unknown; learner_id?: unknown };
+    const assessMode = b.mode === 'assess_A' || b.mode === 'assess_B';
+    const sample = !assessMode && b.display_name.trim().toLowerCase() === 'demo' && !b.participant_code;
+    const count = sample ? 6 : typeof st.case_count === 'number' && Number.isInteger(st.case_count) ? st.case_count : null;
+    if (count != null && !sample && (count < 3 || count > 50)) throw new MockHttpError(422, 'case_count must be 3 to 50');
+    let total: number | null = assessMode ? order.length : null;
+    if (!assessMode && count != null && order.length) {
+      order = Array.from({ length: count }, (_, i) => order[i % order.length]);
+      total = count;
+    }
+    const learner = typeof st.learner_id === 'string' && st.learner_id ? st.learner_id : uid('lrn');
+    const s: Session = { id: uid('ses'), learner, mode: b.mode, order, pos: 0, attempts: [], total };
     sessions.set(s.id, s);
     return { session_id: s.id, learner_id: s.learner, mode: s.mode };
   }
@@ -60,7 +76,8 @@ export async function mockRequest(method: string, path: string, body: unknown): 
     const s = need(sessions.get(m[1]));
     const assess = s.mode.startsWith('assess');
     if (s.pos >= s.order.length) {
-      if (!assess) s.pos = 0; // practice loops over the small synthetic bank
+      if (!assess && s.total == null) s.pos = 0; // an open-ended practice session loops over the small synthetic bank
+      else if (!assess) return { attempt_id: '', case: { case_id: '', image_url: '', width: 0, height: 0 }, index: submittedCount(s), total: s.total, hints_enabled: false, done: true } satisfies NextCase;
       else return { attempt_id: '', case: { case_id: '', image_url: '', width: 0, height: 0 }, index: s.pos, total: s.order.length, done: true } satisfies NextCase;
     }
     const c = byId(s.order[s.pos++]);
@@ -70,7 +87,7 @@ export async function mockRequest(method: string, path: string, body: unknown): 
     return {
       attempt_id: a.id,
       case: { case_id: c.case_id, image_url: `/mock/${c.case_id}.png`, width: c.width, height: c.height },
-      index: s.attempts.length, total: assess ? s.order.length : null, hints_enabled: !assess, done: false,
+      index: s.attempts.length, total: s.total, hints_enabled: !assess, done: false,
     } satisfies NextCase;
   }
 
@@ -87,7 +104,10 @@ export async function mockRequest(method: string, path: string, body: unknown): 
       const areas = ['right_apex', 'left_apex', 'retrocardiac', 'right_costophrenic_angle', 'left_costophrenic_angle'];
       const pad = 0;
       const unvisited = areas.filter((z) => dwellMs(req.telemetry, zoneBox(z, c), pad) < 300);
-      text = unvisited.length ? `You haven't looked at: ${unvisited.map(zoneDisplay).join(', ')}.` : 'Compare each region with the same region on the other side.';
+      // Backend wording (round 3): at most three areas, as a sentence.
+      const names = unvisited.slice(0, 3).map((z) => (z === 'retrocardiac' ? 'the area behind the heart' : `the ${zoneDisplay(z)}`));
+      const list = names.length > 1 ? `${names.slice(0, -1).join(', ')} or ${names[names.length - 1]}` : names[0];
+      text = unvisited.length ? `You haven't looked at ${list} yet.` : 'Compare each region with the same region on the other side.';
     } else {
       const f = c.findings.find((x) => x.kind === 'focal' && !req.marks.some((mk) => mk.x >= x.bbox[0] - 10 && mk.x <= x.bbox[2] + 10 && mk.y >= x.bbox[1] - 10 && mk.y <= x.bbox[3] + 10));
       if (a.hints === 2) text = c.is_normal || !f ? 'Asymmetry is the clue: compare left and right zone by zone.' : `Look again at the patient's ${f.side}: ${zoneDisplay(f.primary_zone)}.`;
@@ -111,6 +131,9 @@ export async function mockRequest(method: string, path: string, body: unknown): 
 
   if (method === 'GET' && (m = p.match(/^\/attempts\/([^/]+)\/debrief$/))) {
     const a = need(attempts.get(m[1]));
+    // A finished test set unlocks its debriefs (round 3): score the stored read on first request.
+    const ds = sessions.get(a.sid);
+    if (!a.result && a.submit && ds && ds.mode.startsWith('assess') && submittedCount(ds) >= ds.order.length) a.result = scoreAttempt(byId(a.caseId), a.submit);
     if (!a.result) throw new MockHttpError(409, 'not submitted');
     a.polls++;
     if (a.polls < 3) return { status: 'pending' } satisfies DebriefResponse;
@@ -126,6 +149,21 @@ export async function mockRequest(method: string, path: string, body: unknown): 
   }
 
   if (method === 'POST' && (m = p.match(/^\/attempts\/([^/]+)\/flag$/))) return { ok: true };
+
+  // Stored result for review (round 3). Assessment attempts answer only once the whole set is submitted.
+  if (method === 'GET' && (m = p.match(/^\/attempts\/([^/]+)\/result$/))) {
+    const a = need(attempts.get(m[1]));
+    if (!a.submit) throw new MockHttpError(409, 'not submitted');
+    const s = need(sessions.get(a.sid));
+    if (s.mode.startsWith('assess') && submittedCount(s) < s.order.length) throw new MockHttpError(409, 'assessment in progress');
+    const c = byId(a.caseId);
+    a.result ??= scoreAttempt(c, a.submit);
+    return {
+      ...a.result,
+      case: { case_id: c.case_id, image_url: `/mock/${c.case_id}.png`, width: c.width, height: c.height },
+      submitted: { marks: a.submit.marks, patterns: a.submit.patterns, declared_normal: a.submit.declared_normal, normal_confidence: a.submit.normal_confidence ?? null },
+    };
+  }
 
   if (method === 'GET' && (m = p.match(/^\/attempts\/([^/]+)\/anatomy$/))) {
     const a = need(attempts.get(m[1]));
@@ -153,6 +191,9 @@ export async function mockRequest(method: string, path: string, body: unknown): 
       false_positives_per_image: scored.length ? scored.reduce((n, x) => n + x.r.reveal.marks.filter((mk) => mk.result === 'false_positive').length, 0) / scored.length : 0,
       miss_type_mix: mix,
       score_mean: scored.length ? scored.reduce((n, x) => n + x.r.score, 0) / scored.length : 0,
+      n_abnormal: abn.length, n_normal: nor.length, n_focal_findings: focalTotal,
+      total: s.total, complete: s.total != null && scored.length >= s.total,
+      cases: scored.map((x, i) => summaryRow(x.a, x.r, i + 1)),
     } satisfies AssessmentSummary;
   }
 
@@ -163,6 +204,29 @@ export async function mockRequest(method: string, path: string, body: unknown): 
 
   if (method === 'GET' && p === '/about') throw new MockHttpError(404, 'about is static in mock mode');
   throw new MockHttpError(404, `mock has no route ${method} ${p}`);
+}
+
+const submittedCount = (s: Session) => s.attempts.filter((id) => attempts.get(id)?.submit).length;
+
+const MISS_OF: Record<string, string> = {
+  missed_search: 'search', missed_recognition: 'recognition', missed_decision: 'decision', mislabeled: 'interpretation',
+  false_positive: 'overcall', pattern_false: 'overcall',
+};
+
+/** One `cases[]` row of the session summary, in the round-3 backend shape. */
+function summaryRow(a: Attempt, r: SubmitResult, index: number) {
+  const fs = r.reveal.findings;
+  const labels = [...new Set(fs.map((f) => f.label))];
+  return {
+    attempt_id: a.id, case_id: a.caseId, index, score: r.score, success: r.success, is_normal: !!r.reveal.is_normal,
+    labels, label_displays: labels.map((l) => labelDisplay(l)),
+    miss_types: [...new Set(r.outcomes.flatMap((o) => (MISS_OF[o.result] ? [MISS_OF[o.result]] : [])))],
+    n_findings: fs.length,
+    n_found: fs.filter((f) => f.result === 'found' || f.result === 'pattern_found').length,
+    n_false_positives: r.reveal.marks.filter((mk) => mk.result === 'false_positive').length,
+    outcomes: r.outcomes,
+    findings: fs.map((f) => ({ finding_id: f.finding_id, label: f.label, display: f.display, kind: f.kind })),
+  };
 }
 
 function zoneBox(z: string, c: MockCase): [number, number, number, number] {
@@ -189,8 +253,13 @@ function mockAnatomy(c: MockCase) {
     const t = (i / 24) * Math.PI * 2;
     return [w * (0.55 + 0.16 * Math.cos(t)), h * (0.68 + 0.14 * Math.sin(t))];
   });
-  zones.push({ zone_id: 'cardiac_silhouette', polygons: [heart] });
-  return { zones, approximate: true };
+  const out: { zone_id: string; polygons: number[][][]; review_area?: boolean }[] = [...zones, { zone_id: 'cardiac_silhouette', polygons: [heart] }];
+  // Review areas (where findings hide), matching the boxes the mock scoring uses for "visited".
+  for (const a of REVIEW_AREAS) {
+    const [x0, y0, x1, y1] = reviewAreaBox(a, w, h);
+    out.push({ zone_id: a, polygons: [[[x0, y0], [x1, y0], [x1, y1], [x0, y1]]], review_area: true });
+  }
+  return { zones: out, approximate: true };
 }
 
 function need<T>(v: T | undefined): T {

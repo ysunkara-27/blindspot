@@ -1,0 +1,35 @@
+/* End of a set: counts, how the misses happened, then one row per film that opens its review. Report column, rules. */
+.counts { width: 100%; border-collapse: collapse; margin: 4px 0 6px; font-variant-numeric: tabular-nums; }
+.counts th { text-align: left; font-weight: 400; padding: 11px 0; border-bottom: 1px solid var(--report-rule); vertical-align: baseline; }
+.counts td { text-align: right; padding: 11px 0; border-bottom: 1px solid var(--report-rule); vertical-align: baseline; white-space: nowrap; font-size: var(--fs-3); font-weight: 700; }
+.counts .of { font-size: var(--fs-1); font-weight: 400; color: var(--report-ink-muted); }
+.counts tr:last-child th, .counts tr:last-child td { border-bottom: none; }
+.basis { display: block; color: var(--report-ink-muted); font-size: 14px; margin-top: 2px; }
+.common { margin: 0; padding: 14px 0 14px 14px; border-left: 3px solid var(--grease-amber); font-size: var(--fs-2); line-height: 1.45; }
+.commonNote { display: block; color: var(--report-ink-muted); font-size: 14px; margin-top: 4px; }
+
+.films { list-style: none; margin: 6px 0 0; padding: 0; border-bottom: 1px solid var(--report-rule); }
+.film { border-top: 1px solid var(--report-rule); }
+.filmLink, .filmStatic {
+  display: grid;
+  grid-template-columns: 4.6em minmax(0, 1fr) 6em 4.4em;
+  gap: 12px;
+  align-items: baseline;
+  padding: 12px 6px;
+  color: var(--report-ink);
+  text-decoration: none;
+}
+.filmLink:hover { background: #e9edf0; }
+.filmLink:focus-visible { outline: 2px solid var(--grease-amber); outline-offset: -2px; }
+.filmNo { font-weight: 700; font-variant-numeric: tabular-nums; }
+.filmWhat { font-weight: 700; }
+.filmOutcome { display: block; font-weight: 400; color: var(--report-ink-muted); font-size: var(--fs-1); line-height: 1.4; margin-top: 2px; }
+.filmScore { text-align: right; font-variant-numeric: tabular-nums; color: var(--report-ink-muted); font-size: var(--fs-1); white-space: nowrap; }
+.filmScore strong { color: var(--report-ink); font-size: var(--fs-2); }
+.filmGo { text-align: right; text-decoration: underline; font-size: var(--fs-1); }
+
+.actions { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin: 26px 0 10px; }
+.primary, .secondary { display: inline-block; padding: 11px 24px; border-radius: var(--radius); font-weight: 700; text-decoration: none; font-size: var(--fs-2); }
+.primary { background: var(--report-ink); color: #fff; border: 1px solid var(--report-ink); }
+.secondary { background: transparent; color: var(--report-ink); border: 1px solid var(--report-ink); }
+.primary:focus-visible, .secondary:focus-visible { outline: 2px solid var(--grease-amber); outline-offset: 2px; }

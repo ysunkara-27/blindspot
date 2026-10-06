@@ -1,10 +1,11 @@
-// Private-preview gates. The server keeps the decision (an httpOnly cookie set by POST /api/access or
+// Access gates. The server keeps the decision (an httpOnly cookie set by POST /api/access or
 // /api/review/access); the client never stores the code. Copy follows SPEC §14.4: say what happened and how to fix it.
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation } from 'react-router-dom';
 import { submitCode } from '../api/client';
 import { useGate, type GateKind } from '../api/access';
+import { LandingHero } from '../pages/LandingHero';
 import { BrandMark } from './BrandMark';
 import { DISCLAIMER } from './Shell';
 import { useTitle } from './useTitle';
@@ -69,21 +70,20 @@ export function AccessGate({ children }: { children: ReactNode }) {
 }
 
 function AccessPage({ onDone }: { onDone: () => void }) {
-  useTitle('Private preview');
+  useTitle(null);
   return (
     <div className={g.page} data-testid="access-gate">
-      <header className={g.head}><span className={g.brand}>Blindspot</span></header>
-      <main className={g.main}>
-        <BrandMark size={44} className={g.mark} />
-        <h1 className={g.title}>Blindspot is a private preview.</h1>
-        <p className={g.lede}>Enter the access code.</p>
+      <header className={g.head}><span className={g.brand}><BrandMark size={22} className={g.headMark} />Blindspot</span></header>
+      {/* Someone without a code still sees what this is: the same hero as the landing. */}
+      <LandingHero headingId="gate-h" />
+      <main className={g.gateMain}>
+        <h2 className={g.gateTitle}>Enter your access code to start reading</h2>
         <CodeForm kind="access" onDone={onDone} button="Open Blindspot" />
-        <p className={g.note}>
-          A chest X-ray perception trainer for medical students. Ask the person who shared this link for the code,
-          or <Link to="/about">read about Blindspot</Link> first.
+        <p className={g.note} data-testid="request-access">
+          No code? Ask the person who shared this link for the code. You can <Link to="/about">read about Blindspot</Link> without one.
         </p>
       </main>
-      <footer className={g.foot} data-testid="disclaimer">{DISCLAIMER}</footer>
+      <footer className={g.gateFoot} data-testid="disclaimer">{DISCLAIMER}</footer>
     </div>
   );
 }

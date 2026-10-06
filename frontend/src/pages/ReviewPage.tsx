@@ -64,10 +64,10 @@ export function ReviewPage() {
       </div>
 
       {mock ? (
-        <p className={s.notice}>Review needs the real API: the synthetic demo has no review queue.</p>
+        <p className={s.notice}>The film library is not reachable, so there is no review queue to show. Reload the page once the server is back.</p>
       ) : tab === 'debrief' ? (
         dq.isPending ? <p className={s.muted}>Loading the queue…</p>
-          : dq.isError ? <p className={s.notice}>The review queue could not be loaded. Check that the API is running, then reload.</p>
+          : dq.isError ? <p className={s.notice}>The review queue did not load. Check your connection, then reload the page.</p>
           : dq.data.length === 0 ? (
             <div className={r.emptyQueue} data-testid="queue-empty">
               <p className={s.lede}>The debrief queue is empty.</p>
@@ -79,7 +79,7 @@ export function ReviewPage() {
           ) : <DebriefReview items={dq.data} reviewer={reviewer} onNeedReviewer={needReviewer} />
       ) : (
         cq.isPending ? <p className={s.muted}>Loading the cards…</p>
-          : cq.isError ? <p className={s.notice}>The teaching cards could not be loaded. Check that the API is running, then reload.</p>
+          : cq.isError ? <p className={s.notice}>The teaching cards did not load. Check your connection, then reload the page.</p>
           : cq.data.length === 0 ? <p className={s.lede} data-testid="cards-empty">No teaching cards found in content/teaching_cards/.</p>
           : <CardReview items={cq.data} reviewer={reviewer} onNeedReviewer={needReviewer} />
       )}

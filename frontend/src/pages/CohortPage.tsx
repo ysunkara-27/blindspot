@@ -48,7 +48,7 @@ export function CohortPage() {
     <PageShell>
       <header className={d.header}>
         <h1 className={s.h1}>Cohort</h1>
-        <p className={d.scope}>All learners' submitted reads, including assessment sets unless you filter by mode. For instructors.</p>
+        <p className={d.scope}>All learners' submitted reads, including test sets unless you filter by mode. For instructors.</p>
       </header>
 
       <div className={d.filters} role="group" aria-label="Filters">
@@ -74,23 +74,23 @@ export function CohortPage() {
       </div>
 
       {mock ? (
-        <p className={s.notice} data-testid="dashboard-mock">The synthetic demo has no cohort: dashboards only show real reads. Start the API to see the cohort.</p>
+        <p className={s.notice} data-testid="dashboard-mock">The film library is not reachable, so there is no cohort to show: dashboards only show real reads. Reload the page once the server is back.</p>
       ) : q.isPending ? (
         <p className={s.muted}>Loading the cohort…</p>
       ) : isGateError(q.error, 'reviewer') ? (
         <ReviewerGate what="cohort" onDone={() => qc.resetQueries({ queryKey: ['cohort-dashboard'] })} />
       ) : q.isError ? (
-        <p className={s.notice}>The cohort could not be loaded. Check that the API is running, then reload.</p>
+        <p className={s.notice}>The cohort did not load. Check your connection, then reload the page.</p>
       ) : (
         <div className={q.isFetching && q.isPlaceholderData ? d.refetching : undefined} data-testid="cohort-dashboard">
           <p className={d.scope} data-testid="cohort-n">
-            n = {data!.n_attempts} case{data!.n_attempts === 1 ? '' : 's'} from {data!.n_learners} learner{data!.n_learners === 1 ? '' : 's'}{anyFilter ? ' (filtered)' : ''}.
+            n = {data!.n_attempts} film{data!.n_attempts === 1 ? '' : 's'} from {data!.n_learners} learner{data!.n_learners === 1 ? '' : 's'}{anyFilter ? ' (filtered)' : ''}.
           </p>
           {data!.n_attempts === 0 ? (
             <p className={s.lede} data-testid="cohort-empty">No reads match these filters yet.</p>
           ) : (
             <>
-              <SummaryStats st={data!.summary} title="The cohort at a glance" />
+              <SummaryStats st={data!.summary} title="The cohort at a glance" voice="cohort" />
               <MissTypeMix mix={data!.miss_type_mix} title="How the cohort's misses happen" />
               <LabelDifficulty rows={data!.label_difficulty} />
               <BlindSpotMap map={data!.blindspot_map} title="Cohort blind-spot map" who="the cohort" />
@@ -98,9 +98,9 @@ export function CohortPage() {
               <Calibration cal={data!.calibration} />
               <Froc froc={data!.froc} />
               <Section title="Learners" testid="cohort-learners" n={`n = ${data!.learners.length} learners`}
-                caption="One row per learner, by anonymous id. Sensitivity and specificity are case-level.">
+                caption="One row per learner, by anonymous id. Rates are per film: abnormal films caught (sensitivity) and normal films correctly called normal (specificity).">
                 <table className={d.dataTable} style={{ width: '100%' }}>
-                  <thead><tr><th scope="col">Learner</th><th scope="col">Cases</th><th scope="col">Sensitivity</th><th scope="col">Specificity</th><th scope="col">Mean score</th></tr></thead>
+                  <thead><tr><th scope="col">Learner</th><th scope="col">Films</th><th scope="col">Abnormal caught</th><th scope="col">Normal called normal</th><th scope="col">Average score</th></tr></thead>
                   <tbody>
                     {[...data!.learners].sort((a, b) => b.n - a.n).map((l) => (
                       <tr key={l.learner_id}>

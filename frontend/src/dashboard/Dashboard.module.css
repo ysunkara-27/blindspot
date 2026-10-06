@@ -18,6 +18,10 @@
 .statRows tr:last-child th, .statRows tr:last-child td { border-bottom: none; }
 .statValue { font-size: var(--fs-3); font-weight: 700; }
 .statBasis { display: block; color: var(--report-ink-muted); font-size: 14px; margin-top: 2px; }
+.statExplain { display: block; color: var(--report-ink-muted); font-size: 14px; line-height: 1.4; margin-top: 2px; max-width: 56ch; }
+/* A plain label whose technical name is one hover (or focus) away. */
+.term { text-decoration: underline dotted #9aa5af; text-underline-offset: 3px; cursor: help; }
+.term:focus-visible { outline: 2px solid var(--grease-amber); outline-offset: 2px; }
 
 /* Controls row (series toggle, filters): one left-aligned row above what it scopes. */
 .controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: flex-end; margin: 6px 0 12px; }
@@ -35,6 +39,7 @@
 .swatch { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
 .dotSwatch { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
 .washSwatch { width: 16px; height: 12px; border-radius: 6px; flex-shrink: 0; }
+.ringSwatch { width: 11px; height: 11px; border-radius: 50%; border: 2.5px solid; box-sizing: border-box; flex-shrink: 0; }
 .legendTerm { color: var(--report-ink-muted); }
 
 /* Table twin for every chart. */
@@ -72,3 +77,46 @@
 
 .filters { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: flex-end; padding: 12px 0 16px; }
 .refetching { opacity: 0.55; transition: opacity 120ms; }
+
+/* Blind-spot key: each mark on a chip of the same dark film it is drawn on. */
+.filmKey { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.filmKey li { display: flex; align-items: center; gap: 10px; }
+.filmKey svg { flex-shrink: 0; }
+
+/* Miss types: one labelled bar per type, all in the learner's amber; the row and its label carry identity. */
+.missBars { list-style: none; margin: 8px 0 4px; padding: 0; }
+.missBars li { display: grid; grid-template-columns: minmax(14em, 22em) 1fr 2.5em; gap: 14px; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--report-rule); }
+.missBars li:last-child { border-bottom: none; }
+.missLabel { line-height: 1.3; }
+.missExplain { display: block; color: var(--report-ink-muted); font-size: 14px; line-height: 1.4; margin-top: 2px; }
+.missTrack { height: 10px; background: #e2e7eb; border-radius: 0 4px 4px 0; overflow: hidden; }
+.missFill { display: block; height: 100%; background: #a86a00; border-radius: 0 4px 4px 0; min-width: 3px; }
+.missCount { text-align: right; font-weight: 700; font-size: var(--fs-2); font-variant-numeric: tabular-nums; }
+
+.subTitle { font-size: var(--fs-2); font-weight: 700; margin: 18px 0 2px; }
+/* Over time: small multiples. Rows are miss types, columns are blocks of films; bars share a baseline per row. */
+.trendWrap { overflow-x: auto; margin-top: 4px; }
+.trend { border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+.trend thead th { font-weight: 400; color: var(--report-ink-muted); padding: 0 6px 6px; text-align: center; white-space: nowrap; min-width: 76px; }
+.trendN { color: var(--report-ink-muted); }
+.trend tbody th { text-align: left; font-weight: 400; padding: 6px 18px 6px 0; white-space: nowrap; border-top: 1px solid var(--report-rule); }
+.trend tbody td { padding: 6px 6px 0; border-top: 1px solid var(--report-rule); vertical-align: bottom; outline-offset: -2px; }
+.trend tbody td:focus-visible { outline: 2px solid var(--grease-amber); }
+.trendCell { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 52px; border-bottom: 1px solid #b9c2ca; }
+.trendBar { display: block; width: 22px; background: #a86a00; border-radius: 4px 4px 0 0; }
+.trendCount { font-weight: 700; line-height: 1.5; }
+.trendZero { color: #8c97a2; line-height: 1.5; }
+.trendOn { background: rgba(29, 35, 41, 0.05); }
+.readout { color: var(--report-ink-muted); font-size: 14px; margin: 8px 0 0; min-height: 1.5em; }
+.readout strong { color: var(--report-ink); }
+
+/* Reading log before the fifth film: progress toward the first numbers, no percentages. */
+.early { border-top: 1px solid var(--report-rule); padding: 22px 0 8px; }
+.earlyLede { font-size: var(--fs-3); font-weight: 700; margin: 0 0 6px; line-height: 1.3; }
+.earlyText { margin: 0 0 16px; line-height: 1.5; max-width: 58ch; }
+.pips { display: flex; gap: 8px; margin: 0 0 6px; padding: 0; list-style: none; }
+.pip { width: 44px; height: 8px; border-radius: 4px; background: #e2e7eb; }
+.pipOn { background: #a86a00; }
+.pipText { color: var(--report-ink-muted); font-size: 14px; margin: 0 0 20px; font-variant-numeric: tabular-nums; }
+.comingUpHead { margin: 22px 0 0; font-size: var(--fs-1); font-weight: 700; }
+.comingUp { margin: 6px 0 0; padding: 0 0 0 20px; color: var(--report-ink-muted); font-size: var(--fs-1); line-height: 1.6; }

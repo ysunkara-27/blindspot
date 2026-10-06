@@ -1,18 +1,48 @@
-/* Viewer: PACS surround, film-black letterbox, amber = learner, cyan = expert truth (SPEC §14.1). */
+/* Viewer: PACS surround, film-black letterbox, amber = learner, cyan = expert truth (SPEC §14.1).
+   Three rows: a prompt strip, the film stage, the image controls. The strips never overlap the film. */
 .viewer {
   position: relative;
   height: 100%;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
   background: var(--pacs-surround);
 }
+.topStrip {
+  flex: 0 0 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 12px;
+  color: #c9d1d8;
+  font-size: var(--fs-1);
+  white-space: nowrap;
+  overflow: hidden;
+}
+:root[data-projector='1'] .topStrip { flex-basis: 48px; height: 48px; }
+.stripLeft { min-width: 0; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; }
+.stripRight { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.stripNote { color: #e6ebef; }
+.stripArmed { color: #e6ebef; display: inline-flex; align-items: center; gap: 6px; }
+.stripArmed strong { color: var(--grease-amber); font-weight: 700; }
+.stripLink { background: none; border: none; color: #c9d1d8; text-decoration: underline; cursor: pointer; padding: 2px 4px; margin-left: 8px; font-size: var(--fs-1); }
+.key { display: inline-flex; align-items: center; gap: 7px; color: #c9d1d8; }
+.keyCyan, .keyAmber { display: inline-block; width: 18px; height: 0; border-top: 2px solid var(--lightbox-cyan); }
+.keyAmber { border-top-color: var(--grease-amber); margin-left: 10px; }
+
 .stage {
-  position: absolute;
-  inset: 0;
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: hidden;
   touch-action: none;
   user-select: none;
   cursor: default;
+  outline: none;
 }
+.stage:focus-visible { box-shadow: inset 0 0 0 2px var(--grease-amber); }
 .marking { cursor: crosshair; }
 .panning { cursor: grabbing; }
 .layer {
@@ -21,6 +51,8 @@
   top: 0;
   transform-origin: 0 0;
 }
+/* The view eases back to the whole film as the reveal starts (part of the one animated moment). */
+.fitting { transition: transform 360ms ease-out; }
 .film {
   position: absolute;
   inset: -1px;
@@ -47,7 +79,7 @@
   pointer-events: none;
 }
 
-/* Marks: grease-pencil amber. Unlabeled marks are dashed. Overcalls get a hollow ring after the reveal. */
+/* Marks: grease-pencil amber. Unfinished marks are dashed. Overcalls get a hollow ring after the reveal. */
 .mark { cursor: grab; }
 .markHalo { fill: none; stroke: rgba(0, 0, 0, 0.55); }
 .markRing { fill: none; stroke: var(--grease-amber); }
@@ -64,42 +96,44 @@
   stroke-opacity: 0.9;
 }
 
-/* Expert outlines: cyan. */
+/* Expert outlines: cyan. Labels are plain text on a solid dark pill. */
 .outline {
   fill: var(--lightbox-cyan);
   fill-opacity: 0.07;
   stroke: var(--lightbox-cyan);
   stroke-linejoin: round;
 }
-.findingText {
-  fill: var(--lightbox-cyan);
-  stroke: rgba(0, 0, 0, 0.8);
-  paint-order: stroke;
-  font-weight: 700;
+.outlineHalo {
+  fill: none;
+  stroke: var(--lightbox-cyan);
+  stroke-opacity: 0.24;
+  stroke-linejoin: round;
 }
-.missChip { fill: rgba(0, 0, 0, 0.7); stroke: var(--lightbox-cyan); }
+.pill { fill: rgba(9, 11, 13, 0.88); }
+.findingText { fill: var(--lightbox-cyan); font-weight: 700; }
+.missChip { fill: none; stroke: var(--lightbox-cyan); }
 .missChipText { fill: var(--lightbox-cyan); font-weight: 700; }
-.arrow {
+.arrow, .arrowCasing {
   fill: none;
   stroke: var(--grease-amber);
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.arrowText {
-  fill: var(--grease-amber);
-  stroke: rgba(0, 0, 0, 0.85);
-  paint-order: stroke;
-  font-weight: 700;
-}
+.arrowCasing { stroke: rgba(0, 0, 0, 0.55); }
+.arrowText { fill: var(--grease-amber); font-weight: 700; }
+.unvisitedRing { fill: none; stroke: var(--grease-amber); stroke-opacity: 0.95; }
+.ringText { fill: var(--grease-amber); font-weight: 700; }
 
 /* ---- Reveal choreography (~1.2 s). The only self-starting motion in the app. ---- */
 .revealTrace { animation: fadeTrace 320ms ease-out both; }
+.revealRing { animation: fade 320ms ease-out 120ms both; }
 .revealOutline {
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
   fill-opacity: 0;
   animation: drawFill 480ms ease-in-out 300ms forwards;
 }
+.revealHalo { animation: haloPulse 1100ms ease-in-out 780ms both; }
 .revealLabel { animation: fade 200ms ease-out 760ms both; }
 .revealArrow {
   stroke-dasharray: 1;
@@ -121,14 +155,23 @@
   80% { stroke-dashoffset: 0; fill-opacity: 0; }
   to { stroke-dashoffset: 0; fill-opacity: 0.07; }
 }
-
-@media (prefers-reduced-motion: reduce) {
-  .revealTrace, .revealLabel, .revealArrowText, .settle { animation: none; }
-  .revealOutline, .revealArrow, .revealArrowHead { animation: none; stroke-dashoffset: 0; stroke-dasharray: none; }
-  .revealOutline { fill-opacity: 0.07; }
+/* Two soft beats on a missed outline, then it rests as a faint halo. */
+@keyframes haloPulse {
+  0% { stroke-opacity: 0; }
+  25% { stroke-opacity: 0.6; }
+  50% { stroke-opacity: 0.18; }
+  75% { stroke-opacity: 0.6; }
+  100% { stroke-opacity: 0.24; }
 }
 
-/* Loupe: 180 px, 2.5×. */
+@media (prefers-reduced-motion: reduce) {
+  .revealTrace, .revealLabel, .revealArrowText, .settle, .revealRing, .revealHalo { animation: none; }
+  .revealOutline, .revealArrow, .revealArrowHead { animation: none; stroke-dashoffset: 0; stroke-dasharray: none; }
+  .revealOutline { fill-opacity: 0.07; }
+  .fitting { transition: none; }
+}
+
+/* Magnifier: 180 px, 2.5×. */
 .loupe {
   position: absolute;
   left: 0;
@@ -158,51 +201,115 @@
   border: 1px solid rgba(240, 169, 46, 0.8);
 }
 
-.loading, .notice {
+/* The armed finding rides with the cursor: amber, because it is the learner's call. */
+.armedTag, .crosshairTag {
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--grease-amber);
+  color: #1d1300;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+.armedTag { position: absolute; left: 0; top: 0; display: none; z-index: 3; }
+
+/* Keyboard crosshair: amber with a dark casing so it shows on lung and on bone. */
+.crosshair { position: absolute; left: -22px; top: -22px; width: 44px; height: 44px; pointer-events: none; z-index: 3; }
+.crosshair::before, .crosshair::after {
+  content: '';
+  position: absolute;
+  background: var(--grease-amber);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.85);
+}
+.crosshair::before { left: 0; top: 21px; width: 44px; height: 2px; }
+.crosshair::after { left: 21px; top: 0; width: 2px; height: 44px; }
+.crosshairTag { position: absolute; left: 36px; top: 36px; }
+
+.loading {
   position: absolute;
   left: 50%;
+  top: 45%;
   transform: translateX(-50%);
   color: #c9d1d8;
   font-size: var(--fs-1);
   pointer-events: none;
 }
-.loading { top: 45%; }
-.notice {
-  top: 14px;
-  background: rgba(0, 0, 0, 0.6);
-  padding: 6px 12px;
-  border-radius: var(--radius);
-}
 
-/* Image tools: a quiet strip along the bottom of the surround. */
+/* Image controls: their own strip under the film. */
 .tools {
-  position: absolute;
-  left: 12px;
-  bottom: 12px;
+  flex: 0 0 auto;
+  min-height: 46px;
   display: flex;
   align-items: center;
-  gap: 14px;
+  flex-wrap: wrap;
+  gap: 6px 10px;
   padding: 6px 12px;
-  border-radius: var(--radius);
-  background: rgba(14, 16, 18, 0.82);
+  background: #15181a;
+  border-top: 1px solid #2a2f34;
   color: #c9d1d8;
   font-size: var(--fs-1);
 }
-.zoom { min-width: 3.2em; font-variant-numeric: tabular-nums; color: #e6ebef; }
+.toolGroup { display: inline-flex; align-items: center; gap: 6px; }
+.toolLabel { color: #c9d1d8; }
+.toolSpacer { flex: 1 1 0; }
+.zoom { min-width: 2.9em; text-align: center; font-variant-numeric: tabular-nums; color: #e6ebef; }
 .slider { display: flex; align-items: center; gap: 6px; }
-.slider input { width: 92px; accent-color: var(--graticule); }
-.tool {
+.slider input { width: 64px; accent-color: var(--graticule); }
+.tool, .toolSq {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   background: transparent;
   color: #e6ebef;
   border: 1px solid #4a535c;
   border-radius: var(--radius);
-  padding: 3px 10px;
+  padding: 3px 9px;
   cursor: pointer;
+  font-size: var(--fs-1);
+  white-space: nowrap;
 }
-.tool:hover { border-color: var(--graticule); }
-.toolOn { background: #e6ebef; color: #111; }
+.toolSq { width: 28px; height: 28px; padding: 0; justify-content: center; font-size: 18px; line-height: 1; }
+.toolSq:disabled { opacity: 0.4; cursor: default; }
+.tool:hover, .toolSq:hover:not(:disabled) { border-color: var(--graticule); }
+.toolOn { background: #e6ebef; color: #111; border-color: #e6ebef; }
+/* State is written in the label; the dot repeats it (hollow = off, amber = on). */
+.dot { width: 8px; height: 8px; border-radius: 50%; background: transparent; box-shadow: inset 0 0 0 1.5px currentColor; opacity: 0.75; flex-shrink: 0; }
+.toolOn .dot { opacity: 1; background: var(--grease-amber); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35); }
+.viewer :is(button, input):focus-visible { outline: 2px solid var(--grease-amber); outline-offset: 2px; }
+.tipAnchor { position: relative; display: inline-flex; }
+.tip {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 10px);
+  width: 290px;
+  padding: 9px 12px;
+  border-radius: var(--radius);
+  background: var(--report-paper);
+  color: var(--report-ink);
+  font-size: 14px;
+  line-height: 1.4;
+  white-space: normal;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  z-index: 6;
+}
+.tip::after {
+  content: '';
+  position: absolute;
+  right: 28px;
+  top: 100%;
+  border: 7px solid transparent;
+  border-top-color: var(--report-paper);
+}
+.tip .kbdTool { border-color: #9aa5af; color: var(--report-ink); }
 
-/* Mark popover: report paper on the dark surround. */
+/* Mark popover: report paper on the dark surround, beside the mark with a thin connector. */
+.connector { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 4; overflow: visible; }
+.connectorCasing { stroke: rgba(0, 0, 0, 0.7); stroke-width: 3.5; stroke-linecap: round; }
+.connectorLine { stroke: var(--grease-amber); stroke-width: 1.5; stroke-linecap: round; }
+.connectorDot { fill: var(--grease-amber); stroke: rgba(0, 0, 0, 0.7); stroke-width: 1; }
 .popover {
   position: absolute;
   z-index: 5;
@@ -213,11 +320,17 @@
   padding: 12px 12px 10px;
   font-size: var(--fs-1);
   cursor: default;
+  outline: none;
 }
-.popHead { display: flex; gap: 8px; align-items: baseline; font-weight: 700; margin-bottom: 8px; }
+.popover :is(button):focus-visible { outline: 2px solid #9a6200; outline-offset: 1px; }
+.popHead { display: flex; gap: 8px; align-items: center; font-weight: 700; margin-bottom: 8px; }
 .popId { color: #9a6200; }
-.popLabels { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.popChange { margin-left: auto; background: none; border: none; color: var(--report-ink-muted); text-decoration: underline; cursor: pointer; padding: 2px 0; font-weight: 400; font-size: 14px; }
+.popLabels { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; }
+.popLabelRow { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .popLabel {
+  flex: 1;
+  min-width: 0;
   text-align: left;
   border: 1px solid var(--report-rule);
   background: #fff;
@@ -226,11 +339,20 @@
   cursor: pointer;
   color: var(--report-ink);
   font-size: var(--fs-1);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .popLabel:hover { border-color: var(--grease-amber); }
 .popLabelOn { background: var(--grease-amber); border-color: var(--grease-amber); color: #1d1300; font-weight: 700; }
-.popConf { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
-.popFoot { display: flex; justify-content: space-between; margin-top: 10px; }
+.popNotSure { font-style: normal; color: var(--report-ink-muted); }
+.popNotSure.popLabelOn { color: #1d1300; }
+.popAsk { margin: 12px 0 6px; font-weight: 700; }
+.popConfRow { display: flex; justify-content: center; }
+.popKeys { margin: 8px 0 0; font-size: 13px; color: var(--report-ink-muted); text-align: center; }
+.popKeys kbd { font: inherit; padding: 0 4px; border: 1px solid #b9c2ca; border-radius: 3px; background: #fff; }
+.popFoot { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 10px; }
+.popMissing { font-size: 13px; color: #7a4d00; text-align: right; flex: 1; }
 .popDelete { background: none; border: none; color: var(--report-ink-muted); text-decoration: underline; cursor: pointer; padding: 4px 0; }
 .popDone {
   background: var(--report-ink);
@@ -242,49 +364,21 @@
 }
 .popDone:disabled { opacity: 0.4; cursor: default; }
 
-/* Read-only reveal (expert review page): everything drawn, nothing animates. */
-.still .revealTrace, .still .revealLabel, .still .revealArrowText, .still .settle { animation: none; }
+/* Read-only reveal (expert review page, case review): everything drawn, nothing animates. */
+.still .revealTrace, .still .revealLabel, .still .revealArrowText, .still .settle, .still .revealRing, .still .revealHalo { animation: none; }
 .still .revealOutline, .still .revealArrow, .still .revealArrowHead { animation: none; stroke-dashoffset: 0; stroke-dasharray: none; }
 .still .revealOutline { fill-opacity: 0.07; }
 
-/* Anatomy (key A, after submit): graticule grey at ~40%. Zones take hover so their names can show. */
-.zone {
-  fill: transparent;
-  stroke: var(--graticule);
-  stroke-opacity: 0.4;
-  stroke-linejoin: round;
-  pointer-events: all;
-}
-.zoneOn { stroke-opacity: 0.95; fill: var(--graticule); fill-opacity: 0.08; }
-.zoneName {
-  position: absolute;
-  right: 14px;
-  top: 14px;
-  padding: 5px 10px;
-  border-radius: var(--radius);
-  background: rgba(0, 0, 0, 0.7);
-  color: #e6ebef;
-  font-size: var(--fs-1);
-  pointer-events: none;
-  border: 1px solid rgba(140, 153, 166, 0.5);
-}
+/* Anatomy (key A, after submit): a near-black line on a 1 px light casing reads on dark lung and bright mediastinum. */
+.zone, .zoneCasing { fill: none; stroke-linejoin: round; stroke-linecap: round; }
+.zoneCasing { stroke: rgba(236, 241, 245, 0.78); pointer-events: none; }
+.zoneCasingOn { stroke: #fff; }
+.zone { fill: transparent; stroke: #07090b; pointer-events: all; }
+.zoneOn { fill: rgba(236, 241, 245, 0.14); }
+.zoneName { color: #e6ebef; }
 
-/* Empty-state nudges: quiet, never in the way of a click. */
-.nudge {
-  position: absolute;
-  left: 50%;
-  top: 14px;
-  transform: translateX(-50%);
-  display: flex;
-  gap: 14px;
-  padding: 6px 14px;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.55);
-  color: #c9d1d8;
-  font-size: var(--fs-1);
-  pointer-events: none;
-  white-space: nowrap;
-}
+/* Before the first mark: one quiet line in the strip. */
+.nudge { display: inline-flex; gap: 14px; color: #c9d1d8; }
 .nudge span + span::before { content: '·'; margin-right: 14px; color: #6b7680; }
 .kbdTool {
   display: inline-block;
@@ -292,8 +386,49 @@
   padding: 0 5px;
   border: 1px solid #4a535c;
   border-radius: 3px;
+  font: inherit;
   font-size: 12px;
   line-height: 16px;
   color: #c9d1d8;
 }
 .toolOn .kbdTool { border-color: #9aa5af; color: #333; }
+
+/* On-film legend: what the amber trace and the anatomy lines mean. Small, bottom-left, never below 13 px. */
+.legend {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: min(330px, 46%);
+  cursor: default;
+}
+.legendChip {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: var(--radius);
+  background: rgba(9, 11, 13, 0.86);
+  border: 1px solid rgba(140, 153, 166, 0.35);
+  color: #e6ebef;
+  font-size: 13px;
+  line-height: 1.4;
+  user-select: text;
+}
+:root[data-projector='1'] .legendChip { font-size: 16px; }
+.legendSwatch {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #ffe5a6 0%, var(--grease-amber) 45%, rgba(240, 169, 46, 0) 100%);
+}
+.legendLink { background: none; border: none; padding: 0; color: #fff; text-decoration: underline; cursor: pointer; font-size: inherit; }
+.legendLine { display: block; margin-top: 3px; }
+.legendRing { display: inline-block; width: 12px; height: 12px; margin-right: 6px; border-radius: 50%; border: 1.5px dashed var(--grease-amber); vertical-align: -2px; }
+.legendKey { display: inline-block; width: 22px; height: 8px; margin-right: 5px; vertical-align: 0; }
+.legendKey + .legendKey, .legendGap { margin-left: 10px; }

@@ -33,7 +33,7 @@
 .cyan { color: #0f8496; font-weight: 700; }
 .amber { color: #a86a00; font-weight: 700; }
 .table { width: 100%; border-collapse: collapse; font-size: var(--fs-1); }
-.table th { text-align: left; font-weight: 400; padding: 6px 16px 6px 0; border-top: 1px solid var(--report-rule); white-space: nowrap; width: 9.5em; color: var(--report-ink-muted); }
+.table th { text-align: left; font-weight: 400; padding: 6px 16px 6px 0; border-top: 1px solid var(--report-rule); white-space: nowrap; width: 12.5em; white-space: normal; color: var(--report-ink-muted); }
 .table td { padding: 6px 0; border-top: 1px solid var(--report-rule); }
 .kbd {
   display: inline-block;
@@ -48,3 +48,5 @@
   color: var(--report-ink);
   text-align: center;
 }
+.prose { font-size: var(--fs-1); line-height: 1.5; margin: 10px 0 0; color: var(--report-ink); }
+.sub { font-size: var(--fs-1); font-weight: 700; margin: 14px 0 4px; }

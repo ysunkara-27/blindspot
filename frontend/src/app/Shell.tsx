@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, NavLink } from 'react-router-dom';
 import { apiMode } from '../api/client';
+import { useSession } from '../state/session';
 import { BrandMark } from './BrandMark';
 import s from './Shell.module.css';
 
@@ -19,22 +20,23 @@ export function SyntheticBadge({ short = false }: { short?: boolean }) {
   const m = apiMode();
   if (m.mode !== 'mock') return null;
   return (
-    <span className={s.synthetic} title={`Synthetic demo cases (${m.reason}): drawn shapes, not radiographs.`} data-testid="synthetic-badge">
-      {short ? 'Synthetic' : 'Synthetic demo cases'}
+    <span className={s.synthetic} title={`Synthetic cases (${m.reason}): drawn shapes, not radiographs.`} data-testid="synthetic-badge">
+      {short ? 'Synthetic' : 'Synthetic cases'}
     </span>
   );
 }
 
-/** `compact` is the reading-room header: the learner's own pages only (Read is where they are; Cohort and Review
- *  are instructor pages, one click away from the landing). */
+/** The learner's pages: Read · Reading log · Reference · About. `compact` is the reading-room header, where Read is
+ *  where you already are. Cohort and expert review are not learner pages: they are reached by URL or from About. */
 export function Nav({ compact = false }: { compact?: boolean }) {
+  // "Read" goes back to the open set if there is one, otherwise to the start screen.
+  const inSet = useSession((st) => !!st.session);
   return (
     <nav className={s.nav} aria-label="Main">
-      {!compact && <Link to="/read">Read</Link>}
-      <Link to="/progress">Reading log</Link>
-      {!compact && <Link to="/cohort">Cohort</Link>}
-      {!compact && <Link to="/review">Review</Link>}
-      <Link to="/about">About</Link>
+      {!compact && <NavLink to={inSet ? '/read' : '/start'} data-testid="nav-read">Read</NavLink>}
+      <NavLink to="/progress">Reading log</NavLink>
+      <NavLink to="/reference">Reference</NavLink>
+      <NavLink to="/about">About</NavLink>
     </nav>
   );
 }

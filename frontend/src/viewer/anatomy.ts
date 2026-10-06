@@ -57,3 +57,34 @@ export function guardAnatomy(v: unknown): Anatomy {
 }
 
 export const ringPath = (r: Pt[]) => `M${r.map(([x, y]) => `${x.toFixed(1)} ${y.toFixed(1)}`).join('L')}Z`;
+
+/** A review area the learner did not visit, drawn on the film as a thin dashed amber ring (round 3, search trace). */
+export type UnvisitedRing = { id: string; name: string; cx: number; cy: number; rx: number; ry: number };
+
+export function zoneBox(z: AnatomyZone): [number, number, number, number] {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const r of z.rings) for (const [x, y] of r) {
+    if (x < x0) x0 = x;
+    if (y < y0) y0 = y;
+    if (x > x1) x1 = x;
+    if (y > y1) y1 = y;
+  }
+  return [x0, y0, x1, y1];
+}
+
+/** Ring positions for the unvisited review areas, from the anatomy outlines: a ring at the centre of each area, no
+ *  smaller than `minR` and no larger than `maxR` (image px), so nine unvisited areas read as nine markers rather than
+ *  nine overlapping outlines. Areas with no outline come back in `missing` so the legend can still list them by name. */
+export function unvisitedRings(anatomy: Anatomy | null | undefined, ids: string[], minR = 0, maxR = Infinity): { rings: UnvisitedRing[]; missing: string[] } {
+  const rings: UnvisitedRing[] = [];
+  const missing: string[] = [];
+  const fit = (half: number) => Math.min(maxR, Math.max(minR, half));
+  for (const id of ids) {
+    const z = anatomy?.zones.find((x) => x.id === id);
+    if (!z) { missing.push(id); continue; }
+    const [x0, y0, x1, y1] = zoneBox(z);
+    if (!Number.isFinite(x0 + y0 + x1 + y1)) { missing.push(id); continue; }
+    rings.push({ id, name: z.name, cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, rx: fit((x1 - x0) / 2), ry: fit((y1 - y0) / 2) });
+  }
+  return { rings, missing };
+}
