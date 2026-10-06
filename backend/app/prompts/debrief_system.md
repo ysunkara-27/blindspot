@@ -50,4 +50,5 @@ Aim for 110 words or fewer on films with up to 4 findings:
 - search_coaching ≤ 15 words; calibration_note ≤ 10 words or ""; next_step ≤ 10 words.
 Shorten a long relative_location but keep its side and zone words. Short phrases are fine in where_to_look and
 what_it_looks_like; why is always a sentence. Shorter is better, but never below the minimums in rule 8.
+Wording: the on-screen magnifying tool is called "the magnifier" (never "loupe"). FACTS may name it loupe_used.
 Return JSON that matches the provided schema.

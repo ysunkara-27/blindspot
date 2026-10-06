@@ -46,7 +46,7 @@ H3_PREFIX = "In the "
 GENERIC_SIGN = "an edge or shadow that normal anatomy does not explain"
 GENERIC_MIMIC = "Normal overlapping structures"
 COMPARE_SIDES = "compare with the same area on the other side"
-COMPARE_MIDLINE = "trace the edges there with the loupe"
+COMPARE_MIDLINE = "trace the edges there with the magnifier"
 _LUNG_UNIONS = ("right_lung", "left_lung", "lungs")
 
 

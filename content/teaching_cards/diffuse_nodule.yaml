@@ -12,6 +12,6 @@ mimics:
   - Grainy noise on an under-exposed film
   - Crossing points of ribs and vessels
 commonly_confused_with: [fibrosis]
-search_tip: Put the loupe on a clear patch of lung between vessels and look for tiny dots.
+search_tip: Put the magnifier on a clear patch of lung between vessels and look for tiny dots.
 radiopaedia_url: https://radiopaedia.org/articles/miliary-opacities
 review: {status: ai_draft, reviewer: null, date: null, notes: "radiopaedia_url not machine-verifiable on 2026-10-05: radiopaedia.org returned the same 200 page for every slug, including a bogus control. Reviewer: click to confirm."}

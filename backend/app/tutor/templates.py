@@ -23,7 +23,7 @@ _COUNTABLE = {"pneumothorax", "effusion", "nodule", "mass", "calcification", "fr
 _MISS_ORDER = ("missed_search", "missed_recognition", "missed_decision", "mislabeled", "pattern_missed")
 _NEXT_STEP = {
     "missed_search": "On the next film, visit every review area before you place your first mark.",
-    "missed_recognition": "On the next film, pause the loupe on each region and compare it with the other side.",
+    "missed_recognition": "On the next film, pause the magnifier on each region and compare it with the other side.",
     "missed_decision": "On the next film, compare anything borderline with the same spot on the other side.",
     "mislabeled": "On the next film, check the key signs before you choose a label.",
     "pattern_missed": "On the next film, run through the Global findings checklist before you submit.",

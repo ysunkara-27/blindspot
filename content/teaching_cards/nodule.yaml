@@ -13,6 +13,6 @@ mimics:
   - A vessel seen end-on (next to a vessel of the same size)
   - Spots where two ribs, or a rib and the clavicle, cross
 commonly_confused_with: [mass, calcification]
-search_tip: Use the loupe on the places nodules hide, including the apices, the hila, behind the heart and below the diaphragm domes.
+search_tip: Use the magnifier on the places nodules hide, including the apices, the hila, behind the heart and below the diaphragm domes.
 radiopaedia_url: https://radiopaedia.org/articles/pulmonary-nodule
 review: {status: ai_draft, reviewer: null, date: null, notes: "radiopaedia_url not machine-verifiable on 2026-10-05: radiopaedia.org returned the same 200 page for every slug, including a bogus control. Reviewer: click to confirm."}

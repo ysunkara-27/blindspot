@@ -13,6 +13,6 @@ mimics:
   - Chest wall muscle and fat along the side of the chest
   - Breast or armpit soft tissue folds
 commonly_confused_with: [effusion]
-search_tip: Run the loupe along the inner edge of the chest wall and compare its thickness side to side.
+search_tip: Run the magnifier along the inner edge of the chest wall and compare its thickness side to side.
 radiopaedia_url: https://radiopaedia.org/articles/pleural-thickening
 review: {status: ai_draft, reviewer: null, date: null, notes: "radiopaedia_url not machine-verifiable on 2026-10-05: radiopaedia.org returned the same 200 page for every slug, including a bogus control. Reviewer: click to confirm."}
