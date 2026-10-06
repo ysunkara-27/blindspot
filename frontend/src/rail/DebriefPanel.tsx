@@ -1,18 +1,22 @@
 // Tutor debrief (SPEC §8, §13): polls GET /attempts/{id}/debrief every 700 ms until ready/failed.
-import { useEffect, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useEffect, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/client';
+import { track } from '../analytics';
+import { debriefErrorText, debriefHadError } from '../tutor/status';
 import type { DebriefResponse, RevealFinding } from '../types/contracts';
 import { openReference } from '../reference/store';
 import { plainText } from './copy';
-import { BUSY, PROVENANCE, SOURCE, SOURCE_TITLE } from './debriefCopy';
+import { PROVENANCE, SOURCE, SOURCE_TITLE } from './debriefCopy';
 import s from './Rail.module.css';
 
 const SLOW_MS = 15_000;
 
 export function DebriefPanel({ attemptId, findings, disabled }: { attemptId: string; findings: RevealFinding[]; disabled: boolean }) {
+  const qc = useQueryClient();
   const [slow, setSlow] = useState(false);
   const [flagged, setFlagged] = useState(false);
+  const counted = useRef(false);
   const q = useQuery({
     queryKey: ['debrief', attemptId],
     queryFn: () => api.debrief(attemptId),
@@ -29,11 +33,21 @@ export function DebriefPanel({ attemptId, findings, disabled }: { attemptId: str
     return () => clearTimeout(t);
   }, []);
 
-  if (disabled || q.data?.status === 'disabled') return null;
   const d = q.data;
   const failed = q.isError || d?.status === 'failed';
-  // Rate-limited or failed: say so plainly, and still show any built-in explanation the server sent.
-  const busy = failed || d?.error === 'rate_limited';
+  const settled = failed || d?.status === 'ready';
+  // Once the debrief settles: count which kind arrived, and after a tutor problem re-check the tutor status so the
+  // banner catches up without waiting for the next poll.
+  useEffect(() => {
+    if (!settled || counted.current || disabled) return;
+    counted.current = true;
+    if (d?.status === 'ready' && d.debrief) track(d.source === 'template' ? 'debrief_template' : 'debrief_live');
+    if (debriefHadError(d, failed)) qc.invalidateQueries({ queryKey: ['health'] });
+  }, [settled, d, failed, disabled, qc]);
+
+  if (disabled || d?.status === 'disabled') return null;
+  // Not the live tutor's words: say why in one plain sentence, and still show any built-in explanation the server sent.
+  const problem = settled ? debriefErrorText(d, failed) : null;
 
   const flag = () => {
     setFlagged(true);
@@ -50,7 +64,7 @@ export function DebriefPanel({ attemptId, findings, disabled }: { attemptId: str
           </span>
         )}
       </div>
-      {busy && <p className={s.notice} data-testid="debrief-busy">{BUSY}</p>}
+      {problem && <p className={s.notice} data-testid="debrief-busy">{problem}</p>}
       {failed && !d?.debrief ? null : !d || d.status === 'pending' ? (
         <p className={s.muted} data-testid="debrief-pending">{slow ? 'The tutor is taking longer than usual. The facts above are complete.' : 'Writing your debrief…'}</p>
       ) : d.debrief ? (
@@ -97,8 +111,8 @@ export function DebriefPanel({ attemptId, findings, disabled }: { attemptId: str
             )}
           </div>
         </div>
-      ) : busy ? null : (
-        <p className={s.notice} data-testid="debrief-busy">{BUSY}</p>
+      ) : problem ? null : (
+        <p className={s.notice} data-testid="debrief-busy">{debriefErrorText({ status: 'failed' }, true)}</p>
       )}
     </section>
   );

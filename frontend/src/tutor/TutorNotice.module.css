@@ -1,0 +1,12 @@
+/* Amber outline = something about the learner's session, not the expert read; never a red alert (SPEC §14.1). */
+.notice {
+  border: 1.5px solid #c98a17;
+  border-radius: var(--radius);
+  background: rgba(240, 169, 46, 0.08);
+  padding: 8px 12px;
+  font-size: var(--fs-1);
+  line-height: 1.45;
+  color: var(--report-ink);
+}
+.text { margin: 0; }
+.spend { margin: 4px 0 0; font-size: 13px; color: var(--report-ink-muted); font-variant-numeric: tabular-nums; }

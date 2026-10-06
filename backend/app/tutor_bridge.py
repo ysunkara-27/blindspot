@@ -230,7 +230,14 @@ def ask(question: str, facts: DebriefFacts | None, case: Case, *, previous: list
         return {"answer": OFFLINE_ANSWER, "source": "template"}
     try:
         out = m.ask(question, facts, case, previous=previous, offline=offline, client=_client)
-        return {"answer": str(out.get("answer", OFFLINE_ANSWER)), "source": out.get("source", "template")}
+        return {
+            "answer": str(out.get("answer", OFFLINE_ANSWER)),
+            "source": out.get("source", "template"),
+            "error": out.get("error"),
+            "input_tokens": out.get("input_tokens"),
+            "output_tokens": out.get("output_tokens"),
+            "cache_read_tokens": out.get("cache_read_tokens"),
+        }
     except Exception:  # noqa: BLE001
         log.exception("tutor.ask.ask failed")
-        return {"answer": OFFLINE_ANSWER, "source": "template"}
+        return {"answer": OFFLINE_ANSWER, "source": "template", "error": "internal_error"}

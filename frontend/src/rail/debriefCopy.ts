@@ -10,4 +10,3 @@ export const SOURCE_TITLE: Record<string, string> = {
   cache: 'Written by Claude earlier for the same facts; the saved text is shown.',
   template: 'A fixed explanation filled from the computed facts.',
 };
-export const BUSY = 'The tutor is busy. Showing the built-in explanation instead.';

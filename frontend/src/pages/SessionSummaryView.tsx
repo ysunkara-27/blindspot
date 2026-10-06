@@ -8,6 +8,7 @@ import { api, ApiError } from '../api/client';
 import { markTestDone } from '../api/sessionOptions';
 import { PageShell } from '../app/Shell';
 import { useTitle } from '../app/useTitle';
+import { track } from '../analytics';
 import { MissBreakdown } from '../dashboard/charts/MissBreakdown';
 import { SummaryStats } from '../dashboard/charts/SummaryStats';
 import { MISS_NAME } from '../dashboard/palette';
@@ -49,6 +50,8 @@ export function SessionSummaryView({ session }: { session: SessionInfo }) {
   const mode = sm?.mode ?? session.mode;
   const test = isAssessment(mode as SessionInfo['mode']);
   useTitle(test ? 'Test results' : sm && !sm.complete ? 'Set in progress' : 'Set complete');
+  // The end-of-set page opened (counted once per set, not per render).
+  useEffect(() => { track('set_complete'); }, [sid]);
   // A finished test set moves this learner on to the other set next time.
   useEffect(() => {
     if (sm && test && sm.complete && session.learnerId) markTestDone(session.learnerId, mode);

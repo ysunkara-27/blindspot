@@ -22,7 +22,7 @@ from backend.app.settings import get_settings
 ACCESS_HEADER, ACCESS_COOKIE = "x-blindspot-access", "bs_access"
 REVIEW_HEADER, REVIEW_COOKIE = "x-blindspot-review", "bs_review"
 OPEN_API_PATHS = frozenset({"/api/health", "/api/about", "/api/access"})
-REVIEW_PREFIXES = ("/api/review/", "/api/cohort/")
+REVIEW_PREFIXES = ("/api/review/", "/api/cohort/", "/api/admin/")
 REVIEW_OPEN = frozenset({"/api/review/access"})
 NO_STORE = b"no-store"
 ASSET_CACHE = "public, max-age=31536000, immutable"

@@ -3,6 +3,7 @@
 // cyan. It never says anything about the case being read, so it is available before submit.
 // Mount <ReferenceDrawer /> once on a page; open it from anywhere with openReference(label) or <InfoButton />.
 import { useEffect, useRef, useState } from 'react';
+import { track } from '../analytics';
 import { useQuery } from '@tanstack/react-query';
 import { assetUrl } from '../api/client';
 import { fetchReference } from '../api/reference';
@@ -164,6 +165,7 @@ export function ReferenceDrawer() {
   useEffect(() => () => useReference.getState().close(), []);
   // Focus moves into the drawer when it opens and returns to where it was when it closes.
   const open = !!label;
+  useEffect(() => { if (open) track('reference_open'); }, [open]);
   useEffect(() => {
     if (!open) return;
     const prev = document.activeElement as HTMLElement | null;

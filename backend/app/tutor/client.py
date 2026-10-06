@@ -43,6 +43,7 @@ def debrief_max_tokens(n_findings: int) -> int:
 ASK_MAX_TOKENS = 600
 # Effort for runtime calls (latency). "none" omits the parameter for models without effort support.
 DEFAULT_EFFORT = "low"
+LOCAL_LIMITER = "BLINDSPOT_MAX_LIVE_CALLS_PER_MIN reached"  # LiveCallError.detail of the in-process limiter
 _SCHEMA_META_KEYS = ("$schema", "$id", "title", "description")
 
 ASK_SCHEMA: dict[str, Any] = {
@@ -61,35 +62,99 @@ def debrief_schema() -> dict[str, Any]:
 
 
 class LiveCallError(Exception):
-    """A live call that produced no usable text. kind: timeout | api | rate_limited | refusal | max_tokens | empty."""
+    """A live call that produced no usable text.
 
-    def __init__(self, kind: str, detail: str = "") -> None:
+    kind: timeout | api | rate_limited | refusal | max_tokens | empty | credits_depleted | auth | unavailable |
+    budget_exceeded. `paused` is True when the tutor guard skipped the network (backend/app/tutor/guard.py)."""
+
+    def __init__(self, kind: str, detail: str = "", *, paused: bool = False) -> None:
         super().__init__(f"{kind}: {detail}" if detail else kind)
         self.kind = kind
         self.detail = detail
+        self.paused = paused
+
+    @property
+    def reason(self) -> str:
+        """validator["fallback_reason"]: live_<kind> for a failed call, paused_<kind> for a skipped one."""
+        return f"{'paused' if self.paused else 'live'}_{self.kind}"
 
 
+# DebriefResponse.error codes (PROGRESS.md `TUTOR ERRORS`; the frontend keys its copy on these).
+ERROR_CODES = (
+    "offline",
+    "credits_depleted",
+    "rate_limited",
+    "budget_exceeded",
+    "unavailable",
+    "auth",
+    "validator_failed",
+    "timeout",
+    "internal_error",
+)
+# LiveCallError.kind -> error code.
+KIND_ERRORS: dict[str, str] = {
+    "timeout": "timeout",
+    "api": "unavailable",
+    "unavailable": "unavailable",
+    "rate_limited": "rate_limited",
+    "credits_depleted": "credits_depleted",
+    "budget_exceeded": "budget_exceeded",
+    "auth": "auth",
+    "refusal": "validator_failed",
+    "max_tokens": "validator_failed",
+    "empty": "validator_failed",
+}
 # Template fallback reason (validator["fallback_reason"]) -> short `error` code for the UI ("The tutor is busy/offline.
-# Showing the built-in explanation instead."). Codes: offline | rate_limited | timeout | unavailable |
-# validator_failed | internal_error.
+# Showing the built-in explanation instead."). live_<kind>: the call failed; paused_<kind>: the guard skipped it.
 FALLBACK_ERRORS: dict[str, str] = {
     "offline": "offline",
     "no_api_key": "offline",
-    "live_rate_limited": "rate_limited",
-    "live_timeout": "timeout",
-    "live_api": "unavailable",
-    "live_refusal": "validator_failed",
-    "live_max_tokens": "validator_failed",
-    "live_empty": "validator_failed",
     "bad_json": "validator_failed",
     "validator_failed": "validator_failed",
     "internal_error": "internal_error",
+    **{f"live_{k}": v for k, v in KIND_ERRORS.items()},
+    **{f"paused_{k}": v for k, v in KIND_ERRORS.items()},
 }
 
 
 def fallback_error(reason: str | None) -> str:
     """Error code for a template fallback reason (unknown reasons -> internal_error)."""
     return FALLBACK_ERRORS.get(reason or "", "internal_error")
+
+
+_CREDIT_WORDS = ("credit balance", "billing", "too low", "insufficient credit", "purchase credits")
+
+
+def classify_status_error(status_code: int, message: str) -> str:
+    """LiveCallError.kind for an HTTP error from the API.
+
+    402, or 400/403 whose message mentions the credit balance / billing / "too low" -> credits_depleted;
+    401 -> auth; 429 -> rate_limited; 5xx (incl. 529 overloaded) -> unavailable; other 4xx -> api."""
+    m = (message or "").lower()
+    if status_code == 402 or (status_code in (400, 403) and any(w in m for w in _CREDIT_WORDS)):
+        return "credits_depleted"
+    if status_code == 401:
+        return "auth"
+    if status_code == 429:
+        return "rate_limited"
+    if status_code >= 500:
+        return "unavailable"
+    return "api"
+
+
+def classify_exception(e: BaseException) -> str:
+    """LiveCallError.kind for an anthropic SDK exception (timeouts and connection errors included)."""
+    import anthropic
+
+    if isinstance(e, anthropic.APITimeoutError):
+        return "timeout"
+    if isinstance(e, anthropic.APIStatusError):
+        body = getattr(e, "body", None)
+        text = f"{getattr(e, 'message', '') or e} {json.dumps(body) if isinstance(body, dict | list) else body or ''}"
+        return classify_status_error(int(getattr(e, "status_code", 0) or 0), text)
+    if isinstance(e, anthropic.APIConnectionError):
+        return "unavailable"
+    return "api"
 
 
 @dataclass
@@ -102,6 +167,7 @@ class LLMResponse:
     cache_creation_input_tokens: int | None = None
     stop_reason: str | None = None
     latency_ms: float = 0.0
+    cost_usd: float | None = None  # set by guard.guarded_complete from the token counts and env prices
 
 
 class TutorClient(Protocol):
@@ -193,7 +259,7 @@ class AnthropicTutorClient:
         import anthropic
 
         if not (self._limiter or _limiter()).try_acquire():
-            raise LiveCallError("rate_limited", "BLINDSPOT_MAX_LIVE_CALLS_PER_MIN reached")
+            raise LiveCallError("rate_limited", LOCAL_LIMITER)
         output_config: dict[str, Any] = {"format": {"type": "json_schema", "schema": schema}}
         if self.effort:
             output_config["effort"] = self.effort
@@ -206,16 +272,13 @@ class AnthropicTutorClient:
             try:
                 resp = self._client().messages.create(**kwargs)
                 break
-            except anthropic.APITimeoutError as e:
-                raise LiveCallError("timeout", type(e).__name__) from e
-            except anthropic.APIStatusError as e:
-                if e.status_code >= 500 and attempt == 0:
+            except anthropic.APIError as e:
+                kind = classify_exception(e)
+                # one retry on 5xx / overloaded / connection errors (never on timeouts, 4xx, credits, auth)
+                if kind == "unavailable" and attempt == 0:
                     continue
-                raise LiveCallError("api", f"{type(e).__name__} {e.status_code}") from e
-            except anthropic.APIConnectionError as e:
-                if attempt == 0:
-                    continue
-                raise LiveCallError("api", type(e).__name__) from e
+                status = getattr(e, "status_code", None)
+                raise LiveCallError(kind, f"{type(e).__name__}{f' {status}' if status else ''}") from e
         latency = (time.perf_counter() - t0) * 1000.0
         if resp is None:  # pragma: no cover - loop always breaks or raises
             raise LiveCallError("api", "no response")

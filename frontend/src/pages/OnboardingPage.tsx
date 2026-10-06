@@ -6,6 +6,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { api, isGateError } from '../api/client';
 import { forgetLearner, loadRemembered, readPath, SAMPLE_NAME, sampleSessionCreate } from '../api/sessionOptions';
 import { PageShell } from '../app/Shell';
+import { track } from '../analytics';
 import { SMALL_SCREEN_TEXT } from '../app/SmallScreen';
 import { useNarrow } from '../app/useMediaQuery';
 import { useTitle } from '../app/useTitle';
@@ -28,6 +29,7 @@ export function OnboardingPage() {
     mutationFn: () => api.createSession(sampleSessionCreate({ projector })),
     onSuccess: (r) => {
       setSession({ sessionId: r.session_id, learnerId: r.learner_id, displayName: SAMPLE_NAME, level: 'other', mode: 'practice' });
+      track('session_start');
       navigate(readPath());
     },
   });

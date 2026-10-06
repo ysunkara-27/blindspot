@@ -11,6 +11,8 @@ import {
   type Count, type Practice, type StartForm,
 } from '../api/sessionOptions';
 import { PageShell } from '../app/Shell';
+import { track } from '../analytics';
+import { TutorNotice } from '../tutor/TutorNotice';
 import { useTitle } from '../app/useTitle';
 import { useSession } from '../state/session';
 import { HALF_NORMAL } from './OnboardingPage';
@@ -56,6 +58,7 @@ export function StartPage() {
     onSuccess: (r, form) => {
       const typed = form.name.trim();
       remember(r.learner_id, typed);
+      track('session_start');
       setSession({
         sessionId: r.session_id, learnerId: r.learner_id, displayName: typed, level: 'other', mode: r.mode,
         drillLabel: r.mode === 'drill' ? form.finding : undefined,
@@ -79,6 +82,7 @@ export function StartPage() {
   return (
     <PageShell>
       <h1 className={p.h1}>Start reading</h1>
+      <TutorNotice className={s.tutorNotice} />
       <form onSubmit={(e) => { e.preventDefault(); if (!begin.isPending) begin.mutate({ name, practice: chosen, finding, count }); }} data-testid="start-form">
         <section className={s.block} aria-labelledby="who-q">
           <h2 id="who-q" className={s.q}>Who is reading?</h2>

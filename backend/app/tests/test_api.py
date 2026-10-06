@@ -24,7 +24,9 @@ def _submit_body(**kw) -> dict:
 def test_health_counts_fixture_cases(api_env):
     c = api_env()
     body = c.get("/api/health").json()
+    tutor = body.pop("tutor")
     assert body == {"ok": True, "offline": True, "cases": 10, "version": body["version"]}
+    assert tutor["mode"] == "offline" and tutor["reason"]
 
 
 def test_practice_flow_submit_reveal_and_next(api_env):

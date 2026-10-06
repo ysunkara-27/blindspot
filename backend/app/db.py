@@ -3,7 +3,8 @@
 `python -m backend.app.db --reset` drops and recreates every table (idempotent).
 Extensions to §13.1 (logged in PROGRESS.md): attempts.idx / attempts.hint_log_json / attempts.result_json (the stored
 SubmitResult, served by GET /attempts/{id}/result); debriefs.status/error/provenance; a `flags` table for "This seems
-wrong" reports.
+wrong" reports; token columns on debriefs/asks (cache_read_tokens, asks.input/output_tokens) for the spend estimate
+(backend/app/tutor/spend.py); `tutor_state` key/value rows for the tutor guard's pause (backend/app/tutor/guard.py).
 
 First-run safety: the schema is created ONCE per database file by `init_db` (called from the app lifespan and lazily by
 `connect`), under a cross-process file lock and inside one `BEGIN IMMEDIATE` transaction, so several first requests (or
@@ -45,11 +46,16 @@ CREATE TABLE IF NOT EXISTS telemetry (attempt_id TEXT PRIMARY KEY, events_json T
 CREATE TABLE IF NOT EXISTS debriefs (
   id TEXT PRIMARY KEY, attempt_id TEXT NOT NULL, cache_key TEXT, model TEXT, prompt_version TEXT, facts_json TEXT,
   output_json TEXT, validator_json TEXT, source TEXT, latency_ms REAL, input_tokens INTEGER, output_tokens INTEGER,
-  created_at TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', error TEXT, provenance TEXT);
+  created_at TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending', error TEXT, provenance TEXT,
+  cache_read_tokens INTEGER);
 CREATE INDEX IF NOT EXISTS debriefs_attempt ON debriefs(attempt_id);
 CREATE INDEX IF NOT EXISTS debriefs_cache ON debriefs(cache_key);
+CREATE INDEX IF NOT EXISTS debriefs_created ON debriefs(created_at);
 CREATE TABLE IF NOT EXISTS asks (
-  id TEXT PRIMARY KEY, attempt_id TEXT NOT NULL, question TEXT NOT NULL, answer TEXT, created_at TEXT NOT NULL);
+  id TEXT PRIMARY KEY, attempt_id TEXT NOT NULL, question TEXT NOT NULL, answer TEXT, created_at TEXT NOT NULL,
+  source TEXT, input_tokens INTEGER, output_tokens INTEGER, cache_read_tokens INTEGER);
+CREATE INDEX IF NOT EXISTS asks_created ON asks(created_at);
+CREATE TABLE IF NOT EXISTS tutor_state (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS ability (
   learner_id TEXT NOT NULL, label TEXT NOT NULL, theta REAL NOT NULL, n INTEGER NOT NULL,
   PRIMARY KEY (learner_id, label));
@@ -74,10 +80,18 @@ TABLES = (
     "reviews",
     "sus",
     "flags",
+    "tutor_state",
 )
 
 # Columns added after the first release: (table, column, DDL type). Applied by init_db to databases created earlier.
-MIGRATIONS = (("attempts", "result_json", "TEXT"),)
+MIGRATIONS = (
+    ("attempts", "result_json", "TEXT"),
+    ("debriefs", "cache_read_tokens", "INTEGER"),
+    ("asks", "source", "TEXT"),
+    ("asks", "input_tokens", "INTEGER"),
+    ("asks", "output_tokens", "INTEGER"),
+    ("asks", "cache_read_tokens", "INTEGER"),
+)
 BUSY_TIMEOUT_MS = 30_000
 
 _lock = threading.Lock()

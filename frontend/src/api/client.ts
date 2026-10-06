@@ -136,8 +136,12 @@ export async function submitCode(kind: GateKind, code: string): Promise<{ ok: bo
   return { ok: res.ok, status: res.status };
 }
 
+/** GET /access: whether codes are configured and whether this browser's cookies pass them. */
+export type AccessStatus = { access_required?: boolean; access_granted?: boolean; review_required?: boolean; review_granted?: boolean; base_path?: string };
+
 export const api = {
   health: () => request<Health>('/health'),
+  access: () => request<AccessStatus>('/access'),
   createSession: (body: SessionCreate) => post<SessionCreated>('/sessions', body),
   next: (sid: string) => request<NextCase>(`/sessions/${sid}/next`),
   hint: (aid: string, body: HintRequest) => post<HintResponse>(`/attempts/${aid}/hint`, body),

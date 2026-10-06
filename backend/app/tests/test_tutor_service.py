@@ -228,7 +228,7 @@ def test_sdk_overloaded_twice_gives_template():
     o = anthropic.OverloadedError("busy", response=httpx2.Response(529, request=REQ), body=None)
     sdk = FakeSDK([o, o])
     r = run("found", sdk)
-    assert r["source"] == "template" and r["validator"]["fallback_reason"] == "live_api" and len(sdk.calls) == 2
+    assert r["source"] == "template" and r["validator"]["fallback_reason"] == "live_unavailable" and len(sdk.calls) == 2
     assert r["error"] == "unavailable"
 
 

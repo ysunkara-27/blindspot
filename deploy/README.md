@@ -47,6 +47,13 @@ only needs a **read** token (fine-grained, read access to that one dataset repo)
    - `BLINDSPOT_DATA_REPO=<hf-user>/blindspot-data`
    - `BLINDSPOT_MODEL_DEBRIEF`, `BLINDSPOT_MODEL_FAST` (model ids; app code never hard-codes them)
    - `BLINDSPOT_MAX_LIVE_CALLS_PER_MIN=30` (global live-call budget; over it the tutor falls back to templates)
+   - tutor guard and budget (see "Tutor guard and budget" below; all optional, defaults in brackets):
+     `BLINDSPOT_BUDGET_USD_HOURLY` [2], `BLINDSPOT_BUDGET_USD_DAILY` [8], `BLINDSPOT_BUDGET_USD_TOTAL` [60],
+     `BLINDSPOT_CREDIT_RETRY_MIN` [15], `BLINDSPOT_PRICE_IN_PER_MTOK` [2.0], `BLINDSPOT_PRICE_OUT_PER_MTOK` [10.0],
+     `BLINDSPOT_ANALYTICS_URL=https://hooraas-rides-api.sunkarayashaswi.workers.dev` (spend + usage counts on
+     ysunkara.com/stats; empty = off)
+   - Secrets and variables can be changed in Settings at any time; the Space restarts with the new values, no
+     rebuild needed.
    - optional: `BLINDSPOT_SEED_DEMO=1` (seed the demo learner + playlist at start, offline),
      `BLINDSPOT_CORS_ORIGINS=https://ysunkara.com` (only needed if a page on another origin calls the API directly;
      the rewrite below is same-origin)
@@ -146,5 +153,30 @@ curl -s localhost:8010/blindspot/ | head -c 80        # index.html
 | `BLINDSPOT_CORS_ORIGINS` | unset | extra allowed origins (comma list), on top of the Vite dev origins |
 | `BLINDSPOT_DATA_DIR` / `BLINDSPOT_DB_PATH` | `./data`, `./data/blindspot.sqlite` (image: `/data/...`) | data + DB |
 | `BLINDSPOT_DATA_REPO`, `HF_TOKEN` | unset | entrypoint download source |
+| `BLINDSPOT_CREDIT_RETRY_MIN` | `15` | minutes the tutor pauses after an Anthropic "credit balance" error; doubles on every failed probe, up to 2 h |
+| `BLINDSPOT_PRICE_IN_PER_MTOK` / `BLINDSPOT_PRICE_OUT_PER_MTOK` | `2.0` / `10.0` | USD per million input / output tokens for the spend estimate (cached input at 10% of the input price) |
+| `BLINDSPOT_BUDGET_USD_HOURLY` / `_DAILY` / `_TOTAL` | `2` / `8` / `60` | estimated-spend ceilings (last hour, current UTC day, all time); `0` = unlimited |
+| `BLINDSPOT_ANALYTICS_URL` | unset | site analytics worker; the backend posts `tutor_spend_usd` after each live call and `debrief_live` / `debrief_template` / `ask` counts (fire-and-forget) |
 
 API responses carry `Cache-Control: no-store`; case images keep `public, max-age=31536000, immutable`.
+
+## Tutor guard and budget (backend/app/tutor/guard.py, spend.py)
+
+The tutor never fails a request: every problem turns the debrief or answer into the built-in template with a short
+`error` code (PROGRESS.md `TUTOR ERRORS`), and `GET /api/health` reports `tutor: {mode, reason, resume_at}` so the
+frontend can show a banner. What each pause looks like:
+
+| mode | trigger | what happens | ends |
+|---|---|---|---|
+| `offline` | no `ANTHROPIC_API_KEY` or `BLINDSPOT_OFFLINE=1` | templates only, no network | set the key / unset the flag, restart |
+| `paused_credits` | 402, or 400/403 whose message mentions the credit balance / billing / "too low" | templates with `error: credits_depleted`; nothing goes to the API for `BLINDSPOT_CREDIT_RETRY_MIN` (15 min); then ONE call is let through as a probe; if it fails on credits again the wait doubles (30 min, 1 h, 2 h max). Survives a Space restart (stored in the `tutor_state` table) | a probe succeeds, or `POST /api/admin/tutor/resume` after buying credits |
+| `paused_rate` | 429 from the API | templates with `error: rate_limited` for 60 s | automatically |
+| `paused_error` | 401 (key rejected) | templates with `error: auth` until restart or resume | fix the key, restart (the pause is not restored) |
+| `paused_error` | 3 consecutive 5xx / 529 / connection errors | templates with `error: unavailable` for 5 min | automatically |
+| `paused_budget` | estimated spend ≥ `BLINDSPOT_BUDGET_USD_HOURLY` / `_DAILY` / `_TOTAL` | templates with `error: budget_exceeded`; `resume_at` = next hour / next UTC midnight / none | the window rolls over, or raise the limit (variables can be changed without a rebuild), or resume |
+
+Operator endpoints (need the review code: `X-Blindspot-Review` header or the `bs_review` cookie):
+`GET /api/admin/spend` (spend by hour for 24 h, by day for 30 d, totals, debrief counts live/cache/template, guard
+state) and `POST /api/admin/tutor/resume` (clears any pause early; a budget pause comes back if spend is still over).
+`GET /api/health` shows `spend_usd` / `budget_usd` only to review-code holders; the public sees `null`.
+Spend is an estimate from stored token counts at the env prices, not the invoice.

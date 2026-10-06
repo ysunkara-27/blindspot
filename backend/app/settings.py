@@ -31,6 +31,15 @@ class Settings(BaseSettings):
     blindspot_serve_frontend: bool = False  # serve frontend/dist (built with VITE_BASE_PATH) with SPA fallback
     blindspot_frontend_dist: Path = Path("./frontend/dist")
     blindspot_cors_origins: str = ""  # comma list, added to the Vite dev origins
+    # Tutor guard + budget (backend/app/tutor/guard.py, spend.py; deploy/README.md). Prices are USD per million
+    # tokens; cached input tokens are billed at 10% of the input price. Budgets in USD; 0 = unlimited.
+    blindspot_credit_retry_min: float = 15.0  # paused_credits cooldown; doubles on a failed probe, max 2 h
+    blindspot_price_in_per_mtok: float = 2.0
+    blindspot_price_out_per_mtok: float = 10.0
+    blindspot_budget_usd_hourly: float = 2.0
+    blindspot_budget_usd_daily: float = 8.0
+    blindspot_budget_usd_total: float = 60.0
+    blindspot_analytics_url: str = ""  # site analytics worker base URL; empty = reporting disabled
 
     @property
     def data_dir(self) -> Path:

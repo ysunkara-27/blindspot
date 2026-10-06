@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { api } from '../api/client';
+import { track } from '../analytics';
 import s from './Rail.module.css';
 
 export function AskTutor({ attemptId }: { attemptId: string }) {
@@ -18,7 +19,7 @@ export function AskTutor({ attemptId }: { attemptId: string }) {
   });
   const send = () => {
     const question = q.trim();
-    if (question && remaining > 0 && !m.isPending) m.mutate(question);
+    if (question && remaining > 0 && !m.isPending) { track('ask'); m.mutate(question); }
   };
   return (
     <section className={s.section} aria-labelledby="ask-h" data-testid="ask">

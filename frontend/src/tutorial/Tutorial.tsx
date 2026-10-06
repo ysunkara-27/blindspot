@@ -2,6 +2,7 @@
 // control and puts a small card beside it — never a full-screen overlay, so the film and every control stay usable
 // while it runs. Next / Back / Skip; ← → and Esc work while the card has focus.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { track } from '../analytics';
 import { availableSteps, markTutorialDone, placeCard, tourStep, type Rect, type Step } from './steps';
 import s from './Tutorial.module.css';
 
@@ -27,6 +28,7 @@ export function Tutorial({ onClose }: { onClose: (finished: boolean) => void }) 
 
   const end = (finished: boolean) => {
     markTutorialDone();
+    if (finished) track('tutorial_done');
     onClose(finished);
   };
   const endRef = useRef(end);

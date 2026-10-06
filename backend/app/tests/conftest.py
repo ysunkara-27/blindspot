@@ -120,3 +120,15 @@ def api_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     yield _make
     get_settings.cache_clear()
     reset_repos()
+
+
+@pytest.fixture(autouse=True)
+def _fresh_tutor_guard():
+    """Every test starts with a live, non-persisting tutor guard and an empty spend cache."""
+    from backend.app.tutor import guard, spend
+
+    guard.set_guard(guard.TutorGuard(persist=False, credit_retry_s=900.0))
+    spend.reset_cache()
+    yield
+    guard.set_guard(None)
+    spend.reset_cache()

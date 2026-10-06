@@ -296,10 +296,10 @@ const DEBRIEF = {
 };
 
 const TAG_CASES = [
-  { name: 'live + student reviewed', body: { status: 'ready', source: 'live', provenance: 'student_reviewed', debrief: DEBRIEF }, source: 'Claude debrief', prov: 'Student reviewed', busy: false },
-  { name: 'cache + radiologist reviewed', body: { status: 'ready', source: 'cache', provenance: 'radiologist_reviewed', debrief: DEBRIEF }, source: 'Claude (cached)', prov: 'Radiologist reviewed', busy: false },
-  { name: 'rate limited → built-in', body: { status: 'ready', source: 'template', provenance: 'ai_draft', error: 'rate_limited', debrief: DEBRIEF }, source: 'Built-in', prov: 'AI draft — not yet reviewed', busy: true },
-  { name: 'failed', body: { status: 'failed', error: 'LiveCallError' }, source: null, prov: null, busy: true },
+  { name: 'live + student reviewed', body: { status: 'ready', source: 'live', provenance: 'student_reviewed', debrief: DEBRIEF }, source: 'Claude debrief', prov: 'Student reviewed', busy: null },
+  { name: 'cache + radiologist reviewed', body: { status: 'ready', source: 'cache', provenance: 'radiologist_reviewed', debrief: DEBRIEF }, source: 'Claude (cached)', prov: 'Radiologist reviewed', busy: null },
+  { name: 'rate limited → built-in', body: { status: 'ready', source: 'template', provenance: 'ai_draft', error: 'rate_limited', debrief: DEBRIEF }, source: 'Built-in', prov: 'AI draft — not yet reviewed', busy: 'The AI tutor is busy. Showing the built-in explanation instead.' },
+  { name: 'failed', body: { status: 'failed', error: 'LiveCallError' }, source: null, prov: null, busy: 'The AI tutor is unavailable right now. The facts above are complete.' },
 ];
 
 for (const c of TAG_CASES) {
@@ -311,8 +311,9 @@ for (const c of TAG_CASES) {
     if (c.source) await expect(panel.getByTestId('debrief-source')).toHaveText(c.source);
     else await expect(panel.getByTestId('debrief-source')).toHaveCount(0);
     if (c.prov) await expect(panel.getByTestId('provenance')).toHaveText(c.prov);
-    if (c.busy) await expect(panel.getByTestId('debrief-busy')).toHaveText('The tutor is busy. Showing the built-in explanation instead.');
+    if (c.busy) await expect(panel.getByTestId('debrief-busy')).toHaveText(c.busy);
     else await expect(panel.getByTestId('debrief-busy')).toHaveCount(0);
+    await expect(panel).not.toContainText('LiveCallError');
     if (c.body.debrief) await expect(panel).toContainText('Check both apices');
     if (c.name.startsWith('live')) {
       await page.waitForTimeout(1400); // let the reveal settle so the shot shows outlines and the full rail

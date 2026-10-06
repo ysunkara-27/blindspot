@@ -748,6 +748,7 @@ def run_debrief_job(
             latency_ms=out.get("latency_ms", (time.perf_counter() - t0) * 1000),
             input_tokens=out.get("input_tokens"),
             output_tokens=out.get("output_tokens"),
+            cache_read_tokens=out.get("cache_read_tokens"),
             provenance=out.get("provenance"),
             error=out.get("error"),
         )
@@ -825,12 +826,23 @@ def ask(aid: str, question: str) -> AskResponse:
     facts = DebriefFacts.model_validate_json(d["facts_json"]) if d and d.get("facts_json") else None
     case = repo.get(a["case_id"])
     out = tutor_bridge.ask(question, facts, case, previous=prev, offline=get_settings().offline)
+    src = out.get("source") if out.get("source") in ("live", "template") else "template"
     with tx() as con:
         con.execute(
-            "INSERT INTO asks(id, attempt_id, question, answer, created_at) VALUES (?,?,?,?,?)",
-            (new_id(), aid, question, out["answer"], now_iso()),
+            "INSERT INTO asks(id, attempt_id, question, answer, created_at, source, input_tokens, output_tokens, "
+            "cache_read_tokens) VALUES (?,?,?,?,?,?,?,?,?)",
+            (
+                new_id(),
+                aid,
+                question,
+                out["answer"],
+                now_iso(),
+                src,
+                out.get("input_tokens"),
+                out.get("output_tokens"),
+                out.get("cache_read_tokens"),
+            ),
         )
-    src = out.get("source") if out.get("source") in ("live", "template") else "template"
     return AskResponse(answer=out["answer"], remaining=MAX_ASKS - len(prev) - 1, source=src)
 
 

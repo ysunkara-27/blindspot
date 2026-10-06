@@ -11,17 +11,36 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.app.hosting import BasePathMiddleware, GateMiddleware, mount_frontend
+from backend.app.hosting import (
+    REVIEW_COOKIE,
+    REVIEW_HEADER,
+    BasePathMiddleware,
+    GateMiddleware,
+    granted,
+    mount_frontend,
+)
 from backend.app.settings import get_settings
-from shared.contracts import Health
+from shared.contracts import Health, TutorStatus
 
 log = logging.getLogger("blindspot")
 APP_VERSION = "0.1.0"
 DEV_ORIGINS = ["http://127.0.0.1:5173", "http://localhost:5173"]
-ROUTE_MODULES = ("access", "sessions", "attempts", "cases", "dashboard", "review", "pilot", "dev", "about", "reference")
+ROUTE_MODULES = (
+    "access",
+    "sessions",
+    "attempts",
+    "cases",
+    "dashboard",
+    "review",
+    "pilot",
+    "dev",
+    "about",
+    "reference",
+    "admin",
+)
 
 
 def _case_count() -> int:
@@ -34,9 +53,31 @@ def _case_count() -> int:
         return sum(1 for _ in p.open()) if p.exists() else 0
 
 
-def health() -> Health:
+def reviewer(request: Request) -> bool:
+    """True when the request carries the review code/cookie (or no review code is configured: local dev)."""
+    return granted(
+        {k.lower(): v for k, v in request.headers.items()},
+        dict(request.cookies),
+        get_settings().review_code,
+        REVIEW_HEADER,
+        REVIEW_COOKIE,
+    )
+
+
+def tutor_status(request: Request) -> TutorStatus | None:
+    """Guard state for /api/health; spend and budget only for reviewers (the public never reads spend)."""
+    try:
+        from backend.app.tutor.guard import tutor_status as status
+
+        return TutorStatus.model_validate(status(include_spend=reviewer(request)))
+    except Exception:  # noqa: BLE001 — health must answer even if the tutor package is broken
+        log.exception("tutor status failed")
+        return None
+
+
+def health(request: Request) -> Health:
     s = get_settings()
-    return Health(ok=True, offline=s.offline, cases=_case_count(), version=APP_VERSION)
+    return Health(ok=True, offline=s.offline, cases=_case_count(), version=APP_VERSION, tutor=tutor_status(request))
 
 
 @asynccontextmanager

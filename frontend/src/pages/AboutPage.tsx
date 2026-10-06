@@ -148,6 +148,7 @@ export function AboutPage() {
           and zoom trace for each film, with the name or code you gave, if any. This browser remembers a reader id so
           you can pick up where you left off; “Start as someone new” on the first page clears it.
         </p>
+        <p data-testid="about-analytics">We count page views and clicks with an anonymous browser id. No names, marks or answers are sent.</p>
       </section>
 
       <section className={s.ruled} data-testid="about-next">

@@ -70,3 +70,6 @@
 .primary:disabled { background: #a7b0b8; cursor: default; }
 .error { padding: 10px 12px; background: #e7ecef; border-left: 3px solid var(--grease-amber); border-radius: 0 4px 4px 0; font-size: var(--fs-1); margin: 0 0 14px; }
 .health { color: var(--report-ink-muted); font-size: 14px; line-height: 1.45; margin: 14px 0 0; }
+
+/* Tutor status, when the AI tutor is not live: above the form, with the form's own rhythm. */
+.tutorNotice { margin: 4px 0 12px; }

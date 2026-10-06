@@ -18,6 +18,8 @@ import type { RevealView } from '../viewer/RevealLayer';
 import { colorizeServerHeatmap, densityFromTelemetry, densityToDataUrl } from '../viewer/heatmap';
 import { TelemetryBuffer } from '../viewer/telemetry';
 import { Footer, Nav, SyntheticBadge } from '../app/Shell';
+import { track } from '../analytics';
+import { TutorNotice } from '../tutor/TutorNotice';
 import { SessionSummaryView } from './SessionSummaryView';
 import { KeysHelp } from '../read/KeysHelp';
 import { caseLabel } from '../read/keys';
@@ -300,6 +302,7 @@ function ReadingRoom({ session, next, header, loupe, setLoupe, showSearch, toggl
         setHeatmapUrl(url);
       }
       setResult(r);
+      track('film_submitted');
       prefetchNext();
     },
   });
@@ -321,7 +324,7 @@ function ReadingRoom({ session, next, header, loupe, setLoupe, showSearch, toggl
   }, [read, submitM, result, telemetry, hints.length]);
 
   const askHint = useCallback(() => {
-    if (hintsEnabled && hintsLeft > 0 && !hintM.isPending && !result) hintM.mutate();
+    if (hintsEnabled && hintsLeft > 0 && !hintM.isPending && !result) { track('hint'); hintM.mutate(); }
   }, [hintsEnabled, hintsLeft, hintM, result]);
 
   const callNormal = useCallback(() => {
@@ -441,6 +444,7 @@ function ReadingRoom({ session, next, header, loupe, setLoupe, showSearch, toggl
       </div>
       <aside className={shell.rail} aria-label="Your read and feedback">
         <div className={shell.railBody}>
+          <TutorNotice className={rail.tutorNotice} />
           {!result ? (
             <ReadRail
               read={read}

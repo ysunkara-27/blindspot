@@ -15,8 +15,8 @@ from pathlib import Path
 from typing import Any
 
 from backend.app.settings import get_settings
+from backend.app.tutor import analytics, vocab
 from backend.app.tutor import cards as cards_mod
-from backend.app.tutor import vocab
 from backend.app.tutor.client import (
     ASK_MAX_TOKENS,
     ASK_SCHEMA,
@@ -28,6 +28,7 @@ from backend.app.tutor.client import (
     user_content,
 )
 from backend.app.tutor.facts import facts_json
+from backend.app.tutor.guard import guarded_complete
 from backend.app.tutor.prompts import load_prompt
 from backend.app.tutor.render import ordered
 from backend.app.tutor.templates import why_sentence, with_article
@@ -397,14 +398,38 @@ def ask(
     images: dict[str, bytes] | None = None,
     data_root: Path | str | None = None,
 ) -> dict[str, Any]:
-    """Return {"answer", "source": "live"|"template", "validator", "latency_ms", "model", "error"}. Never raises.
-    `error` is None for live answers, else the client.fallback_error code (offline, rate_limited, timeout, ...)."""
+    """Return {"answer", "source": "live"|"template", "validator", "latency_ms", "model", "error", "input_tokens",
+    "output_tokens", "cache_read_tokens", "cost_usd"}. Never raises. `error` is None for live answers, else the
+    client.fallback_error code (offline, credits_depleted, rate_limited, budget_exceeded, timeout, ...)."""
+    out = _ask(
+        question, facts, case, previous=previous, offline=offline, client=client, images=images, data_root=data_root
+    )
+    try:
+        analytics.report_ask()
+    except Exception:  # noqa: BLE001
+        log.exception("analytics report failed")
+    return out
+
+
+def _ask(
+    question: str,
+    facts: DebriefFacts,
+    case: Case,
+    *,
+    previous: Sequence[dict[str, Any]] | None,
+    offline: bool | None,
+    client: Any | None,
+    images: dict[str, bytes] | None,
+    data_root: Path | str | None,
+) -> dict[str, Any]:
     t0 = time.perf_counter()
     settings = get_settings()
     offline = settings.offline if offline is None else offline
     cards = cards_mod.load_cards()
     zm = cards_mod.load_zone_mimics()
     model = getattr(client, "model", None) or settings.blindspot_model_debrief
+
+    usage: dict[str, Any] = {"input_tokens": None, "output_tokens": None, "cache_read_tokens": None, "cost_usd": None}
 
     def done(answer: str, source: str, v: dict[str, Any], mdl: str | None, error: str | None = None) -> dict[str, Any]:
         return {
@@ -414,6 +439,7 @@ def ask(
             "latency_ms": round((time.perf_counter() - t0) * 1000.0, 1),
             "model": mdl,
             "error": error,
+            **usage,
         }
 
     def template(reason: str, errors: list[str] | None = None) -> dict[str, Any]:
@@ -442,9 +468,17 @@ def ask(
             {"role": "user", "content": user_content(ordered(images), _user_text(question, facts, previous or []))}
         ]
         try:
-            resp = tc.complete(system=system, messages=messages, schema=ASK_SCHEMA, max_tokens=ASK_MAX_TOKENS)
+            resp = guarded_complete(tc, system=system, messages=messages, schema=ASK_SCHEMA, max_tokens=ASK_MAX_TOKENS)
         except LiveCallError as e:
-            return template(f"live_{e.kind}")
+            return template(e.reason)
+        usage.update(
+            input_tokens=(resp.input_tokens or 0)
+            + (resp.cache_read_input_tokens or 0)
+            + (resp.cache_creation_input_tokens or 0),
+            output_tokens=resp.output_tokens or 0,
+            cache_read_tokens=resp.cache_read_input_tokens or 0,
+            cost_usd=resp.cost_usd,
+        )
         try:
             answer = str(json.loads(resp.text)["answer"]).strip()
         except Exception:  # noqa: BLE001
