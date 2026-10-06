@@ -1,0 +1,389 @@
+{
+  "title": "Debrief faithfulness and grounding ablation — DRY RUN — mock model outputs, synthetic fixtures",
+  "dry_run": true,
+  "synthetic": true,
+  "n": 39,
+  "debrief_model": "claude-sonnet-5-5",
+  "judge_model": "claude-opus-5-5",
+  "summary": {
+    "G": {
+      "schema_ok": {
+        "point": 1.0,
+        "lo": 1.0,
+        "hi": 1.0,
+        "n": 39
+      },
+      "validator_first": {
+        "point": 1.0,
+        "lo": 1.0,
+        "hi": 1.0,
+        "n": 39
+      },
+      "truncated_or_refused": {
+        "point": 0.0,
+        "lo": 0.0,
+        "hi": 0.0,
+        "n": 39
+      },
+      "model_pass_within_regen": {
+        "point": 1.0,
+        "lo": 1.0,
+        "hi": 1.0,
+        "n": 39
+      },
+      "template_fallback": {
+        "point": 0.0,
+        "lo": 0.0,
+        "hi": 0.0,
+        "n": 39
+      },
+      "grounded": {
+        "point": 1.0,
+        "lo": 1.0,
+        "hi": 1.0,
+        "n": 39
+      },
+      "laterality_error": {
+        "point": 0.0,
+        "lo": 0.0,
+        "hi": 0.0,
+        "n": 39
+      },
+      "hallucinated_per_debrief": {
+        "point": 0.0,
+        "lo": 0.0,
+        "hi": 0.0,
+        "n": 39
+      },
+      "any_hallucination": {
+        "point": 0.0,
+        "lo": 0.0,
+        "hi": 0.0,
+        "n": 39
+      },
+      "pedagogy": {
+        "point": 4.0,
+        "lo": 4.0,
+        "hi": 4.0,
+        "n": 39
+      },
+      "management_advice": {
+        "point": 0.0,
+        "lo": 0.0,
+        "hi": 0.0,
+        "n": 39
+      },
+      "det_results_ok": {
+        "point": 1.0,
+        "lo": 1.0,
+        "hi": 1.0,
+        "n": 39
+      },
+      "det_laterality_error": {
+        "point": 0.0,
+        "lo": 0.0,
+        "hi": 0.0,
+        "n": 39
+      },
+      "det_out_of_scope": {
+        "point": 0.0,
+        "lo": 0.0,
+        "hi": 0.0,
+        "n": 39
+      },
+      "det_management": {
+        "point": 0.0,
+        "lo": 0.0,
+        "hi": 0.0,
+        "n": 39
+      },
+      "det_length_ok": {
+        "point": 1.0,
+        "lo": 1.0,
+        "hi": 1.0,
+        "n": 39
+      }
+    },
+    "U": {
+      "schema_ok": {
+        "point": 1.0,
+        "lo": 1.0,
+        "hi": 1.0,
+        "n": 39
+      },
+      "validator_first": {
+        "point": 0.02564102564102564,
+        "lo": 0.0,
+        "hi": 0.07692307692307693,
+        "n": 39
+      },
+      "truncated_or_refused": {
+        "point": 0.0,
+        "lo": 0.0,
+        "hi": 0.0,
+        "n": 39
+      },
+      "grounded": {
+        "point": 0.38461538461538464,
+        "lo": 0.23076923076923078,
+        "hi": 0.5384615384615384,
+        "n": 39
+      },
+      "laterality_error": {
+        "point": 0.0,
+        "lo": 0.0,
+        "hi": 0.0,
+        "n": 39
+      },
+      "hallucinated_per_debrief": {
+        "point": 0.0,
+        "lo": 0.0,
+        "hi": 0.0,
+        "n": 39
+      },
+      "any_hallucination": {
+        "point": 0.0,
+        "lo": 0.0,
+        "hi": 0.0,
+        "n": 39
+      },
+      "pedagogy": {
+        "point": 2.769230769230769,
+        "lo": 2.4615384615384617,
+        "hi": 3.076923076923077,
+        "n": 39
+      },
+      "management_advice": {
+        "point": 0.0,
+        "lo": 0.0,
+        "hi": 0.0,
+        "n": 39
+      },
+      "det_results_ok": {
+        "point": 0.38461538461538464,
+        "lo": 0.23076923076923078,
+        "hi": 0.5384615384615384,
+        "n": 39
+      },
+      "det_laterality_error": {
+        "point": 0.0,
+        "lo": 0.0,
+        "hi": 0.0,
+        "n": 39
+      },
+      "det_out_of_scope": {
+        "point": 0.0,
+        "lo": 0.0,
+        "hi": 0.0,
+        "n": 39
+      },
+      "det_management": {
+        "point": 0.0,
+        "lo": 0.0,
+        "hi": 0.0,
+        "n": 39
+      },
+      "det_length_ok": {
+        "point": 1.0,
+        "lo": 1.0,
+        "hi": 1.0,
+        "n": 39
+      }
+    },
+    "G_shown": {
+      "validator_shown": {
+        "point": 1.0,
+        "lo": 1.0,
+        "hi": 1.0,
+        "n": 39
+      },
+      "grounded": {
+        "point": 1.0,
+        "lo": 1.0,
+        "hi": 1.0,
+        "n": 39
+      },
+      "laterality_error": {
+        "point": 0.0,
+        "lo": 0.0,
+        "hi": 0.0,
+        "n": 39
+      },
+      "hallucinated_per_debrief": {
+        "point": 0.0,
+        "lo": 0.0,
+        "hi": 0.0,
+        "n": 39
+      },
+      "any_hallucination": {
+        "point": 0.0,
+        "lo": 0.0,
+        "hi": 0.0,
+        "n": 39
+      },
+      "pedagogy": {
+        "point": 4.0,
+        "lo": 4.0,
+        "hi": 4.0,
+        "n": 39
+      },
+      "management_advice": {
+        "point": 0.0,
+        "lo": 0.0,
+        "hi": 0.0,
+        "n": 39
+      },
+      "det_results_ok": {
+        "point": 1.0,
+        "lo": 1.0,
+        "hi": 1.0,
+        "n": 39
+      },
+      "det_laterality_error": {
+        "point": 0.0,
+        "lo": 0.0,
+        "hi": 0.0,
+        "n": 39
+      },
+      "det_out_of_scope": {
+        "point": 0.0,
+        "lo": 0.0,
+        "hi": 0.0,
+        "n": 39
+      },
+      "det_management": {
+        "point": 0.0,
+        "lo": 0.0,
+        "hi": 0.0,
+        "n": 39
+      },
+      "det_length_ok": {
+        "point": 1.0,
+        "lo": 1.0,
+        "hi": 1.0,
+        "n": 39
+      }
+    },
+    "paired_G_minus_U": {
+      "grounded": {
+        "point": 0.6153846153846154,
+        "lo": 0.46153846153846156,
+        "hi": 0.7692307692307693,
+        "n": 39
+      },
+      "laterality_error": {
+        "point": 0.0,
+        "lo": 0.0,
+        "hi": 0.0,
+        "n": 39
+      },
+      "hallucinated_per_debrief": {
+        "point": 0.0,
+        "lo": 0.0,
+        "hi": 0.0,
+        "n": 39
+      },
+      "pedagogy": {
+        "point": 1.2307692307692308,
+        "lo": 0.9230769230769231,
+        "hi": 1.5384615384615385,
+        "n": 39
+      },
+      "det_results_ok": {
+        "point": 0.6153846153846154,
+        "lo": 0.46153846153846156,
+        "hi": 0.7692307692307693,
+        "n": 39
+      }
+    },
+    "by_behaviour_grounded": {
+      "all_correct": {
+        "G": "7/7",
+        "U": "7/7"
+      },
+      "wrong_side": {
+        "G": "5/5",
+        "U": "0/5"
+      },
+      "mislabeled": {
+        "G": "6/6",
+        "U": "0/6"
+      },
+      "missed_search": {
+        "G": "6/6",
+        "U": "5/6"
+      },
+      "missed_recognition": {
+        "G": "6/6",
+        "U": "0/6"
+      },
+      "missed_decision": {
+        "G": "6/6",
+        "U": "0/6"
+      },
+      "overcall_normal": {
+        "G": "3/3",
+        "U": "3/3"
+      }
+    },
+    "judge_failures": {
+      "G": 0,
+      "U": 0,
+      "G_shown": 0
+    },
+    "excluded_infra": {
+      "G": 0,
+      "U": 0
+    },
+    "fallback_reasons": {}
+  },
+  "engine_ok": 39,
+  "estimate": {
+    "rows": [
+      {
+        "label": "G debrief (+regen)",
+        "model": "claude-sonnet-5-5",
+        "n_calls": 51,
+        "input_tokens": 5913,
+        "output_tokens": 800,
+        "max_output_tokens": 1200,
+        "expected_usd": 1.011126,
+        "worst_usd": 1.215126
+      },
+      {
+        "label": "U ablation debrief",
+        "model": "claude-sonnet-5-5",
+        "n_calls": 39,
+        "input_tokens": 5552,
+        "output_tokens": 800,
+        "max_output_tokens": 1200,
+        "expected_usd": 0.745056,
+        "worst_usd": 0.901056
+      },
+      {
+        "label": "judge",
+        "model": "claude-opus-5-5",
+        "n_calls": 90,
+        "input_tokens": 1624,
+        "output_tokens": 1000,
+        "max_output_tokens": 4096,
+        "expected_usd": 2.38464,
+        "worst_usd": 7.95744
+      }
+    ],
+    "expected_usd": 4.140822,
+    "worst_usd": 10.073622
+  },
+  "spend_usd": 0.0,
+  "stopped": null,
+  "engine_status": {
+    "tutor.cards": "backend.app.tutor.cards.load_cards (production)",
+    "scoring": "backend.app.scoring.{hit,matching,outcomes,scores} (production)",
+    "search": "backend.app.search.{dwell,misstype,coverage,spatial} (production)",
+    "tutor.facts": "backend.app.tutor.facts.build_facts (production)",
+    "tutor.service": "backend.app.tutor.service.generate_debrief (production)",
+    "tutor.templates": "backend.app.tutor.templates.template_debrief (production)",
+    "tutor.validator": "backend.app.tutor.validator.validate (production)"
+  },
+  "review_queue": "/Users/yashaswi/Downloads/blindspot/eval/samples/review_queue.dryrun.jsonl"
+}

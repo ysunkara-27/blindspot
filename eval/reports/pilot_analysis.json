@@ -1,0 +1,279 @@
+{
+  "title": "Pilot analysis — pilot, n = 0, not powered; usability testing, not a research study",
+  "label": "pilot, n = 0, not powered; usability testing, not a research study",
+  "db": "/Users/yashaswi/Downloads/blindspot/data/blindspot.sqlite",
+  "participants": [],
+  "n_participants": 0,
+  "n_paired": 0,
+  "changes": {
+    "sensitivity": {
+      "pre_median": {
+        "point": NaN,
+        "lo": NaN,
+        "hi": NaN,
+        "n": 0
+      },
+      "post_median": {
+        "point": NaN,
+        "lo": NaN,
+        "hi": NaN,
+        "n": 0
+      },
+      "change_median": {
+        "point": NaN,
+        "lo": NaN,
+        "hi": NaN,
+        "n": 0
+      },
+      "change_mean": {
+        "point": NaN,
+        "lo": NaN,
+        "hi": NaN,
+        "n": 0
+      },
+      "n_improved": 0,
+      "n_worse": 0,
+      "n": 0
+    },
+    "specificity": {
+      "pre_median": {
+        "point": NaN,
+        "lo": NaN,
+        "hi": NaN,
+        "n": 0
+      },
+      "post_median": {
+        "point": NaN,
+        "lo": NaN,
+        "hi": NaN,
+        "n": 0
+      },
+      "change_median": {
+        "point": NaN,
+        "lo": NaN,
+        "hi": NaN,
+        "n": 0
+      },
+      "change_mean": {
+        "point": NaN,
+        "lo": NaN,
+        "hi": NaN,
+        "n": 0
+      },
+      "n_improved": 0,
+      "n_worse": 0,
+      "n": 0
+    },
+    "localization_fraction": {
+      "pre_median": {
+        "point": NaN,
+        "lo": NaN,
+        "hi": NaN,
+        "n": 0
+      },
+      "post_median": {
+        "point": NaN,
+        "lo": NaN,
+        "hi": NaN,
+        "n": 0
+      },
+      "change_median": {
+        "point": NaN,
+        "lo": NaN,
+        "hi": NaN,
+        "n": 0
+      },
+      "change_mean": {
+        "point": NaN,
+        "lo": NaN,
+        "hi": NaN,
+        "n": 0
+      },
+      "n_improved": 0,
+      "n_worse": 0,
+      "n": 0
+    },
+    "false_positives_per_image": {
+      "pre_median": {
+        "point": NaN,
+        "lo": NaN,
+        "hi": NaN,
+        "n": 0
+      },
+      "post_median": {
+        "point": NaN,
+        "lo": NaN,
+        "hi": NaN,
+        "n": 0
+      },
+      "change_median": {
+        "point": NaN,
+        "lo": NaN,
+        "hi": NaN,
+        "n": 0
+      },
+      "change_mean": {
+        "point": NaN,
+        "lo": NaN,
+        "hi": NaN,
+        "n": 0
+      },
+      "n_improved": 0,
+      "n_worse": 0,
+      "n": 0
+    },
+    "search_share": {
+      "pre_median": {
+        "point": NaN,
+        "lo": NaN,
+        "hi": NaN,
+        "n": 0
+      },
+      "post_median": {
+        "point": NaN,
+        "lo": NaN,
+        "hi": NaN,
+        "n": 0
+      },
+      "change_median": {
+        "point": NaN,
+        "lo": NaN,
+        "hi": NaN,
+        "n": 0
+      },
+      "change_mean": {
+        "point": NaN,
+        "lo": NaN,
+        "hi": NaN,
+        "n": 0
+      },
+      "n_improved": 0,
+      "n_worse": 0,
+      "n": 0
+    }
+  },
+  "pooled_mix": {
+    "pre": {},
+    "post": {}
+  },
+  "by_form": {
+    "assess_A": {
+      "sensitivity": {
+        "point": NaN,
+        "lo": NaN,
+        "hi": NaN,
+        "n": 0
+      },
+      "specificity": {
+        "point": NaN,
+        "lo": NaN,
+        "hi": NaN,
+        "n": 0
+      },
+      "localization_fraction": {
+        "point": NaN,
+        "lo": NaN,
+        "hi": NaN,
+        "n": 0
+      },
+      "false_positives_per_image": {
+        "point": NaN,
+        "lo": NaN,
+        "hi": NaN,
+        "n": 0
+      },
+      "search_share": {
+        "point": NaN,
+        "lo": NaN,
+        "hi": NaN,
+        "n": 0
+      }
+    },
+    "assess_B": {
+      "sensitivity": {
+        "point": NaN,
+        "lo": NaN,
+        "hi": NaN,
+        "n": 0
+      },
+      "specificity": {
+        "point": NaN,
+        "lo": NaN,
+        "hi": NaN,
+        "n": 0
+      },
+      "localization_fraction": {
+        "point": NaN,
+        "lo": NaN,
+        "hi": NaN,
+        "n": 0
+      },
+      "false_positives_per_image": {
+        "point": NaN,
+        "lo": NaN,
+        "hi": NaN,
+        "n": 0
+      },
+      "search_share": {
+        "point": NaN,
+        "lo": NaN,
+        "hi": NaN,
+        "n": 0
+      }
+    }
+  },
+  "sus_mean": {
+    "point": NaN,
+    "lo": NaN,
+    "hi": NaN,
+    "n": 0
+  },
+  "sus_median": {
+    "point": NaN,
+    "lo": NaN,
+    "hi": NaN,
+    "n": 0
+  },
+  "reviews": {
+    "debrief": {
+      "n_ratings": 0,
+      "n_items": 0,
+      "n_reviewers": 0,
+      "roles": {},
+      "accuracy": {
+        "point": NaN,
+        "lo": NaN,
+        "hi": NaN,
+        "n": 0
+      },
+      "teaching": {
+        "point": NaN,
+        "lo": NaN,
+        "hi": NaN,
+        "n": 0
+      },
+      "safety_flags": 0,
+      "comments": []
+    },
+    "card": {
+      "n_ratings": 0,
+      "n_items": 0,
+      "n_reviewers": 0,
+      "roles": {},
+      "accuracy": {
+        "point": NaN,
+        "lo": NaN,
+        "hi": NaN,
+        "n": 0
+      },
+      "teaching": {
+        "point": NaN,
+        "lo": NaN,
+        "hi": NaN,
+        "n": 0
+      },
+      "safety_flags": 0,
+      "comments": []
+    }
+  }
+}
