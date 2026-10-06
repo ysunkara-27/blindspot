@@ -11,6 +11,15 @@ Special entries:
 
 ---
 
+2026-10-06 00:01 — orchestrator — HOSTED DEPLOY live — green
+- Repo moved to ~/Dev/Personal/blindspot (macOS TCC blocked ~/Downloads for the headless session); venv reinstalled.
+- HF: user yashwrites (PRO). Private dataset yashwrites/blindspot-data (1.3 GB bundle: 3,427 cases, gz zones). Space yashwrites/blindspot (Docker, cpu-basic) with secrets ANTHROPIC_API_KEY/HF_TOKEN/BLINDSPOT_ACCESS_CODE/BLINDSPOT_REVIEW_CODE and variables BASE_PATH=/blindspot, DATA_REPO, models, SEED_DEMO=1. Build 30 s, app start ~7 min (bundle download), RUNNING.
+- Verified on https://yashwrites-blindspot.hf.space/blindspot: health offline:false cases 3427; sessions 401 without code, 200 with cookie; index served; /api/about ok.
+- Site: ~/Dev/Personal/Yash-Portfolio vercel.json rewrites /blindspot and /blindspot/:path* → the Space; pushed to main (Vercel auto-deploys).
+- Gate codes: .env + deploy/.local/codes.txt (gitignored). Rotate the HF token after the hackathon (it passed through chat).
+- Running: frontend-engineer fixing 2 real-API e2e failures; after it lands → re-push Space (upload_folder) and re-verify.
+
+
 2026-10-05 23:18 — orchestrator — live tutor verified in the UI — green
 - Tutor v2 committed 4729ac9 (smoke re-run: 10/10 first-try, p50 4.4 s, $0.24). API restarted online.
 - Browser walk on a real practice case: live debrief rendered in the rail (debriefs row: source=live, 6.4 s cold, prompt v2+587c0865, 420 output tokens); arrow labels short ("other lung: left lower zone"); provenance badge + Ask the tutor visible. Screenshot tests/e2e/__screenshots__/live-06-claude-debrief.png (gitignored).

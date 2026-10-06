@@ -31,3 +31,5 @@ test-results/
 .playwright-mcp/
 tests/e2e/test-results/
 tests/e2e/__screenshots__/live-*.png
+deploy/.local/
+tests/e2e/__screenshots__/hosted-*.png
