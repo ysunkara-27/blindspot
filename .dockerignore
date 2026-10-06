@@ -12,7 +12,8 @@ frontend/dist
 .pytest_cache
 .ruff_cache
 eval/cache
-eval/samples
+eval/samples/*
+!eval/samples/review_queue.jsonl
 tests/e2e/test-results
 tests/e2e/__screenshots__
 playwright-report
