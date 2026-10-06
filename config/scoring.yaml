@@ -27,6 +27,8 @@ hints:
 validator:
   headline_max_words: 14
   total_max_words: 160
+  total_limit_base_findings: 8   # above this many findings the word limit grows
+  words_per_extra_finding: 6
   banned_patterns: ["\\btreat(ment|ed|ing)?\\b", "\\bmanage(ment)?\\b", "\\bantibiotic", "\\bchest tube\\b", "\\bdrain(age)?\\b",
                     "\\bbiopsy\\b", "\\badmit\\b", "\\burgent", "\\bfollow-?up (ct|imaging|scan)\\b", "\\bthis patient (has|should)\\b",
                     "\\b\\d+(\\.\\d+)?\\s?(cm|mm)\\b"]
