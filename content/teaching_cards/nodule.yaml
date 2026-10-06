@@ -1,0 +1,18 @@
+label: nodule
+display_name: Nodule
+kind: focal
+one_liner: A small, round, well-defined spot in the lung; larger round lesions are called masses.
+key_signs:
+  - A round or oval white spot surrounded by normal lung
+  - Edges that are smooth, lobulated, or spiculated (spiky)
+  - Rounder and brighter than nearby vessels, which branch and taper
+  - Easily hidden behind ribs, clavicles, the heart or the hila
+where_it_hides: [right_apex, left_apex, right_hilum, left_hilum, retrocardiac, subdiaphragmatic]
+mimics:
+  - Nipple shadow (often paired, in the same place on both sides)
+  - A vessel seen end-on (next to a vessel of the same size)
+  - Spots where two ribs, or a rib and the clavicle, cross
+commonly_confused_with: [mass, calcification]
+search_tip: Use the loupe on the places nodules hide, including the apices, the hila, behind the heart and below the diaphragm domes.
+radiopaedia_url: https://radiopaedia.org/articles/pulmonary-nodule
+review: {status: ai_draft, reviewer: null, date: null, notes: "radiopaedia_url not machine-verifiable on 2026-10-05: radiopaedia.org returned the same 200 page for every slug, including a bogus control. Reviewer: click to confirm."}

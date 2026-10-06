@@ -1,0 +1,18 @@
+label: pleural_thickening
+display_name: Pleural thickening
+kind: focal
+one_liner: Thickened pleura, usually from old scarring, seen as a white band along the chest wall.
+key_signs:
+  - A smooth white band along the inside of the chest wall
+  - A blunted costophrenic angle without a curved fluid edge
+  - A white cap over the top of the lung at the apex
+  - Plaques, flat patches on the pleura that may be very white
+where_it_hides: [right_apex, left_apex, right_periphery, left_periphery, right_costophrenic_angle, left_costophrenic_angle]
+mimics:
+  - Normal companion shadows along the ribs and clavicles
+  - Chest wall muscle and fat along the side of the chest
+  - Breast or armpit soft tissue folds
+commonly_confused_with: [effusion]
+search_tip: Run the loupe along the inner edge of the chest wall and compare its thickness side to side.
+radiopaedia_url: https://radiopaedia.org/articles/pleural-thickening
+review: {status: ai_draft, reviewer: null, date: null, notes: "radiopaedia_url not machine-verifiable on 2026-10-05: radiopaedia.org returned the same 200 page for every slug, including a bogus control. Reviewer: click to confirm."}

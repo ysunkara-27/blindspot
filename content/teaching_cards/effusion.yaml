@@ -1,0 +1,18 @@
+label: effusion
+display_name: Pleural effusion
+kind: focal
+one_liner: Fluid in the pleural space, which settles at the lung base on an upright film.
+key_signs:
+  - Blunting of the costophrenic angle (the sharp corner is rounded or filled in)
+  - A meniscus, a curved fluid edge that rises higher along the outer chest wall
+  - A white lower zone that hides the outline of the diaphragm
+  - Large amounts push the mediastinum away from the fluid
+where_it_hides: [right_costophrenic_angle, left_costophrenic_angle, right_lower_zone, left_lower_zone]
+mimics:
+  - Pleural thickening or old scarring at the angle (no meniscus)
+  - Breast soft tissue making the lower zones look hazy
+  - A raised diaphragm dome (smooth and high, without a meniscus)
+commonly_confused_with: [pleural_thickening]
+search_tip: Check that both costophrenic angles are sharp and both diaphragm domes are crisp before moving on.
+radiopaedia_url: https://radiopaedia.org/articles/pleural-effusion
+review: {status: ai_draft, reviewer: null, date: null, notes: "radiopaedia_url not machine-verifiable on 2026-10-05: radiopaedia.org returned the same 200 page for every slug, including a bogus control. Reviewer: click to confirm."}

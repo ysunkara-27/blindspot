@@ -1,0 +1,17 @@
+label: diffuse_nodule
+display_name: Diffuse nodules
+kind: pattern
+one_liner: Many small nodules scattered through both lungs.
+key_signs:
+  - Many small dots of similar size spread through both lungs
+  - Dots sit between the vessels, not only along them
+  - Very small, evenly spread dots are called a miliary pattern
+where_it_hides: [right_mid_zone, left_mid_zone, right_lower_zone, left_lower_zone]
+mimics:
+  - Vessels seen end-on, which line up along branching vessels
+  - Grainy noise on an under-exposed film
+  - Crossing points of ribs and vessels
+commonly_confused_with: [fibrosis]
+search_tip: Put the loupe on a clear patch of lung between vessels and look for tiny dots.
+radiopaedia_url: https://radiopaedia.org/articles/miliary-opacities
+review: {status: ai_draft, reviewer: null, date: null, notes: "radiopaedia_url not machine-verifiable on 2026-10-05: radiopaedia.org returned the same 200 page for every slug, including a bogus control. Reviewer: click to confirm."}

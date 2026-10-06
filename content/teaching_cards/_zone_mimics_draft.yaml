@@ -1,0 +1,28 @@
+# DRAFT zone_mimics for config/review_areas.yaml (tutor-prompt-engineer, status ai_draft).
+# Common NORMAL structures that learners overcall in each zone. Used only as "possibilities" in
+# overcall explanations. The tutor loads this file only while config's zone_mimics.entries is empty.
+# Wording rule: no finding/label words (nodule, mass, calcified, ...) so mimics never read as findings.
+zone_mimics:
+  status: ai_draft
+  entries:
+    right_upper_zone: [Overlap of the first rib and the clavicle, Costal cartilage of the first rib, Crossing points of the upper ribs]
+    left_upper_zone: [Overlap of the first rib and the clavicle, Costal cartilage of the first rib, The normal aortic knob at the edge of the mediastinum]
+    right_mid_zone: [Normal vessels seen end-on, Crossing points of ribs, Nipple shadow]
+    left_mid_zone: [Normal vessels seen end-on, Crossing points of ribs, Nipple shadow]
+    right_lower_zone: [Nipple shadow, Edge of the breast soft tissue, Normal vessels crowded together at the lung base]
+    left_lower_zone: [Nipple shadow, Edge of the breast soft tissue, Normal vessels crowded together at the lung base]
+    right_apex: [Overlap of the first rib and the clavicle, Costal cartilage of the first rib, Companion shadow running along the upper ribs]
+    left_apex: [Overlap of the first rib and the clavicle, Costal cartilage of the first rib, Companion shadow running along the upper ribs]
+    right_costophrenic_angle: [Fat or soft tissue filling the angle, Edge of the breast soft tissue, Skin fold]
+    left_costophrenic_angle: [Fat or soft tissue filling the angle, Edge of the breast soft tissue, Skin fold]
+    right_periphery: [Skin fold, Medial border of the scapula, Edges of overlapping ribs]
+    left_periphery: [Skin fold, Medial border of the scapula, Edges of overlapping ribs]
+    right_hilum: [Normal pulmonary arteries and veins seen end-on, Vessels crossing over each other, A main airway seen end-on as a ring]
+    left_hilum: [Normal pulmonary arteries and veins seen end-on, Vessels crossing over each other, A main airway seen end-on as a ring]
+    retrocardiac: [Edge of the normal descending aorta, Spine and the soft tissue beside it, Normal vessels behind the heart]
+    cardiac_silhouette: [Fat pad beside the lower heart border, Breast tissue overlying the heart, The normal heart borders]
+    mediastinum: [The normal aortic knob, The trachea and main airways, The normal edge of the superior vena cava]
+    subdiaphragmatic: [Gas in the stomach or bowel below the diaphragm, Muscle slips of the diaphragm, Overlapping rib edges]
+    right_clavicle: [The rhomboid fossa (a normal notch under the clavicle), Overlap of the first rib and the clavicle, Soft tissue at the base of the neck]
+    left_clavicle: [The rhomboid fossa (a normal notch under the clavicle), Overlap of the first rib and the clavicle, Soft tissue at the base of the neck]
+    spine: [Overlapping edges of the vertebrae, The normal line of soft tissue beside the spine, Air in the trachea over the spine]

@@ -1,0 +1,18 @@
+label: consolidation
+display_name: Consolidation
+kind: focal
+one_liner: Air sacs filled with fluid, pus, blood or cells instead of air, so part of the lung turns white.
+key_signs:
+  - A fluffy, ill-defined white area in the lung
+  - Air bronchograms, dark branching airways visible inside the white area
+  - A nearby border disappears (silhouette sign), such as the heart edge or diaphragm
+  - Little or no volume loss; nearby structures stay in place
+where_it_hides: [retrocardiac, right_lower_zone, left_lower_zone, subdiaphragmatic, right_hilum, left_hilum]
+mimics:
+  - Breast shadows over the lower zones (the edge fades beyond the lung)
+  - Normal vessels crowded together at the lung bases on a shallow breath
+  - Normal hilar vessels, which taper and branch
+commonly_confused_with: [atelectasis]
+search_tip: Check that the heart borders and both diaphragm domes are sharp; a lost edge points to the lung touching it.
+radiopaedia_url: https://radiopaedia.org/articles/consolidation
+review: {status: ai_draft, reviewer: null, date: null, notes: "radiopaedia_url not machine-verifiable on 2026-10-05: radiopaedia.org returned the same 200 page for every slug, including a bogus control. Reviewer: click to confirm."}

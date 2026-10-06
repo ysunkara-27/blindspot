@@ -1,0 +1,18 @@
+label: fibrosis
+display_name: Fibrosis
+kind: pattern
+one_liner: Scarring of the lung tissue, which makes the lungs stiff, smaller and streaked with lines.
+key_signs:
+  - Fine or coarse lines (a reticular pattern) running through the lungs
+  - Usually worst at the lung bases and toward the edges
+  - Honeycombing, clusters of small air rings in the outer lung
+  - Smaller lungs and fuzzy heart or diaphragm borders
+where_it_hides: [right_lower_zone, left_lower_zone, right_periphery, left_periphery]
+mimics:
+  - Normal vessels crowded together on a shallow breath
+  - Breast tissue over the lower zones
+  - Rib and cartilage edges crossing the lungs
+commonly_confused_with: [diffuse_nodule]
+search_tip: Compare the lower zones with the upper zones; lines that are denser at the bases suggest a pattern.
+radiopaedia_url: https://radiopaedia.org/articles/pulmonary-fibrosis
+review: {status: ai_draft, reviewer: null, date: null, notes: "radiopaedia_url not machine-verifiable on 2026-10-05: radiopaedia.org returned the same 200 page for every slug, including a bogus control. Reviewer: click to confirm."}

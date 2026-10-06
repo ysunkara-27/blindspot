@@ -1,0 +1,18 @@
+label: emphysema
+display_name: Emphysema
+kind: pattern
+one_liner: Permanent destruction of the air spaces, which leaves the lungs over-inflated and dark.
+key_signs:
+  - Large, over-inflated lungs with flattened diaphragm domes
+  - Many ribs visible above the diaphragm (more than about ten at the back)
+  - Dark lungs with fewer, thinner vessels toward the edges
+  - A long, narrow heart and bullae (thin-walled air pockets)
+where_it_hides: [right_upper_zone, left_upper_zone, right_apex, left_apex]
+mimics:
+  - A deep breath in a healthy person (large lungs, but normal vessels)
+  - An over-exposed film that makes all of the lung look dark
+  - Missing breast tissue on one side making that side look darker
+commonly_confused_with: []
+search_tip: Count the ribs above the diaphragm and check whether the diaphragm domes are flattened.
+radiopaedia_url: https://radiopaedia.org/articles/emphysema
+review: {status: ai_draft, reviewer: null, date: null, notes: "radiopaedia_url not machine-verifiable on 2026-10-05: radiopaedia.org returned the same 200 page for every slug, including a bogus control. Reviewer: click to confirm."}

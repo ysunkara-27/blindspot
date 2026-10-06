@@ -1,0 +1,18 @@
+label: mass
+display_name: Mass
+kind: focal
+one_liner: A large, rounded opacity in the chest, bigger than a nodule.
+key_signs:
+  - A large, rounded white area with a visible edge
+  - Edges that are smooth, lobulated, or spiculated (spiky)
+  - A hilum or the mediastinum looks wider or denser than expected
+  - Surrounding lung usually looks normal
+where_it_hides: [right_hilum, left_hilum, mediastinum, right_apex, left_apex, retrocardiac]
+mimics:
+  - Normal hilar vessels, which are largest near the heart and branch outward
+  - Overlapping breast or chest wall soft tissue
+  - The normal aortic knob and heart borders
+commonly_confused_with: [nodule, calcification]
+search_tip: Compare the size and brightness of the two hila; a hilum that looks bigger or denser than the other deserves a second look.
+radiopaedia_url: null
+review: {status: ai_draft, reviewer: null, date: null, notes: "No radiopaedia_url: no article slug could be confirmed (site returns the same 200 page for any slug). Reviewer: add a link if you know the right article."}

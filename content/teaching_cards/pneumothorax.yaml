@@ -1,0 +1,18 @@
+label: pneumothorax
+display_name: Pneumothorax
+kind: focal
+one_liner: Air in the pleural space, letting the lung edge pull away from the chest wall.
+key_signs:
+  - A thin white line (the visceral pleura) parallel to the chest wall
+  - No lung markings between that line and the chest wall
+  - The space beyond the line is darker than the lung beside it
+  - On a film taken lying down, an unusually deep, dark costophrenic angle (deep sulcus sign)
+where_it_hides: [right_apex, left_apex, right_periphery, left_periphery, right_costophrenic_angle, left_costophrenic_angle]
+mimics:
+  - Skin fold (the line runs past the chest wall, or lung markings continue beyond it)
+  - Medial border of the scapula (follow it; it joins the shoulder blade)
+  - Large bulla in emphysema (a thin-walled air pocket whose edge does not run parallel to the chest wall)
+commonly_confused_with: []
+search_tip: Trace the lung edge at both apices with the loupe, looking for a fine white line with no vessels beyond it.
+radiopaedia_url: https://radiopaedia.org/articles/pneumothorax
+review: {status: ai_draft, reviewer: null, date: null, notes: "radiopaedia_url not machine-verifiable on 2026-10-05: radiopaedia.org returned the same 200 page for every slug, including a bogus control. Reviewer: click to confirm."}

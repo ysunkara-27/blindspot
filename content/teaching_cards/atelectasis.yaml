@@ -1,0 +1,18 @@
+label: atelectasis
+display_name: Atelectasis
+kind: focal
+one_liner: Part of the lung loses its air and partly collapses, so it shrinks and turns whiter.
+key_signs:
+  - A white area with volume loss (that part of the lung looks smaller)
+  - A fissure, hilum or diaphragm pulled toward the white area
+  - Thin plate-like white bands, often in the lower zones
+  - Vessels crowded closer together in the affected area
+where_it_hides: [retrocardiac, right_lower_zone, left_lower_zone, right_upper_zone, left_upper_zone]
+mimics:
+  - Normal fissures seen as thin white lines
+  - Rib edges and costal cartilage crossing the lower zones
+  - The normal density behind the heart on an under-penetrated film
+commonly_confused_with: [consolidation]
+search_tip: Look through the heart for a hidden white triangle and check whether a hilum or diaphragm dome has been pulled out of place.
+radiopaedia_url: https://radiopaedia.org/articles/atelectasis
+review: {status: ai_draft, reviewer: null, date: null, notes: "radiopaedia_url not machine-verifiable on 2026-10-05: radiopaedia.org returned the same 200 page for every slug, including a bogus control. Reviewer: click to confirm."}

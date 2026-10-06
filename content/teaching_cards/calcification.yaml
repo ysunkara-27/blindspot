@@ -1,0 +1,18 @@
+label: calcification
+display_name: Calcification
+kind: focal
+one_liner: Calcium deposited in tissue, which looks as white as bone on a radiograph.
+key_signs:
+  - A very dense spot, as bright as nearby bone
+  - Sharp edges, often small and round or in small clusters
+  - Can sit in the lung, the hila, the pleura or vessel walls
+  - Often marks old, healed inflammation
+where_it_hides: [right_hilum, left_hilum, right_upper_zone, left_upper_zone, mediastinum]
+mimics:
+  - Rib ends and costal cartilage at the front of the ribs
+  - A vessel seen end-on
+  - Spots where two ribs cross
+commonly_confused_with: [nodule, mass]
+search_tip: When a spot is as white as bone, check whether it is a rib end or cartilage before calling it a lesion.
+radiopaedia_url: null
+review: {status: ai_draft, reviewer: null, date: null, notes: "No radiopaedia_url: no article slug could be confirmed (site returns the same 200 page for any slug). Reviewer: add a link if you know the right article."}
