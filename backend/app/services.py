@@ -6,12 +6,14 @@ and assessment attempts never return feedback until the session summary.
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import json
 import logging
 import math
 import random
 import time
+from pathlib import Path
 from typing import Any
 
 from fastapi import HTTPException
@@ -163,11 +165,16 @@ def _case_info(c: Case, bvals: dict[str, tuple[float, int]]) -> CaseInfo:
     )
 
 
+def image_url(case_id: str) -> str:
+    """Public image URL; carries the base path when hosted under one (BLINDSPOT_BASE_PATH)."""
+    return f"{get_settings().api_prefix}/cases/{case_id}/image"
+
+
 def _next_case_payload(aid: str, case: Case, index: int, total: int | None, hints_enabled: bool) -> NextCase:
     return NextCase(
         attempt_id=aid,
         case=NextCaseCase(
-            case_id=case.case_id, image_url=f"/api/cases/{case.case_id}/image", width=case.width, height=case.height
+            case_id=case.case_id, image_url=image_url(case.case_id), width=case.width, height=case.height
         ),
         index=index,
         total=total,
@@ -576,8 +583,9 @@ def hint(aid: str, body: HintRequest) -> HintResponse:
         case = repo.get(a["case_id"])
         zones, _ = repo.zones(case.case_id)
         level = a["hints_used"] + 1
-        text = tutor_bridge.hint(level, case, body.marks, body.telemetry, zones)
-        log_ = jload(a["hint_log_json"], []) + [{"level": level, "at": now_iso(), "text": text}]
+        prev = jload(a["hint_log_json"], [])
+        text = tutor_bridge.hint(level, case, body.marks, body.telemetry, zones, previous=prev)
+        log_ = prev + [{"level": level, "at": now_iso(), "text": text}]
         con.execute("UPDATE attempts SET hints_used=?, hint_log_json=? WHERE id=?", (level, json.dumps(log_), aid))
     return HintResponse(level=level, text=text, remaining=max_h - level)
 
@@ -650,6 +658,9 @@ def summary(sid: str) -> AssessmentSummary:
         session_id=sid,
         mode=s["mode"],
         n_cases=len(recs),
+        n_abnormal=st["n_abnormal"],
+        n_normal=st["n_normal"],
+        n_focal_findings=st["n_focal_findings"],
         sensitivity=st["sensitivity"],
         specificity=st["specificity"],
         localization_fraction=st["localization_fraction"],
@@ -691,3 +702,35 @@ def parse_attempt(a: dict, repo: CaseRepository | None = None) -> dict[str, Any]
         ],
         "b0": c.difficulty_prior if c else 0.0,
     }
+
+
+# ------------------------------------------------------------------ "show anatomy" after submit
+@functools.lru_cache(maxsize=64)
+def _outlines_cached(root: str, case_id: str) -> dict[str, Any]:
+    from backend.app.anatomy_outline import zone_outlines
+
+    repo = get_repo(Path(root))
+    zones, meta = repo.zones(case_id)
+    return zone_outlines(zones, meta, config.zone_human, frozenset(config.review_area_ids()))
+
+
+def anatomy(aid: str) -> dict[str, Any]:
+    """Zone outlines for a SUBMITTED attempt (409 before; in assessment 409 until the session summary is available).
+    Zones are derived from anatomy, not findings, but are still withheld before submit (ground-truth invariant)."""
+    repo = get_repo()
+    with tx() as con:
+        a = _attempt(con, aid)
+        if not a["submitted_at"]:
+            raise HTTPException(status_code=409, detail="attempt not submitted")
+        if is_assessment(a["mode"]):
+            total = len(_assessment_ids(repo, a["mode"]))
+            n_sub = row(
+                con,
+                "SELECT COUNT(*) AS n FROM attempts WHERE session_id=? AND submitted_at IS NOT NULL",
+                a["session_id"],
+            )["n"]
+            if n_sub < total:
+                raise HTTPException(status_code=409, detail="available after the assessment summary")
+    if repo.get(a["case_id"]) is None:
+        raise _404("case")
+    return {"attempt_id": aid, "case_id": a["case_id"], **_outlines_cached(str(repo.root), a["case_id"])}

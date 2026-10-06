@@ -122,8 +122,9 @@ class CaseRepository:
         case = self.get(case_id)
         if case is None:
             raise KeyError(case_id)
-        if case.zones_path and (self.root / case.zones_path).exists():
-            masks, meta = read_zones(self.root / case.zones_path)
+        zp = self.root / case.zones_path if case.zones_path else None
+        if zp is not None and (zp.exists() or zp.with_name(zp.name + ".gz").exists()):
+            masks, meta = read_zones(zp)  # read_zones falls back to the .json.gz sibling (deploy bundle)
             if "lungs" not in masks and "right_lung" in masks and "left_lung" in masks:
                 masks["lungs"] = masks["right_lung"] | masks["left_lung"]
             return masks, meta

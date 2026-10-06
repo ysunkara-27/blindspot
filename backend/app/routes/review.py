@@ -12,7 +12,8 @@ import yaml
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
 
-from backend.app import config, tutor_bridge
+from backend.app import config, services, tutor_bridge
+from backend.app.cases import get_repo
 from backend.app.db import jload, new_id, now_iso, rows, tx
 from backend.app.settings import REPO_ROOT
 from shared.contracts import ReviewRating, TeachingCard
@@ -30,6 +31,40 @@ CARD_EDITABLE = {
 }
 STATUSES = ("ai_draft", "student_reviewed", "radiologist_reviewed")
 QUEUE_FILES = (REPO_ROOT / "eval" / "samples" / "review_queue.jsonl", REPO_ROOT / "data" / "review_queue.jsonl")
+DRYRUN_QUEUE = REPO_ROOT / "eval" / "samples" / "review_queue.dryrun.jsonl"  # used only when no real queue exists
+
+
+def queue_files() -> list:
+    real = [f for f in QUEUE_FILES if f.exists()]
+    return real or ([DRYRUN_QUEUE] if DRYRUN_QUEUE.exists() else [])
+
+
+def case_geometry(case_id: str | None) -> dict[str, Any]:
+    """Expert geometry for the /review film (this route is behind the review gate when hosted). Finding ids are
+    short (F<n>), matching outcomes and debrief finding ids. Unknown case → empty findings, null image."""
+    c = get_repo().get(case_id) if case_id else None
+    if c is None:
+        return {"image_url": None, "width": None, "height": None, "findings": []}
+    return {
+        "image_url": services.image_url(c.case_id),
+        "width": c.width,
+        "height": c.height,
+        "findings": [
+            {
+                "finding_id": f.short_id,
+                "label": f.label,
+                "display": config.display(f.label),
+                "kind": f.kind,
+                "polygon": f.geometry.polygon,
+                "bbox": list(f.geometry.bbox),
+                "centroid": list(f.centroid),
+                "side": f.side,
+                "primary_zone": f.primary_zone,
+                "relative_location": f.relative_location,
+            }
+            for f in c.findings
+        ],
+    }
 
 
 def _debrief_items(limit: int) -> list[dict[str, Any]]:
@@ -45,12 +80,14 @@ def _debrief_items(limit: int) -> list[dict[str, Any]]:
             limit,
         )
     items = []
-    for f in QUEUE_FILES:  # curated queue written by eval/faithfulness.py (optional)
-        if f.exists():
-            for line in f.read_text().splitlines():
-                if line.strip():
-                    d = json.loads(line)
-                    items.append({"item_type": "debrief", "origin": "curated", **d})
+    for f in queue_files():  # curated queue written by eval/faithfulness.py (optional; .dryrun as fallback)
+        for line in f.read_text().splitlines():
+            if line.strip():
+                d = json.loads(line)
+                geo = case_geometry(d.get("case_id"))
+                if geo["image_url"] is None:  # case not in this dataset (e.g. dry-run items on synthetic cases)
+                    continue
+                items.append({"item_type": "debrief", "origin": "curated", **d, **geo})
     for d in ds:
         items.append(
             {
@@ -59,7 +96,8 @@ def _debrief_items(limit: int) -> list[dict[str, Any]]:
                 "item_id": d["id"],
                 "attempt_id": d["attempt_id"],
                 "case_id": d["case_id"],
-                "image_url": f"/api/cases/{d['case_id']}/image",
+                **case_geometry(d["case_id"]),
+                "flagged": bool(d["n_flags"]),
                 "learner": {
                     "marks": jload(d["marks_json"], []),
                     "patterns": jload(d["patterns_json"], []),

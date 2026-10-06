@@ -164,7 +164,7 @@ class FakeTutor:
             "output_tokens": None,
         }
 
-    def hint(self, level, case, marks, telemetry, zones):
+    def hint(self, level, case, marks, telemetry, zones, *, previous=None):
         return f"tutor hint {level}"
 
     def ask(self, question, facts, case, *, previous, offline):

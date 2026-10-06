@@ -58,3 +58,9 @@ def flag(aid: str, body: FlagRequest) -> dict:
             (new_id(), aid, body.comment, now_iso()),
         )
     return {"ok": True}
+
+
+@router.get("/attempts/{aid}/anatomy")
+def anatomy(aid: str) -> dict:
+    """Simplified zone outlines for 'Show anatomy'. 409 before submit (and in assessment until the summary)."""
+    return services.anatomy(aid)

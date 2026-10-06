@@ -24,6 +24,13 @@ class Settings(BaseSettings):
     blindspot_max_live_calls_per_min: int = 30
     # /api/dev/* (clinical-QA overlays; exposes ground truth). Off by default; BLINDSPOT_DEV=1 enables.
     blindspot_dev: bool = False
+    # Hosting (deploy/README.md). Unset = local dev: nothing gated, served at /api and (optionally) /.
+    blindspot_access_code: str | None = None  # every /api route except health/about/access needs it
+    blindspot_review_code: str | None = None  # /api/review/* and /api/cohort/* additionally need it
+    blindspot_base_path: str = ""  # e.g. "/blindspot" -> API at /blindspot/api/..., SPA at /blindspot/
+    blindspot_serve_frontend: bool = False  # serve frontend/dist (built with VITE_BASE_PATH) with SPA fallback
+    blindspot_frontend_dist: Path = Path("./frontend/dist")
+    blindspot_cors_origins: str = ""  # comma list, added to the Vite dev origins
 
     @property
     def data_dir(self) -> Path:
@@ -42,6 +49,34 @@ class Settings(BaseSettings):
     @property
     def config_dir(self) -> Path:
         return REPO_ROOT / "config"
+
+    @property
+    def base_path(self) -> str:
+        """Normalised base path: "" or "/segment" (leading slash, no trailing slash)."""
+        b = (self.blindspot_base_path or "").strip().strip("/")
+        return f"/{b}" if b else ""
+
+    @property
+    def api_prefix(self) -> str:
+        """Public URL prefix of the API, used for URLs the API hands out (e.g. image_url)."""
+        return f"{self.base_path}/api"
+
+    @property
+    def frontend_dist(self) -> Path:
+        p = self.blindspot_frontend_dist
+        return p if p.is_absolute() else (REPO_ROOT / p).resolve()
+
+    @property
+    def cors_origins(self) -> list[str]:
+        return [o.strip().rstrip("/") for o in self.blindspot_cors_origins.split(",") if o.strip()]
+
+    @property
+    def access_code(self) -> str | None:
+        return (self.blindspot_access_code or "").strip() or None
+
+    @property
+    def review_code(self) -> str | None:
+        return (self.blindspot_review_code or "").strip() or None
 
     @property
     def offline(self) -> bool:

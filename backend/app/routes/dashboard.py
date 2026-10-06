@@ -63,7 +63,8 @@ def cohort(
     with tx() as con:
         atts = rows(con, q + " ORDER BY a.submitted_at", *args)
         bvals = {r["case_id"]: r["b"] for r in rows(con, "SELECT case_id, b FROM case_difficulty")}
+        levels = {r["id"]: r["level"] for r in rows(con, "SELECT id, level FROM learners")}
     repo = get_repo()
-    out = cohort_dashboard([services.parse_attempt(a, repo) for a in atts], bvals)
+    out = cohort_dashboard([services.parse_attempt(a, repo) for a in atts], bvals, levels)
     out["filters"] = {"level": level, "mode": mode, "date_from": date_from, "date_to": date_to}
     return out

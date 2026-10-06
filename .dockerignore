@@ -1,0 +1,24 @@
+# Keep the build context small and data-free (the dataset is downloaded at container start).
+data/
+logs/
+.env
+.env.*
+**/.venv
+**/node_modules
+frontend/dist
+**/__pycache__
+**/*.pyc
+.git
+.pytest_cache
+.ruff_cache
+eval/cache
+eval/samples
+tests/e2e/test-results
+tests/e2e/__screenshots__
+playwright-report
+.playwright-mcp
+*.sqlite
+*.pt
+*.pth
+*.onnx
+*.safetensors

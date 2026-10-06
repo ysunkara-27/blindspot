@@ -152,51 +152,43 @@ def lowest_provenance(labels: list[str]) -> str | None:
 
 
 # ------------------------------------------------------------------ hints
-def _hardest_unmarked(case: Case, marks: list[Mark], tau: float):
-    def hit(f) -> bool:
-        x0, y0, x1, y1 = f.geometry.bbox
-        return any(x0 - tau <= m.x <= x1 + tau and y0 - tau <= m.y <= y1 + tau for m in marks)
-
-    focal = [f for f in case.findings if f.kind == "focal" and not hit(f)]
-    if not focal:
-        return None
-    return max(focal, key=lambda f: f.difficulty if f.difficulty is not None else -f.area_frac)
+FALLBACK_ALL_VISITED = "Compare each region with the same region on the other side."
 
 
 def fallback_hint(
     level: int, case: Case, marks: list[Mark], telemetry: list[TelemetryEvent], zones: dict[str, np.ndarray]
 ) -> str:
-    """Deterministic §8.8 ladder when the tutor module is unavailable."""
+    """Deterministic hint when the tutor module is unavailable: the H1 search cue at EVERY level. It depends only on
+    the learner's search (unvisited review areas), never on findings, so it cannot reveal whether the film is normal
+    (QA #8; the tutor's symmetric H2/H3 templates live in backend/app/tutor/hints.py)."""
     sc = config.scoring()
-    if level == 1:
-        cov = review_coverage(
-            dwell_samples(telemetry, sc["dwell"]), zones, config.review_area_ids(), sc["dwell"]["visit_ms"]
-        )
-        if cov.unvisited:
-            return "You haven't looked at: " + ", ".join(config.zone_human(z) for z in cov.unvisited) + "."
-        return "Compare each region with the same region on the other side."
-    f = _hardest_unmarked(case, marks, sc["hit"]["tolerance_frac"] * case.width)
-    if case.is_normal or f is None:
-        if level == 2:
-            return "Asymmetry is the clue: compare left and right zone by zone."
-        return "If every review area is clear, normal is a valid call."
-    if level == 2:
-        side = f.side if f.side in ("right", "left") else None
-        where = config.zone_human(f.primary_zone)
-        return f"Look again at the {where}" + (f" (patient's {side})." if side else ".")
-    card = load_cards().get(f.label)
-    if card and card.key_signs:
-        return f"Look for this sign: {card.key_signs[0]}"
-    return f"Look for a {config.display(f.label).lower()} in the {config.zone_human(f.primary_zone)}."
+    cov = review_coverage(
+        dwell_samples(telemetry, sc["dwell"]), zones, config.review_area_ids(), sc["dwell"]["visit_ms"]
+    )
+    if cov.unvisited:
+        return "You haven't looked at: " + ", ".join(config.zone_human(z) for z in cov.unvisited) + "."
+    return FALLBACK_ALL_VISITED
 
 
 def hint(
-    level: int, case: Case, marks: list[Mark], telemetry: list[TelemetryEvent], zones: dict[str, np.ndarray]
+    level: int,
+    case: Case,
+    marks: list[Mark],
+    telemetry: list[TelemetryEvent],
+    zones: dict[str, np.ndarray],
+    *,
+    previous: list | None = None,
 ) -> str:
+    """`previous` = this attempt's hint log ([{level, at, text}]) so the tutor's H3 stays in the zone H2 named."""
     m = _mod("hints")
     if m is not None and hasattr(m, "hint"):
         try:
-            return str(m.hint(level, case, marks, telemetry, zones))
+            return str(m.hint(level, case, marks, telemetry, zones, previous=previous or []))
+        except TypeError:  # older tutor signature without `previous`
+            try:
+                return str(m.hint(level, case, marks, telemetry, zones))
+            except Exception:  # noqa: BLE001
+                log.exception("tutor.hints.hint failed")
         except Exception:  # noqa: BLE001
             log.exception("tutor.hints.hint failed")
     return fallback_hint(level, case, marks, telemetry, zones)
