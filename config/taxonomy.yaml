@@ -1,0 +1,33 @@
+# Canonical labels for Blindspot. Source of truth for label ids, display names, kinds, and source mappings.
+# Map source label strings case- and whitespace-insensitively. Unmapped source labels must fail loudly.
+version: 1
+labels:
+  - {id: pneumothorax,       display: Pneumothorax,       kind: focal,   core: true,  sources: {chestx-det: [Pneumothorax], vindr-cxr: [Pneumothorax], nih-bbox: [Pneumothorax]}}
+  - {id: effusion,           display: Pleural effusion,   kind: focal,   core: true,  sources: {chestx-det: [Effusion], vindr-cxr: [Pleural effusion], nih-bbox: [Effusion]}}
+  - {id: consolidation,      display: Consolidation,      kind: focal,   core: true,  sources: {chestx-det: [Consolidation], vindr-cxr: [Consolidation], nih-bbox: [Pneumonia]}}
+  - {id: atelectasis,        display: Atelectasis,        kind: focal,   core: true,  sources: {chestx-det: [Atelectasis], vindr-cxr: [Atelectasis], nih-bbox: [Atelectasis]}}
+  - {id: nodule,             display: Nodule,             kind: focal,   core: true,  sources: {chestx-det: [Nodule], vindr-cxr: [Nodule/Mass], nih-bbox: [Nodule]}}
+  - {id: mass,               display: Mass,               kind: focal,   core: true,  sources: {chestx-det: [Mass], nih-bbox: [Mass]}}
+  - {id: fracture,           display: Fracture,           kind: focal,   core: true,  sources: {chestx-det: [Fracture]}}
+  - {id: calcification,      display: Calcification,      kind: focal,   core: false, sources: {chestx-det: [Calcification], vindr-cxr: [Calcification]}}
+  - {id: pleural_thickening, display: Pleural thickening, kind: focal,   core: false, sources: {chestx-det: [Pleural Thickening], vindr-cxr: [Pleural thickening]}}
+  - {id: cardiomegaly,       display: Cardiomegaly,       kind: pattern, core: true,  sources: {chestx-det: [Cardiomegaly], vindr-cxr: [Cardiomegaly], nih-bbox: [Cardiomegaly]}}
+  - {id: emphysema,          display: Emphysema,          kind: pattern, core: false, sources: {chestx-det: [Emphysema]}}
+  - {id: fibrosis,           display: Fibrosis,           kind: pattern, core: false, sources: {chestx-det: [Fibrosis], vindr-cxr: [Pulmonary fibrosis]}}
+  - {id: diffuse_nodule,     display: Diffuse nodules,    kind: pattern, core: false, sources: {chestx-det: [Diffuse Nodule]}}
+
+# VinDr-only classes (P2) not in the core taxonomy. Decide per class before using VinDr: drop, or add a label.
+vindr_unmapped: [Aortic enlargement, ILD, Infiltration, Lung Opacity, Other lesion]
+# NIH bbox "Infiltrate" (P2 fallback) has no clean equivalent; drop it.
+nih_unmapped: [Infiltrate]
+
+# Partial label credit and "commonly confused with" in debriefs.
+related_groups:
+  - [consolidation, atelectasis]
+  - [nodule, mass, calcification]
+  - [effusion, pleural_thickening]
+  - [fibrosis, diffuse_nodule]
+
+# What the learner can choose.
+learner_focal_options: [pneumothorax, effusion, consolidation, atelectasis, nodule, mass, fracture, calcification, pleural_thickening]
+learner_pattern_options: [cardiomegaly, emphysema, fibrosis, diffuse_nodule]

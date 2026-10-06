@@ -1,0 +1,17 @@
+version: 1
+elo:
+  k_learner: 0.4
+  k_case: 0.3
+  k_decay: 0.05
+  theta_init: 0.0
+selection:
+  target_p: 0.7                # aim for ~70% expected success
+  prevalence_abnormal: 0.5     # instructor-settable 0.3–0.7 (sensitivity/specificity trade-off)
+  weakest_label_prob: 0.6
+  repeat_label_penalty: 0.15
+  noise_sd: 0.05
+  epsilon: 0.1
+  recent_window: 50
+review_mode:
+  min_gap_cases: 3
+modes: [practice, drill, assess_A, assess_B, review]

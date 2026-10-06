@@ -1,0 +1,28 @@
+# data and secrets — never commit
+data/
+logs/
+.env
+*.sqlite
+*.sqlite3
+# model weights
+*.pt
+*.pth
+*.onnx
+*.safetensors
+# eval caches (raw API responses) and galleries
+eval/cache/
+eval/samples/*.png
+# python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+# node
+node_modules/
+frontend/dist/
+playwright-report/
+test-results/
+# os
+.DS_Store

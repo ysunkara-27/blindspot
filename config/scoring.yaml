@@ -1,0 +1,32 @@
+version: 1
+hit:
+  tolerance_frac: 0.02        # τ = 0.02·W ≈ 20 px at 1024
+roi:
+  roi_frac: 0.035             # ρ = 0.035·W ≈ 36 px: dilation of finding mask for dwell
+dwell:
+  max_dt_ms: 250              # cap per sample interval
+  max_still_ms: 1500          # idle cap for a stationary pointer
+  zoom_dwell_min: 2.0         # viewport-centre dwell counts at ≥ 2× zoom
+  zoom_dwell_weight: 0.5
+  visit_ms: 300               # review area counts as visited at ≥ 300 ms
+miss_types:                   # Kundel taxonomy (proxy): search < recognition_ms ≤ recognition < decision_ms ≤ decision
+  recognition_ms: 300
+  decision_ms: 1000
+matching_costs:
+  exact: 0.0
+  related: 0.3
+  other: 0.6
+  no_hit: 1000000
+score_weights:
+  abnormal: {localization: 70, label: 20, pattern: 10, false_positive: -10, hint: -5}
+  normal:   {base: 100, false_positive: -25, hint: -5}
+success:
+  abnormal_max_false_positives: 1
+hints:
+  max_per_case: 3
+validator:
+  headline_max_words: 14
+  total_max_words: 160
+  banned_patterns: ["\\btreat(ment|ed|ing)?\\b", "\\bmanage(ment)?\\b", "\\bantibiotic", "\\bchest tube\\b", "\\bdrain(age)?\\b",
+                    "\\bbiopsy\\b", "\\badmit\\b", "\\burgent", "\\bfollow-?up (ct|imaging|scan)\\b", "\\bthis patient (has|should)\\b",
+                    "\\b\\d+(\\.\\d+)?\\s?(cm|mm)\\b"]

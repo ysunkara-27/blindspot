@@ -1,0 +1,51 @@
+# Zone ids always name the PATIENT's side. Patient right is displayed on the image left.
+version: 1
+zones:
+  right_upper_zone:        {human: "right upper zone",            hardness: 0.4}
+  right_mid_zone:          {human: "right mid zone",              hardness: 0.3}
+  right_lower_zone:        {human: "right lower zone",            hardness: 0.3}
+  left_upper_zone:         {human: "left upper zone",             hardness: 0.4}
+  left_mid_zone:           {human: "left mid zone",               hardness: 0.3}
+  left_lower_zone:         {human: "left lower zone",             hardness: 0.4}
+  right_apex:              {human: "right apex",                  hardness: 0.8}
+  left_apex:               {human: "left apex",                   hardness: 0.8}
+  right_costophrenic_angle: {human: "right costophrenic angle",   hardness: 0.4}
+  left_costophrenic_angle:  {human: "left costophrenic angle",    hardness: 0.5}
+  right_periphery:         {human: "right lung periphery",        hardness: 0.6}
+  left_periphery:          {human: "left lung periphery",         hardness: 0.6}
+  right_hilum:             {human: "right hilum",                 hardness: 0.8}
+  left_hilum:              {human: "left hilum",                  hardness: 0.8}
+  retrocardiac:            {human: "retrocardiac region (behind the heart)", hardness: 1.0}
+  cardiac_silhouette:      {human: "cardiac silhouette",          hardness: 0.3}
+  mediastinum:             {human: "mediastinum",                 hardness: 0.7}
+  subdiaphragmatic:        {human: "area just below the diaphragm", hardness: 0.9}
+  right_clavicle:          {human: "right clavicle",              hardness: 0.6}
+  left_clavicle:           {human: "left clavicle",               hardness: 0.6}
+  spine:                   {human: "spine",                       hardness: 0.6}
+
+# Coverage targets (the classic CXR review areas).
+review_areas: [right_apex, left_apex, right_hilum, left_hilum, retrocardiac,
+               right_costophrenic_angle, left_costophrenic_angle, subdiaphragmatic, mediastinum]
+
+# Zones that may be named interchangeably by the validator (a debrief may say a neighbor).
+adjacency:
+  right_upper_zone: [right_apex, right_mid_zone, right_periphery, right_hilum]
+  right_mid_zone: [right_upper_zone, right_lower_zone, right_hilum, right_periphery]
+  right_lower_zone: [right_mid_zone, right_costophrenic_angle, right_periphery, cardiac_silhouette, subdiaphragmatic]
+  left_upper_zone: [left_apex, left_mid_zone, left_periphery, left_hilum]
+  left_mid_zone: [left_upper_zone, left_lower_zone, left_hilum, left_periphery]
+  left_lower_zone: [left_mid_zone, left_costophrenic_angle, left_periphery, retrocardiac, cardiac_silhouette, subdiaphragmatic]
+  right_apex: [right_upper_zone, right_clavicle, right_periphery]
+  left_apex: [left_upper_zone, left_clavicle, left_periphery]
+  right_hilum: [right_mid_zone, right_upper_zone, mediastinum]
+  left_hilum: [left_mid_zone, left_upper_zone, mediastinum]
+  retrocardiac: [left_lower_zone, cardiac_silhouette, mediastinum]
+  right_costophrenic_angle: [right_lower_zone, right_periphery, subdiaphragmatic]
+  left_costophrenic_angle: [left_lower_zone, left_periphery, subdiaphragmatic]
+  mediastinum: [right_hilum, left_hilum, cardiac_silhouette, retrocardiac]
+
+# Common normal structures overcalled in each zone. Drafted by the tutor agent (status ai_draft),
+# reviewed by Sri, then radiologists. Used only as "possibilities" in overcall explanations.
+zone_mimics:
+  status: empty   # tutor-prompt-engineer proposes content; orchestrator writes it here
+  entries: {}
