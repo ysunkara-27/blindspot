@@ -40,7 +40,7 @@ def health() -> Health:
 
 
 # Mount route modules if present (M3+). Each module exposes `router`.
-for _mod in ("sessions", "attempts", "cases", "dashboard", "review", "dev", "about"):
+for _mod in ("sessions", "attempts", "cases", "dashboard", "review", "pilot", "dev", "about"):
     try:
         m = importlib.import_module(f"backend.app.routes.{_mod}")
         app.include_router(m.router, prefix="/api")
