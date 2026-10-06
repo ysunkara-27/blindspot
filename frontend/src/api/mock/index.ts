@@ -150,6 +150,11 @@ export async function mockRequest(method: string, path: string, body: unknown): 
     } satisfies AssessmentSummary;
   }
 
+  if (method === 'POST' && p === '/sus') {
+    const a = (body as { answers: number[] }).answers;
+    return { score: a.reduce((t, v, i) => t + (i % 2 === 0 ? v - 1 : 5 - v), 0) * 2.5 };
+  }
+
   if (method === 'GET' && p === '/about') throw new MockHttpError(404, 'about is static in mock mode');
   throw new MockHttpError(404, `mock has no route ${method} ${p}`);
 }

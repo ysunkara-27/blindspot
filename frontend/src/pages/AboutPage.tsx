@@ -1,72 +1,121 @@
-// /about — data sources, attributions, limits, disclaimer. Uses GET /api/about when available.
+// /about — a readable report: what Blindspot does, data sources with citations and licences, how to read the badges,
+// limitations, privacy, disclaimer. Uses GET /api/about when available; falls back to the same text built in.
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api/client';
 import { DISCLAIMER, PageShell } from '../app/Shell';
+import rail from '../rail/Rail.module.css';
+import a from './About.module.css';
 import s from './Pages.module.css';
 
-type Json = string | number | boolean | null | Json[] | { [k: string]: Json };
-const human = (k: string) => k.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
+type Source = { name: string; role?: string; citation?: string; acknowledgment?: string; url?: string; license?: string };
+type About = { tutor?: string; datasets: Source[]; limitations: string[]; privacy?: string; links: { name: string; note?: string; url?: string }[] };
 
-function Value({ v }: { v: Json }) {
-  if (v == null || typeof v !== 'object') {
-    const str = String(v ?? '');
-    return /^https?:\/\//.test(str) ? <a href={str} target="_blank" rel="noreferrer">{str}</a> : <>{str}</>;
-  }
-  if (Array.isArray(v)) return <ul className={s.list}>{v.map((x, i) => <li key={i}><Value v={x} /></li>)}</ul>;
-  const o = v as Record<string, Json>;
-  const title = o.name ?? o.title ?? o.label;
-  return (
-    <span>
-      {title != null && <strong>{String(title)}. </strong>}
-      {Object.entries(o).filter(([k]) => !['name', 'title', 'label'].includes(k)).map(([k, x]) => (
-        <span key={k} className={s.kv}><span className={s.muted}>{human(k)}:</span> <Value v={x} /> </span>
-      ))}
-    </span>
-  );
+// Licence/terms lines for the sources we use, shown when the API entry has no `license` field yet.
+const KNOWN_TERMS: Record<string, string> = {
+  'ChestX-Det': 'Annotations by Deepwise AI Lab, released under the Apache-2.0 licence.',
+  'NIH ChestX-ray14': 'Public release by the NIH Clinical Center; users are asked to cite the paper and acknowledge the NIH Clinical Center.',
+  TorchXRayVision: 'Open-source library, Apache-2.0 licence.',
+};
+
+const FALLBACK: About = {
+  datasets: [
+    { name: 'ChestX-Det', role: 'Instance-level expert annotations (polygons) for 13 thoracic findings, used as the reference standard for scoring.', citation: 'Lian J, Liu J, Zhang S, et al. A Structure-Aware Relation Network for Thoracic Diseases Detection and Segmentation. IEEE Transactions on Medical Imaging, 2021.', url: 'https://github.com/Deepwise-AILab/ChestX-Det-Dataset' },
+    { name: 'NIH ChestX-ray14', role: 'Source radiographs for ChestX-Det.', citation: 'Wang X, Peng Y, Lu L, Lu Z, Bagheri M, Summers RM. ChestX-ray8: Hospital-scale Chest X-ray Database and Benchmarks on Weakly-Supervised Classification and Localization of Common Thorax Diseases. IEEE CVPR 2017.', acknowledgment: 'Images courtesy of the NIH Clinical Center.', url: 'https://nihcc.app.box.com/v/ChestXray-NIHCC' },
+    { name: 'TorchXRayVision', role: 'Anatomy segmentation (lungs, heart, hila, mediastinum) used to name zones and review areas.', citation: 'Cohen JP, Viviano JD, Bertin P, et al. TorchXRayVision: A library of chest X-ray datasets and models. MIDL 2022.', url: 'https://github.com/mlmed/torchxrayvision' },
+  ],
+  limitations: [
+    'Where you looked is estimated from your cursor, loupe and zoom — a proxy for gaze, not eye tracking.',
+    'Images come from a single US centre (NIH Clinical Center); findings may not generalise to other populations or equipment.',
+    'Expert labels contain some noise, and not every abnormality on an image is necessarily annotated.',
+    'Pixel spacing is unknown for these images, so sizes are never given in centimetres.',
+  ],
+  links: [{ name: 'Radiopaedia', note: 'Linked from teaching cards only; no content is copied.' }],
+};
+
+type Obj = Record<string, unknown>;
+const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v);
+const str = (v: unknown) => (typeof v === 'string' ? v : undefined);
+
+function guard(v: unknown): About {
+  if (!isObj(v)) return FALLBACK;
+  const datasets = (Array.isArray(v.datasets) ? v.datasets : []).flatMap((d) => (isObj(d) && typeof d.name === 'string'
+    ? [{ name: d.name, role: str(d.role), citation: str(d.citation), acknowledgment: str(d.acknowledgment) ?? str(d.acknowledgement), url: str(d.url), license: str(d.license) ?? str(d.licence) }]
+    : []));
+  const limitations = (Array.isArray(v.limitations) ? v.limitations : []).filter((x): x is string => typeof x === 'string');
+  const links = (Array.isArray(v.links) ? v.links : []).flatMap((l) => (isObj(l) && typeof l.name === 'string' ? [{ name: l.name, note: str(l.note), url: str(l.url) }] : []));
+  return {
+    tutor: str(v.tutor),
+    datasets: datasets.length ? datasets : FALLBACK.datasets,
+    limitations: limitations.length ? limitations : FALLBACK.limitations,
+    privacy: str(v.privacy),
+    links: links.length ? links : FALLBACK.links,
+  };
 }
 
 export function AboutPage() {
   const q = useQuery({ queryKey: ['about'], queryFn: api.about, retry: false });
-  const data = q.data && typeof q.data === 'object' ? (q.data as Record<string, Json>) : null;
+  const about = guard(q.data);
   return (
     <PageShell>
       <h1 className={s.h1}>About Blindspot</h1>
-      <p className={s.lede}>A chest X-ray perception trainer. You mark what you see; we score your marks against radiologist outlines, replay your search, and explain each miss from facts the software computed.</p>
-      {data ? (
-        <div data-testid="about-api">
-          {Object.entries(data).map(([k, v]) => (
-            <section key={k} className={s.ruled}>
-              <h2 className={s.h2}>{human(k)}</h2>
-              <Value v={v} />
-            </section>
+      <p className={s.lede}>
+        A chest X-ray perception trainer. You mark what you see; Blindspot scores your marks against radiologist outlines,
+        replays where you looked, and explains each miss from facts the software computed.
+      </p>
+
+      <section className={s.ruled} data-testid="about-how">
+        <h2 className={s.h2}>How the feedback works</h2>
+        <p>Ground truth always comes from the radiologist annotations. Nothing on the film is decided by a language model.</p>
+        <p>{about.tutor ?? 'Debriefs are written by Claude (Anthropic) from facts computed by Blindspot, then checked by a deterministic validator; if a debrief fails, a built-in explanation is shown instead.'}</p>
+      </section>
+
+      <section className={s.ruled} data-testid="about-sources">
+        <h2 className={s.h2}>Data and models</h2>
+        <ol className={a.sources}>
+          {about.datasets.map((d) => (
+            <li key={d.name} className={a.source}>
+              <h3 className={a.sourceName}>{d.name}</h3>
+              {d.role && <p className={a.role}>{d.role}</p>}
+              {d.citation && <p className={a.citation}>{d.citation}</p>}
+              {d.acknowledgment && <p className={a.ack}>{d.acknowledgment}</p>}
+              {(d.license ?? KNOWN_TERMS[d.name]) && <p className={a.terms} data-testid={`terms-${d.name}`}>{d.license ? `Licence: ${d.license}.` : KNOWN_TERMS[d.name]}</p>}
+              {d.url && <p className={a.link}><a href={d.url} target="_blank" rel="noreferrer">{d.url.replace(/^https?:\/\//, '')}</a></p>}
+            </li>
           ))}
-        </div>
-      ) : (
-        <div data-testid="about-static">
-          <section className={s.ruled}>
-            <h2 className={s.h2}>Data</h2>
-            <p><strong>ChestX-Det.</strong> Expert instance-level outlines for 13 thoracic findings on about 3,500 frontal chest radiographs, drawn on images from NIH ChestX-ray14. Lian J, et al. A Structure-Aware Relation Network for Thoracic Diseases Detection and Segmentation. IEEE Transactions on Medical Imaging, 2021.</p>
-            <p><strong>NIH ChestX-ray14.</strong> Wang X, Peng Y, Lu L, Lu Z, Bagheri M, Summers RM. ChestX-ray8: Hospital-scale chest X-ray database and benchmarks on weakly-supervised classification and localization of common thorax diseases. CVPR 2017. Images courtesy of the NIH Clinical Center.</p>
-            <p><strong>Anatomy.</strong> Lung, heart and mediastinum outlines come from a public segmentation model (TorchXRayVision), used to name zones and review areas.</p>
-          </section>
-          <section className={s.ruled}>
-            <h2 className={s.h2}>How the feedback works</h2>
-            <p>Ground truth always comes from the radiologist annotations. The tutor (Claude) only explains facts the software computed: which findings you found, where they are, and how your search moved. Every debrief is checked by a rule-based validator; if it fails, you see a built-in explanation instead. Each debrief shows whether its teaching content has been reviewed by a student or a radiologist.</p>
-          </section>
-          <section className={s.ruled}>
-            <h2 className={s.h2}>Limits</h2>
-            <ul className={s.list}>
-              <li>Miss types are based on your cursor, loupe and zoom — a proxy for where you looked, not eye tracking.</li>
-              <li>The images come from a single US hospital, and expert labels contain some noise.</li>
-              <li>Pixel spacing is unknown for these images, so sizes are never given in centimetres.</li>
-              <li>Patient right is shown on the image left, as on a standard frontal film.</li>
-            </ul>
-          </section>
-        </div>
+        </ol>
+        {about.links.map((l) => (
+          <p key={l.name} className={s.mutedSmall}><strong>{l.name}.</strong> {l.note}</p>
+        ))}
+      </section>
+
+      <section className={s.ruled} data-testid="about-badges">
+        <h2 className={s.h2}>Reading the badges on a debrief</h2>
+        <dl className={a.badges}>
+          <dt><span className={rail.badge}>Written for this read</span></dt><dd>Claude wrote it from this attempt's facts, and it passed the validator.</dd>
+          <dt><span className={rail.badge}>Saved explanation</span></dt><dd>The same facts were explained before; the saved text is shown.</dd>
+          <dt><span className={rail.badge}>Built-in explanation</span></dt><dd>A fixed template filled from the facts: the tutor is offline or its draft failed the validator.</dd>
+          <dt><span className={rail.badge}>AI draft, not yet reviewed</span></dt><dd>The teaching cards behind it were drafted by AI and are not yet reviewed.</dd>
+          <dt><span className={`${rail.badge} ${rail.prov_student_reviewed}`}>Reviewed by a medical student</span></dt><dd>A medical student has checked the teaching cards used.</dd>
+          <dt><span className={`${rail.badge} ${rail.prov_radiologist_reviewed}`}>Reviewed by a radiologist</span></dt><dd>A radiologist has checked the teaching cards used.</dd>
+        </dl>
+        <p className={s.mutedSmall}>The badge shows the lowest review level among the cards a debrief draws on. Learners can flag any debrief with “This seems wrong”; flags go to the expert review queue.</p>
+      </section>
+
+      <section className={s.ruled} data-testid="about-limits">
+        <h2 className={s.h2}>Limitations</h2>
+        <ul className={s.list}>{about.limitations.map((l) => <li key={l}>{l}</li>)}</ul>
+      </section>
+
+      {about.privacy && (
+        <section className={s.ruled}>
+          <h2 className={s.h2}>Privacy</h2>
+          <p>{about.privacy}</p>
+        </section>
       )}
+
       <section className={s.ruled}>
         <h2 className={s.h2}>Disclaimer</h2>
-        <p>{DISCLAIMER} Blindspot gives no advice about patient care. Feedback is for practice only and may be wrong; use the "This seems wrong" link to flag it.</p>
+        <p>{DISCLAIMER} Blindspot gives no advice about patient care. Feedback is for practice only and may be wrong; use the “This seems wrong” link to flag it.</p>
       </section>
     </PageShell>
   );

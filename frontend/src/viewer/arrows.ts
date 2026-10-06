@@ -35,6 +35,20 @@ export function arrowGeometry(from: Pt, to: Pt, targetRadius: number, k: number)
   return { d, head, start: [fx, fy] as Pt, ctrl: [cx, cy] as Pt, end: [ex, ey] as Pt };
 }
 
+/** Distance from `to` (inside the box) to the edge of `bbox` along the ray towards `from`: where the arrow should stop
+ *  so it touches the outline's extent instead of halting in mid-air on long, thin outlines. */
+export function rayToBoxEdge(from: Pt, to: Pt, bbox: readonly [number, number, number, number]): number {
+  const dx = from[0] - to[0];
+  const dy = from[1] - to[1];
+  const len = Math.hypot(dx, dy) || 1;
+  const ux = dx / len;
+  const uy = dy / len;
+  const tx = ux > 1e-9 ? (bbox[2] - to[0]) / ux : ux < -1e-9 ? (bbox[0] - to[0]) / ux : Infinity;
+  const ty = uy > 1e-9 ? (bbox[3] - to[1]) / uy : uy < -1e-9 ? (bbox[1] - to[1]) / uy : Infinity;
+  const t = Math.min(tx, ty);
+  return Number.isFinite(t) && t > 0 ? t : 0;
+}
+
 /** Point on the quadratic curve at t (used to anchor arrow text at the middle of the sweep). */
 export function quadPoint(s: Pt, c: Pt, e: Pt, t: number): Pt {
   const u = 1 - t;
@@ -46,21 +60,27 @@ export type Box = { x: number; y: number; w: number; h: number };
 const overlaps = (a: Box, b: Box) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 
 /** Greedy label placement: nudge each box vertically (then sideways) until it overlaps nothing placed before it.
- *  Boxes are kept inside [0, W] × [0, H]. Returns the placed boxes in input order. */
-export function placeLabels(boxes: Box[], W: number, H: number, obstacles: Box[] = []): Box[] {
+ *  Boxes are kept inside [0, W] × [0, H]. `avoid[i]` lists soft obstacles for box i (e.g. expert outlines it must not
+ *  cover): they are honoured when a free spot exists within a few lines, and dropped otherwise (a far label detaches).
+ *  Returns the placed boxes in input order. */
+export function placeLabels(boxes: Box[], W: number, H: number, obstacles: Box[] = [], avoid: Box[][] = []): Box[] {
   const placed: Box[] = [...obstacles];
-  for (const b0 of boxes) {
-    const clampBox = (b: Box): Box => ({ ...b, x: Math.min(Math.max(0, b.x), Math.max(0, W - b.w)), y: Math.min(Math.max(0, b.y), Math.max(0, H - b.h)) });
-    let best = clampBox(b0);
+  const clampBox = (b: Box): Box => ({ ...b, x: Math.min(Math.max(0, b.x), Math.max(0, W - b.w)), y: Math.min(Math.max(0, b.y), Math.max(0, H - b.h)) });
+  const search = (b0: Box, blockers: Box[], rings: number): Box | null => {
     const step = b0.h * 1.05;
-    outer: for (let ring = 0; ring < 14; ring++) {
-      for (const [dx, dy] of ring === 0 ? [[0, 0]] : [[0, ring * step], [0, -ring * step], [b0.w * 0.5 * Math.ceil(ring / 2), ring * step * 0.5]]) {
+    for (let ring = 0; ring < rings; ring++) {
+      for (const [dx, dy] of ring === 0 ? [[0, 0]] : [[0, -ring * step], [0, ring * step], [b0.w * 0.5 * Math.ceil(ring / 2), ring * step * 0.5], [-b0.w * 0.5 * Math.ceil(ring / 2), -ring * step * 0.5]]) {
         const cand = clampBox({ ...b0, x: b0.x + dx, y: b0.y + dy });
-        if (!placed.some((p) => overlaps(p, cand))) { best = cand; break outer; }
+        if (!blockers.some((p) => overlaps(p, cand))) return cand;
       }
     }
-    placed.push(best);
-  }
+    return null;
+  };
+  boxes.forEach((b0, i) => {
+    const soft = avoid[i] ?? [];
+    // Soft obstacles may push a label only a few lines away; further than that it would detach from its mark.
+    placed.push((soft.length ? search(b0, [...placed, ...soft], 5) : null) ?? search(b0, placed, 18) ?? clampBox(b0));
+  });
   return placed.slice(obstacles.length);
 }
 

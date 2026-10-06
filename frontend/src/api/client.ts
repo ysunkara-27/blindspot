@@ -2,7 +2,7 @@
 // Mock mode (synthetic cases, in-browser): VITE_MOCK=1, ?mock=1 (sticky per tab), or the API is unreachable / has no cases.
 import type {
   AskRequest, AskResponse, AssessmentRecorded, AssessmentSummary, AttemptSubmit, DebriefResponse, Health,
-  HintRequest, HintResponse, NextCase, ReviewRating, SessionCreate, SessionCreated, SubmitResult,
+  Case, HintRequest, HintResponse, NextCase, ReviewRating, SessionCreate, SessionCreated, SubmitResult, SusResult, SusSubmit,
 } from '../types/contracts';
 
 export const API_BASE = '/api';
@@ -96,8 +96,15 @@ export const api = {
   flagDebrief: (aid: string, comment: string) => post<{ ok: boolean }>(`/attempts/${aid}/flag`, { comment }),
   rate: (body: ReviewRating) => post<{ ok: boolean }>('/review/ratings', body),
   summary: (sid: string) => request<AssessmentSummary>(`/sessions/${sid}/summary`),
-  learnerDashboard: (lid: string) => request<unknown>(`/learners/${lid}/dashboard`),
+  /** Dashboard payloads are loosely typed by the API; pages pass them through src/dashboard/types.ts guards. */
+  learnerDashboard: (lid: string) => request<unknown>(`/learners/${encodeURIComponent(lid)}/dashboard`),
   cohortDashboard: (qs = '') => request<unknown>(`/cohort/dashboard${qs}`),
+  /** Review queue (SPEC §11.1); shapes guarded in src/review/types.ts. */
+  reviewItems: (type: 'debrief' | 'card', limit = 50) => request<unknown>(`/review/items?type=${type}&limit=${limit}`),
+  reviewExportUrl: `${API_BASE}/review/export.csv`,
+  sus: (body: SusSubmit) => post<SusResult>('/sus', body),
+  /** Full case with ground truth. Reviewer-only (the attempt is long submitted); never used by the reading room. */
+  devCase: (caseId: string) => request<Case>(`/dev/cases/${encodeURIComponent(caseId)}`),
   about: () => request<unknown>('/about'),
   imageUrl: (caseId: string) => `${API_BASE}/cases/${caseId}/image`,
   devOverlayUrl: (caseId: string, layers: string) => `${API_BASE}/dev/cases/${caseId}/overlay?layers=${layers}`,

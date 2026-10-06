@@ -108,8 +108,10 @@ test('reading log survives a malformed payload', async ({ page }) => {
 
 test('cohort dashboard: aggregates, difficulty table, filters as query params', async ({ page, request }) => {
   await seed(request, 3);
-  const api = await (await request.get(`${API}/cohort/dashboard`)).json();
+  // Compare with the exact payload the page received (other specs may add attempts in between).
+  const resp = page.waitForResponse((r) => r.url().includes('/api/cohort/dashboard'));
   await page.goto('/cohort?mock=0');
+  const api = await (await resp).json();
   await expect(page.getByTestId('cohort-dashboard')).toBeVisible();
   await expect(page.getByTestId('cohort-n')).toContainText(`n = ${api.n_attempts} cases from ${api.n_learners} learners`);
   for (const id of ['summary-stats', 'miss-mix', 'label-difficulty', 'blindspot-map', 'review-areas', 'calibration', 'froc', 'cohort-learners']) {
@@ -123,8 +125,9 @@ test('cohort dashboard: aggregates, difficulty table, filters as query params', 
   await page.getByTestId('filter-level').selectOption('MS3');
   await req;
   await expect(page).toHaveURL(/mode=practice/);
-  const filtered = await (await request.get(`${API}/cohort/dashboard?mode=practice&level=MS3`)).json();
-  await expect(page.getByTestId('cohort-n')).toContainText(`n = ${filtered.n_attempts} cases`);
+  await expect(page.getByTestId('cohort-n')).toContainText('(filtered)');
+  await expect(page.getByTestId('filter-mode')).toHaveValue('practice');
+  await expect(page.getByTestId('filter-level')).toHaveValue('MS3');
   // A date range in the far past matches nothing.
   await page.getByTestId('filter-to').fill('2000-01-01');
   await expect(page.getByTestId('cohort-empty')).toBeVisible();

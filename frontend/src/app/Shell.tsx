@@ -28,6 +28,8 @@ export function Nav() {
     <nav className={s.nav} aria-label="Main">
       <Link to="/read">Read</Link>
       <Link to="/progress">Reading log</Link>
+      <Link to="/cohort">Cohort</Link>
+      <Link to="/review">Review</Link>
       <Link to="/about">About</Link>
     </nav>
   );

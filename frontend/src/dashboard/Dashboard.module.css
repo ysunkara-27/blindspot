@@ -1,0 +1,74 @@
+/* Dashboard: one report column, sections separated by hairline rules (SPEC §14.2). No cards, no grid of tiles. */
+.header { margin-bottom: 8px; }
+.who { color: var(--report-ink-muted); margin: 0 0 4px; }
+.scope { color: var(--report-ink-muted); font-size: var(--fs-1); margin: 0; }
+
+.section { border-top: 1px solid var(--report-rule); padding: 22px 0 18px; }
+.sectionHead { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+.sectionTitle { font-size: var(--fs-3); font-weight: 700; margin: 0; }
+.n { color: var(--report-ink-muted); font-size: var(--fs-1); font-variant-numeric: tabular-nums; }
+.caption { color: var(--report-ink-muted); font-size: var(--fs-1); line-height: 1.45; margin: 2px 0 12px; max-width: 62ch; }
+.empty { font-size: var(--fs-2); margin: 8px 0; }
+.chart { width: 100%; }
+
+/* Stat rows: label + basis on the left, the figure on the right. */
+.statRows { width: 100%; border-collapse: collapse; }
+.statRows th { text-align: left; font-weight: 400; padding: 10px 0; border-bottom: 1px solid var(--report-rule); vertical-align: baseline; }
+.statRows td { text-align: right; padding: 10px 0; border-bottom: 1px solid var(--report-rule); vertical-align: baseline; white-space: nowrap; }
+.statRows tr:last-child th, .statRows tr:last-child td { border-bottom: none; }
+.statValue { font-size: var(--fs-3); font-weight: 700; }
+.statBasis { display: block; color: var(--report-ink-muted); font-size: 14px; margin-top: 2px; }
+
+/* Controls row (series toggle, filters): one left-aligned row above what it scopes. */
+.controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: flex-end; margin: 6px 0 12px; }
+.control { display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--report-ink-muted); }
+.select {
+  font: inherit; font-size: var(--fs-1); color: var(--report-ink);
+  padding: 6px 10px; border: 1px solid #b9c2ca; border-radius: var(--radius); background: #fff;
+}
+.select:focus-visible, .linkBtn:focus-visible { outline: 2px solid var(--grease-amber); outline-offset: 2px; }
+.linkBtn { background: none; border: none; padding: 6px 0; color: var(--report-ink); text-decoration: underline; cursor: pointer; font-size: var(--fs-1); }
+
+/* Legend: swatch beside plain ink text (text never wears the series colour). */
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 4px 0 8px; padding: 0; list-style: none; font-size: 14px; }
+.legend li { display: inline-flex; align-items: center; gap: 7px; }
+.swatch { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+.dotSwatch { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.washSwatch { width: 16px; height: 12px; border-radius: 6px; flex-shrink: 0; }
+.legendTerm { color: var(--report-ink-muted); }
+
+/* Table twin for every chart. */
+.tableView { margin-top: 8px; font-size: 14px; }
+.tableView summary { cursor: pointer; color: var(--report-ink-muted); padding: 4px 0; width: fit-content; }
+.tableView summary:focus-visible { outline: 2px solid var(--grease-amber); outline-offset: 2px; }
+.dataTable { border-collapse: collapse; margin-top: 6px; font-variant-numeric: tabular-nums; min-width: 60%; }
+.dataTable th, .dataTable td { padding: 5px 14px 5px 0; border-bottom: 1px solid var(--report-rule); text-align: right; }
+.dataTable th:first-child, .dataTable td:first-child { text-align: left; }
+.dataTable thead th { font-weight: 700; color: var(--report-ink); }
+
+/* Tooltip */
+.tip { background: #fff; border: 1px solid var(--report-rule); border-radius: 6px; padding: 8px 10px; font-size: 14px; box-shadow: 0 2px 8px rgba(29, 35, 41, 0.12); }
+.tipValue { font-weight: 700; font-size: var(--fs-2); }
+.tipRow { display: flex; align-items: center; gap: 8px; }
+.tipKey { width: 10px; height: 2px; flex-shrink: 0; }
+.tipMuted { color: var(--report-ink-muted); }
+
+/* Review-area habit: thin bars on a light track. */
+.habit { list-style: none; margin: 6px 0 0; padding: 0; }
+.habit li { display: grid; grid-template-columns: minmax(10em, 15em) 1fr 3.5em; gap: 12px; align-items: center; padding: 5px 0; }
+.habitName { font-size: var(--fs-1); }
+.track { height: 8px; background: #e2e7eb; border-radius: 4px; overflow: hidden; }
+.fill { height: 100%; background: #a86a00; border-radius: 0 4px 4px 0; }
+.habitPct { text-align: right; font-size: var(--fs-1); font-variant-numeric: tabular-nums; }
+
+/* Blind-spot map: a small film on the PACS surround, next to its legend. */
+.mapRow { display: flex; gap: 22px; align-items: flex-start; flex-wrap: wrap; }
+.map { width: 340px; max-width: 100%; height: auto; background: var(--pacs-surround); border-radius: 4px; display: block; }
+.mapSide { flex: 1; min-width: 200px; font-size: var(--fs-1); }
+.mapSide p { margin: 0 0 10px; line-height: 1.45; }
+
+.difficulty td:nth-child(n + 2), .difficulty th:nth-child(n + 2) { text-align: right; }
+.inlineBar { display: inline-block; height: 6px; background: var(--lightbox-cyan); border-radius: 0 3px 3px 0; vertical-align: middle; margin-right: 8px; }
+
+.filters { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: flex-end; padding: 12px 0 16px; }
+.refetching { opacity: 0.55; transition: opacity 120ms; }

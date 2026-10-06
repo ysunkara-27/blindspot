@@ -241,3 +241,8 @@
   cursor: pointer;
 }
 .popDone:disabled { opacity: 0.4; cursor: default; }
+
+/* Read-only reveal (expert review page): everything drawn, nothing animates. */
+.still .revealTrace, .still .revealLabel, .still .revealArrowText, .still .settle { animation: none; }
+.still .revealOutline, .still .revealArrow, .still .revealArrowHead { animation: none; stroke-dashoffset: 0; stroke-dasharray: none; }
+.still .revealOutline { fill-opacity: 0.07; }

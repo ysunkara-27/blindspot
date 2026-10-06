@@ -2,7 +2,7 @@
 // Timing lives in Viewer.module.css; prefers-reduced-motion makes it instant.
 import type { Arrow, RevealFinding, RevealMark } from '../types/contracts';
 import type { DraftMark } from '../read/readState';
-import { arrowGeometry, placeLabels, quadPoint, shortArrowText, type Box, type Pt } from './arrows';
+import { arrowGeometry, placeLabels, quadPoint, rayToBoxEdge, shortArrowText, type Box, type Pt } from './arrows';
 import s from './Viewer.module.css';
 
 export type RevealView = {
@@ -45,17 +45,28 @@ export function RevealLayer({ reveal, width, height, k, strokePx, marks }: {
     const to: Pt = a.to_xy ? [a.to_xy[0], a.to_xy[1]] : centroidOf(f);
     const m = a.from_mark ? marks.find((x) => x.mark_id === a.from_mark) : null;
     const from: Pt = a.from_xy ? [a.from_xy[0], a.from_xy[1]] : m ? [m.x, m.y] : [width / 2, height / 2];
-    const r = Math.max(f.bbox[2] - f.bbox[0], f.bbox[3] - f.bbox[1]) / 2;
+    const r = rayToBoxEdge(from, to, f.bbox);
     const g = arrowGeometry(from, to, r, k);
     const mid = quadPoint(g.start, g.ctrl, g.end, 0.5);
-    const label = shortArrowText(a.text);
+    // Contract: `label` is the backend's short on-film phrase; the full sentence stays in the tooltip.
+    const label = a.label?.trim() || shortArrowText(a.text);
     const w = label.length * CHAR_EM * fs;
-    return [{ a, g, label, box: { x: mid[0] - w / 2, y: mid[1] - lh - 4 * k, w, h: lh } as Box }];
-  });
+    // Findings drawn with the same outline (e.g. consolidation + effusion on one polygon) get one arrow, not two.
+    const key = `${label}|${Math.round(from[0] / 12)},${Math.round(from[1] / 12)}|${f.bbox.map((v) => Math.round(v / 12)).join(',')}`;
+    return [{ a, g, label, key, box: { x: mid[0] - w / 2, y: mid[1] - lh - 4 * k, w, h: lh } as Box }];
+  }).filter((x, i, all) => all.findIndex((y) => y.key === x.key) === i);
 
   // Learner marks (ring + "M1" tag) are fixed obstacles: labels never cover them.
   const markBoxes: Box[] = marks.map((m) => ({ x: m.x - 20 * k, y: m.y - 26 * k, w: 64 * k, h: 46 * k }));
-  const placed = placeLabels([...fLabels.map((l) => l.box), ...arrows.map((x) => x.box)], width, height, markBoxes);
+  // Expert outlines are soft obstacles: a finding's label avoids every OTHER outline; arrow text avoids all of them.
+  const pad = 3 * k;
+  const outlineBox = (f: RevealFinding): Box => ({ x: f.bbox[0] - pad, y: f.bbox[1] - pad, w: f.bbox[2] - f.bbox[0] + 2 * pad, h: f.bbox[3] - f.bbox[1] + 2 * pad });
+  const outlines = reveal.findings.map(outlineBox);
+  const avoid = [
+    ...fLabels.map((_, i) => outlines.filter((_, j) => j !== i)),
+    ...arrows.map(() => outlines),
+  ];
+  const placed = placeLabels([...fLabels.map((l) => l.box), ...arrows.map((x) => x.box)], width, height, markBoxes, avoid);
   const fPlaced = placed.slice(0, fLabels.length);
   const aPlaced = placed.slice(fLabels.length);
 

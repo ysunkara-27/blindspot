@@ -1,0 +1,13 @@
+.sources { list-style: none; margin: 4px 0 8px; padding: 0; counter-reset: src; }
+.source { padding: 10px 0 12px 34px; position: relative; counter-increment: src; }
+.source + .source { border-top: 1px solid var(--report-rule); }
+.source::before { content: counter(src); position: absolute; left: 0; top: 11px; font-weight: 700; color: var(--report-ink-muted); font-variant-numeric: tabular-nums; }
+.sourceName { font-size: var(--fs-2); margin: 0 0 4px; }
+.role { margin: 0 0 6px; line-height: 1.45; }
+.citation { margin: 0 0 4px; font-size: var(--fs-1); line-height: 1.45; padding-left: 12px; border-left: 2px solid var(--report-rule); }
+.ack, .terms { margin: 4px 0 0; font-size: var(--fs-1); color: var(--report-ink-muted); }
+.link { margin: 4px 0 0; font-size: var(--fs-1); word-break: break-all; }
+.badges { display: grid; grid-template-columns: max-content 1fr; gap: 10px 16px; margin: 6px 0 12px; align-items: baseline; }
+.badges dt { margin: 0; }
+.badges dd { margin: 0; line-height: 1.4; font-size: var(--fs-1); }
+@media (max-width: 560px) { .badges { grid-template-columns: 1fr; } }
