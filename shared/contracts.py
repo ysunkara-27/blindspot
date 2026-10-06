@@ -406,11 +406,23 @@ class TeachingCard(_Strict):
 
 
 # --------------------------------------------------------------------------- api.json
+TutorMode = Literal["live", "offline", "paused_credits", "paused_budget", "paused_rate", "paused_error"]
+
+
+class TutorStatus(_Strict):
+    mode: TutorMode
+    reason: str | None = None
+    resume_at: str | None = None
+    spend_usd: dict[str, float] | None = None
+    budget_usd: dict[str, float] | None = None
+
+
 class Health(_Strict):
     ok: bool
     offline: bool
     cases: int
     version: str | None = None
+    tutor: TutorStatus | None = None
 
 
 class SessionCreate(_Strict):

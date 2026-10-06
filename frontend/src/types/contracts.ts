@@ -10,6 +10,26 @@ export interface Health {
   offline: boolean;
   cases: number;
   version?: string | null;
+  tutor?: {
+    mode: "live" | "offline" | "paused_credits" | "paused_budget" | "paused_rate" | "paused_error";
+    reason?: string | null;
+    /**
+     * ISO time when live calls will be retried, if paused
+     */
+    resume_at?: string | null;
+    /**
+     * hour, day, total (estimates from token counts)
+     */
+    spend_usd?: {
+      [k: string]: number;
+    } | null;
+    /**
+     * hour, day, total limits
+     */
+    budget_usd?: {
+      [k: string]: number;
+    } | null;
+  } | null;
 }
 
 export interface SessionCreate {
