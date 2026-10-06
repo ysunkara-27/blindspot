@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { lazy, Suspense, type ReactNode } from 'react';
+import { lazy, Suspense, useState, type ReactNode } from 'react';
 import { BrowserRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { BASE, isGateError } from '../api/client';
 import { routerBasename } from '../api/base';
@@ -26,11 +26,24 @@ const qc = new QueryClient({
 // Pages that still make sense on a phone: the landing (it explains, then asks for a computer) and the About report.
 const NARROW_OK = new Set(['/', '/about']);
 
+// A page that was already open stays mounted (hidden, inert) when the window narrows, so shrinking a window or a
+// transient resize never throws away marks, a half-written review or the card being edited. A page opened narrow
+// never mounts.
 function NarrowGuard({ children }: { children: ReactNode }) {
   const narrow = useNarrow();
   const { pathname } = useLocation();
-  if (narrow && !NARROW_OK.has(pathname.replace(/\/+$/, '') || '/')) return <SmallScreenNote />;
-  return <>{children}</>;
+  const blocked = narrow && !NARROW_OK.has(pathname.replace(/\/+$/, '') || '/');
+  const [mounted, setMounted] = useState(!blocked);
+  if (!blocked && !mounted) setMounted(true);
+  // The wrapper is always there (display: contents when wide) so the page keeps its place in the tree.
+  return (
+    <>
+      {blocked && <SmallScreenNote />}
+      <div style={{ display: blocked ? 'none' : 'contents' }} inert={blocked} data-testid="page-root">
+        {(mounted || !blocked) && children}
+      </div>
+    </>
+  );
 }
 
 export function App() {

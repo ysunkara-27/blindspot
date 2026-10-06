@@ -140,6 +140,8 @@ test('access gate also appears when a later call is refused, and About stays pub
 
 for (const what of ['review', 'cohort'] as const) {
   test(`reviewer gate on /${what}: prompt, then the page loads`, async ({ page }) => {
+    // The unlock is mocked and the retry falls through to the server, so this needs an API without a review code.
+    test.skip(!!process.env.E2E_REVIEW_CODE, 'covered by the real-code test below');
     let ok = false;
     const target = what === 'review' ? '**/api/review/items**' : '**/api/cohort/dashboard**';
     await page.route('**/api/review/access', (route) => { ok = true; return json(route, 200, { ok: true, required: true }); });
@@ -152,9 +154,29 @@ for (const what of ['review', 'cohort'] as const) {
     await page.getByTestId('reviewer-code').fill('reviewer-123');
     await page.getByTestId('reviewer-submit').click();
     await expect(gate).toHaveCount(0);
-    await expect(page.getByTestId(what === 'review' ? 'tab-debriefs' : 'cohort-n').or(page.getByTestId('queue-empty'))).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId(what === 'review' ? 'tab-debriefs' : 'cohort-n').or(page.getByTestId('queue-empty')).first()).toBeVisible({ timeout: 15_000 });
   });
 }
+
+// Unmocked: needs an API started with a review code (frontend/playwright.local.config.ts:
+// E2E_API_ENV="BLINDSPOT_REVIEW_CODE=rv-e2e" E2E_REVIEW_CODE=rv-e2e). Wrong code first, then the real cookie.
+test('reviewer gate against a real review code: wrong code says so, right code opens /review and /cohort', async ({ page }) => {
+  const code = process.env.E2E_REVIEW_CODE;
+  test.skip(!code, 'set E2E_REVIEW_CODE and start the API with the same BLINDSPOT_REVIEW_CODE');
+  await page.goto('/review?mock=0');
+  const gate = page.getByTestId('reviewer-gate');
+  await expect(gate).toBeVisible({ timeout: 15_000 });
+  await page.getByTestId('reviewer-code').fill('not-the-code');
+  await page.getByTestId('reviewer-submit').click();
+  await expect(page.getByTestId('reviewer-error')).toContainText('That code did not work.');
+  await page.getByTestId('reviewer-code').fill(code!);
+  await page.getByTestId('reviewer-submit').click();
+  await expect(gate).toHaveCount(0);
+  await expect(page.getByTestId('tab-debriefs').or(page.getByTestId('queue-empty')).first()).toBeVisible({ timeout: 15_000 });
+  await page.goto('/cohort?mock=0'); // same cookie covers the cohort view
+  await expect(page.getByTestId('cohort-n').or(page.getByTestId('queue-empty')).first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByTestId('reviewer-gate')).toHaveCount(0);
+});
 
 test('below 900 px: a polite note instead of the reading room; landing and About still read', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -181,6 +203,25 @@ test('below 900 px: a polite note instead of the reading room; landing and About
   await shot(page, '06-small-landing');
   await page.goto('/about');
   await expect(page.getByRole('heading', { level: 1, name: 'About Blindspot' })).toBeVisible();
+});
+
+test('narrowing an open reading room shows the note but keeps the marks', async ({ page }) => {
+  await startPractice(page);
+  const box = (await page.getByTestId('film').boundingBox())!;
+  await page.mouse.click(box.x + box.width * 0.3, box.y + box.height * 0.4);
+  const pop = page.getByTestId('mark-popover');
+  await expect(pop).toBeVisible();
+  await pop.getByRole('button', { name: 'Nodule', exact: true }).click();
+  await pop.getByRole('radio', { name: 'Confidence 3 of 5' }).click();
+  await pop.getByRole('button', { name: 'Done' }).click();
+  await expect(page.getByTestId('mark-count')).toHaveText('1');
+  await page.setViewportSize({ width: 700, height: 800 });
+  await expect(page.getByTestId('small-screen')).toBeVisible();
+  await expect(page).toHaveTitle('Use a larger screen · Blindspot');
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await expect(page.getByTestId('small-screen')).toHaveCount(0);
+  await expect(page.getByTestId('mark-count')).toHaveText('1');
+  await expect(page).not.toHaveTitle('Use a larger screen · Blindspot');
 });
 
 test('reading room for strangers: key help, nudges, loupe indicator, progress', async ({ page }) => {
@@ -259,6 +300,7 @@ for (const c of TAG_CASES) {
     else await expect(panel.getByTestId('debrief-busy')).toHaveCount(0);
     if (c.body.debrief) await expect(panel).toContainText('Check both apices');
     if (c.name.startsWith('live')) {
+      await page.waitForTimeout(1400); // let the reveal settle so the shot shows outlines and the full rail
       await panel.scrollIntoViewIfNeeded();
       await shot(page, '08-debrief-tags', true);
     }
@@ -296,6 +338,6 @@ test('Show anatomy (A) after submit: zone outlines with names on hover; not befo
 test('page titles name the page', async ({ page }) => {
   for (const [path, title] of [['/about', 'About · Blindspot'], ['/progress?mock=0', 'Reading log · Blindspot'], ['/nope', 'Page not found · Blindspot']] as const) {
     await page.goto(path);
-    await expect(page).toHaveTitle(title);
+    await expect(page).toHaveTitle(title, { timeout: 15_000 }); // lazy page chunks
   }
 });

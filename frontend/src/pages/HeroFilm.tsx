@@ -31,14 +31,17 @@ export function HeroFilm() {
       {/* expert outline (missed) */}
       <path d="M214 214 C 220 200, 244 198, 252 210 C 262 222, 254 242, 236 244 C 218 246, 206 230, 214 214 Z"
         fill="#35C9DD" fillOpacity="0.08" stroke="#35C9DD" strokeWidth="2.2" strokeLinejoin="round" />
-      <text x="214" y="194" fontSize="12" fontWeight="700" fill="#35C9DD" stroke="#000" strokeWidth="3" paintOrder="stroke">F1 · Nodule</text>
+      <text x="290" y="196" textAnchor="end" fontSize="12" fontWeight="700" fill="#35C9DD" stroke="#000" strokeWidth="3" paintOrder="stroke">F1 · Nodule</text>
       {/* your mark */}
       <circle cx="96" cy="122" r="9" fill="none" stroke="#F0A92E" strokeWidth="2.2" />
       <circle cx="96" cy="122" r="1.8" fill="#F0A92E" />
       <text x="109" y="114" fontSize="12" fontWeight="700" fill="#F0A92E" stroke="#000" strokeWidth="3" paintOrder="stroke">M1</text>
       {/* grease-pencil arrow */}
-      <path d="M104 132 Q 168 150, 208 214" fill="none" stroke="#F0A92E" strokeWidth="2.4" strokeLinecap="round" markerEnd="url(#hf-head)" />
-      <text x="128" y="176" fontSize="12" fontWeight="700" fill="#F0A92E" stroke="#000" strokeWidth="3" paintOrder="stroke" transform="rotate(30 128 176)">Never looked there</text>
+      <path id="hf-arrow" d="M108 136 Q 176 140, 208 212" fill="none" stroke="#F0A92E" strokeWidth="2.4" strokeLinecap="round" markerEnd="url(#hf-head)" />
+      {/* the label rides above the arrow, never on it */}
+      <text fontSize="11.5" fontWeight="700" fill="#F0A92E" stroke="#000" strokeWidth="3.2" paintOrder="stroke" dy="-7">
+        <textPath href="#hf-arrow" startOffset="43%" textAnchor="middle">Never looked there</textPath>
+      </text>
       <text x="14" y="26" fontSize="15" fontWeight="700" fill="#c9d1d8">R</text>
     </svg>
   );

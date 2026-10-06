@@ -13,7 +13,7 @@
 .what { font-size: var(--fs-2); line-height: 1.55; margin: 0 0 22px; color: #c9d1d8; max-width: 36em; }
 .lines { border-left: 3px solid var(--grease-amber); padding: 2px 0 2px 16px; margin: 0 0 28px; }
 .lines p { margin: 5px 0; line-height: 1.45; color: #c9d1d8; }
-.lines p:first-child { font-size: var(--fs-4); font-weight: 700; color: #f3f5f6; line-height: 1.25; margin-bottom: 10px; }
+.lines p:first-child { font-size: var(--fs-4); font-weight: 700; color: #f3f5f6; line-height: 1.25; margin-bottom: 10px; text-wrap: balance; }
 .ctaRow { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
 .demo {
   padding: 12px 26px;
@@ -33,16 +33,24 @@
 .heroError { margin: 14px 0 0; color: #f3f5f6; font-size: var(--fs-1); border-left: 3px solid var(--grease-amber); padding-left: 10px; }
 
 .figure { margin: 0; }
+.film svg { display: block; width: 100%; height: auto; }
 .film { display: block; width: 100%; height: auto; border-radius: 4px; box-shadow: 0 0 0 1px #000, 0 12px 32px rgba(0, 0, 0, 0.45); }
 .caption { margin-top: 12px; font-size: 14px; line-height: 1.45; color: #9aa5af; }
 .cyan { color: var(--lightbox-cyan); font-weight: 700; }
 .amber { color: var(--grease-amber); font-weight: 700; }
 
+/* Below the hero, the same grid as the hero: the form under the copy, How it works under the film. */
+.below { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 48px; align-items: start; }
+.start { padding-top: 0; }
+.side { border-left: 1px solid var(--report-rule); padding-left: 24px; margin-left: -24px; }
+.side .section:first-child { padding-top: 0; }
+.side .how { font-size: var(--fs-1); color: var(--report-ink); }
+
 /* Start: name + level on one row, then the three modes as ruled columns (not boxed cards). */
 .section { border-top: 1px solid var(--report-rule); padding: 22px 0 10px; }
 .section:first-child { border-top: none; padding-top: 0; }
 .h2 { font-size: var(--fs-3); font-weight: 700; margin: 0 0 14px; }
-.who { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; margin-bottom: 22px; }
+.who { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; margin-bottom: 22px; align-items: end; }
 .field { display: flex; flex-direction: column; gap: 6px; font-weight: 700; }
 .hint { font-weight: 400; font-size: 14px; color: var(--report-ink-muted); }
 .input {
@@ -89,12 +97,18 @@
 .how { line-height: 1.6; margin: 0 0 8px; }
 .links { display: flex; flex-wrap: wrap; gap: 6px 0; margin: 0; padding: 0; list-style: none; font-size: var(--fs-1); }
 .links li + li::before { content: '·'; color: var(--report-ink-muted); margin: 0 10px; }
+/* In the side column the links stack: no separators to strand at a line start. */
+.side .links { flex-direction: column; gap: 8px; }
+.side .links li + li::before { content: none; }
 .links a { color: var(--report-ink); }
 
 .phone { padding: 14px 16px; background: #e7ecef; border-left: 3px solid var(--grease-amber); border-radius: 0 4px 4px 0; line-height: 1.5; margin: 0 0 18px; }
 
 @media (max-width: 899.98px) {
   .heroInner { grid-template-columns: 1fr; gap: 28px; padding: 28px 16px 30px; }
+  .below { grid-template-columns: 1fr; gap: 0; }
+  .side { border-left: none; padding-left: 0; margin-left: 0; }
+  .side .section:first-child { border-top: 1px solid var(--report-rule); padding-top: 22px; }
   .figure { max-width: 320px; }
   .who { grid-template-columns: 1fr; }
   .modeGrid { grid-template-columns: 1fr; }

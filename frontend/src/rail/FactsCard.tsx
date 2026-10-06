@@ -4,7 +4,7 @@ import s from './Rail.module.css';
 
 export function FactsCard({ card }: { card: SubmitResult['facts_card'] }) {
   return (
-    <section className={s.section} aria-labelledby="facts-h" data-testid="facts-card">
+    <section className={`${s.section} ${s.settle}`} aria-labelledby="facts-h" data-testid="facts-card">
       <h3 id="facts-h" className={s.h3}>The facts</h3>
       <p className={s.factsHead}>{card.headline}</p>
       <ul className={s.factsList}>

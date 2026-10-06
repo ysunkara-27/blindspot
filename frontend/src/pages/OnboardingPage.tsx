@@ -89,14 +89,15 @@ export function OnboardingPage() {
   );
 
   return (
-    <PageShell hero={hero}>
-      <section className={l.section} id="start" aria-labelledby="start-h">
+    <PageShell hero={hero} width={1040}>
+      <div className={l.below}>
+      <section className={`${l.section} ${l.start}`} id="start" aria-labelledby="start-h">
         <h2 id="start-h" className={l.h2}>Start your own session</h2>
         {narrow && <p className={l.phone} data-testid="landing-small-screen">{SMALL_SCREEN_TEXT}. The modes are below so you know what to expect.</p>}
         <form onSubmit={(e) => { e.preventDefault(); if (name.trim() && !narrow) begin.mutate({ name: name.trim(), level, mode, drillLabel }); }}>
           <div className={l.who}>
             <label className={l.field}>
-              <span>Your name or participant code <span className={l.hint}>(a code like P-014 keeps your log across visits)</span></span>
+              <span>Your name or participant code <span className={l.hint}>(a code like P‑014 keeps your log across visits)</span></span>
               <input className={l.input} value={name} onChange={(e) => setName(e.target.value)} required maxLength={60} data-testid="name" autoComplete="nickname" />
             </label>
             <label className={l.field}>
@@ -172,6 +173,7 @@ export function OnboardingPage() {
         </form>
       </section>
 
+      <aside className={l.side}>
       <section className={l.section} aria-labelledby="how-h" data-testid="how-it-works">
         <h2 id="how-h" className={l.h2}>How it works</h2>
         <p className={l.how}>
@@ -193,6 +195,8 @@ export function OnboardingPage() {
           <li><Link to="/review">Expert review</Link></li>
         </ul>
       </section>
+      </aside>
+      </div>
     </PageShell>
   );
 }

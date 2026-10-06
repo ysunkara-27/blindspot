@@ -97,7 +97,7 @@ function ReadSession({ session }: { session: SessionInfo }) {
           <h1>You have read every case in this set.</h1>
           <p><Link to="/">Start a new session</Link> or open your <Link to="/progress">reading log</Link>.</p>
         </main>
-        <Footer className={shell.pageFooter} />
+        <div className={shell.pageFooterWrap}><Footer className={shell.pageFooter} /></div>
       </div>
     );
   }
@@ -139,7 +139,7 @@ function RoomHeader({ session, next, loupe, setLoupe, onHelp }: {
           ) : null}
         </span>
       )}
-      <SyntheticBadge />
+      <SyntheticBadge short />
       <span className={shell.spacer} />
       <button type="button" className={`${shell.toggle} ${loupe ? shell.toggleOn : ''}`} aria-pressed={loupe} onClick={() => setLoupe(!loupe)} data-testid="loupe-toggle" title="Loupe (L)">
         <span className={shell.dot} />{loupe ? 'Loupe on' : 'Loupe off'}
@@ -150,7 +150,7 @@ function RoomHeader({ session, next, loupe, setLoupe, onHelp }: {
       <button type="button" className={shell.toggle} onClick={onHelp} data-testid="keys-button" title="Keyboard shortcuts (?)">
         Keys <kbd className={shell.kbdHead}>?</kbd>
       </button>
-      <Nav />
+      <Nav compact />
     </header>
   );
 }

@@ -214,7 +214,7 @@
 
 .nextBar { margin-top: auto; padding: 14px 0 12px; position: sticky; bottom: 0; background: var(--report-paper); border-top: 1px solid var(--report-rule); }
 
-/* Outcome chips settle as the last beat of the reveal. */
+/* The rail (outcome chips, facts, debrief) settles as the last beat of the reveal, after the outlines and arrows. */
 .settle { animation: settle 260ms ease-out 1050ms both; }
 @keyframes settle { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .settle { animation: none; } }

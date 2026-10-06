@@ -57,7 +57,12 @@ def case_score(p: ScoreParts, is_normal: bool, cfg: dict) -> float:
         s = n["base"] + n["false_positive"] * (p.false_positives + p.pattern_false) + n["hint"] * p.hints
         return float(min(100.0, max(0.0, s)))
     a = w["abnormal"]
-    pat_acc = p.patterns_correct / p.n_patterns_involved if p.n_patterns_involved else 1.0
+    if p.n_patterns_involved:
+        pat_acc = p.patterns_correct / p.n_patterns_involved
+    else:
+        # DECISION: no pattern findings and none selected is vacuously "correct", but it must not reward a learner
+        # who called an abnormal film normal: the 10 pattern points apply only when something focal was localized.
+        pat_acc = 1.0 if (p.localized > 0 or not p.n_focal) else 0.0
     if p.n_focal:
         s = (
             a["localization"] * p.localized / p.n_focal

@@ -40,7 +40,7 @@ export function DebriefPanel({ attemptId, findings, disabled }: { attemptId: str
   };
 
   return (
-    <section className={s.section} aria-labelledby="debrief-h" aria-live="polite" data-testid="debrief">
+    <section className={`${s.section} ${s.settle}`} aria-labelledby="debrief-h" aria-live="polite" data-testid="debrief">
       <div className={s.row}>
         <h3 id="debrief-h" className={s.h3}>Debrief</h3>
         {d?.status === 'ready' && d.source && (

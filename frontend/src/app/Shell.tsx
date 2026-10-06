@@ -14,30 +14,34 @@ export function Footer({ className }: { className?: string }) {
   );
 }
 
-export function SyntheticBadge() {
+/** `short` is for the reading-room header, where width is tight; the title carries the full explanation. */
+export function SyntheticBadge({ short = false }: { short?: boolean }) {
   const m = apiMode();
   if (m.mode !== 'mock') return null;
   return (
-    <span className={s.synthetic} title={`Mock API: ${m.reason}. Cases are drawn shapes, not radiographs.`} data-testid="synthetic-badge">
-      Synthetic demo cases
+    <span className={s.synthetic} title={`Synthetic demo cases (${m.reason}): drawn shapes, not radiographs.`} data-testid="synthetic-badge">
+      {short ? 'Synthetic' : 'Synthetic demo cases'}
     </span>
   );
 }
 
-export function Nav() {
+/** `compact` is the reading-room header: the learner's own pages only (Read is where they are; Cohort and Review
+ *  are instructor pages, one click away from the landing). */
+export function Nav({ compact = false }: { compact?: boolean }) {
   return (
     <nav className={s.nav} aria-label="Main">
-      <Link to="/read">Read</Link>
+      {!compact && <Link to="/read">Read</Link>}
       <Link to="/progress">Reading log</Link>
-      <Link to="/cohort">Cohort</Link>
-      <Link to="/review">Review</Link>
+      {!compact && <Link to="/cohort">Cohort</Link>}
+      {!compact && <Link to="/review">Review</Link>}
       <Link to="/about">About</Link>
     </nav>
   );
 }
 
 /** Paper page: header, optional full-bleed hero, single report column, disclaimer footer. */
-export function PageShell({ children, wide = false, hero }: { children: ReactNode; wide?: boolean; hero?: ReactNode }) {
+export function PageShell({ children, wide = false, width, hero }: { children: ReactNode; wide?: boolean; width?: number; hero?: ReactNode }) {
+  const w = width ?? (wide ? 1100 : undefined);
   return (
     <div className={s.page}>
       <header className={s.pageHeader}>
@@ -47,8 +51,8 @@ export function PageShell({ children, wide = false, hero }: { children: ReactNod
         <Nav />
       </header>
       {hero}
-      <main className={s.pageMain} style={wide ? { maxWidth: 1100 } : undefined}>{children}</main>
-      <Footer className={s.pageFooter} />
+      <main className={s.pageMain} style={w ? { maxWidth: w } : undefined}>{children}</main>
+      <div className={s.pageFooterWrap} style={w ? { maxWidth: w } : undefined}><Footer className={s.pageFooter} /></div>
     </div>
   );
 }

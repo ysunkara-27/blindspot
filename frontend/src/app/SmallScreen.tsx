@@ -8,7 +8,7 @@ import g from './Gate.module.css';
 export const SMALL_SCREEN_TEXT = 'Blindspot needs a laptop or desktop screen to read radiographs properly';
 
 export function SmallScreenNote() {
-  useTitle('Use a larger screen');
+  useTitle('Use a larger screen', true);
   return (
     <div className={g.narrow} data-testid="small-screen">
       <main className={g.narrowMain}>
