@@ -93,7 +93,6 @@ ABOUT = {
         "Projection (PA vs AP) is not recorded; AP films exaggerate heart size.",
         "The cardiothoracic ratio (CTR) is measured automatically from the segmentation, and projection is not "
         "recorded, so it is a teaching aid, not a measurement.",
-        "Pilot results are from a small, unpowered usability test, not a research study.",
     ],
     "licenses": LICENSES,
     "privacy": "Public, de-identified research datasets only. No patient images are uploaded.",
