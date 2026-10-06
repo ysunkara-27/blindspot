@@ -30,3 +30,4 @@ test-results/
 # playwright scratch (may contain dataset images)
 .playwright-mcp/
 tests/e2e/test-results/
+tests/e2e/__screenshots__/live-*.png
