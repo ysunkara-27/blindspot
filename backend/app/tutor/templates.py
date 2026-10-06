@@ -30,7 +30,7 @@ _ROUTE = "apices, hila, behind the heart, costophrenic angles, below the diaphra
 
 
 def _lc_first(s: str) -> str:
-    return s[:1].lower() + s[1:] if s and not s[:2].isupper() else s
+    return s[:1].lower() + s[1:] if s and not (len(s) > 1 and s[1].isupper()) else s  # keep "AP", "PA"
 
 
 def _strip_paren(s: str) -> str:
@@ -133,6 +133,13 @@ def _why(
         base = f"You did not tick {f.display.lower()} in Global findings."
         return f"{base} {tip}" if level == "full" and tip else base
     return "See the outline on the image."
+
+
+def why_sentence(
+    f: FactsFinding, result: str, card: TeachingCard | None, learner_label: str | None, cards: dict[str, TeachingCard]
+) -> str:
+    """Full-length 'why' text for one finding (shared with the ask-the-tutor template answers)."""
+    return _why(f, result, card, learner_label, "full", cards)
 
 
 def _what(f: FactsFinding, result: str, card: TeachingCard | None, level: str) -> list[str]:

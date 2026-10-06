@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import math
 import random
 import time
 from typing import Any
@@ -21,6 +22,7 @@ from backend.app.adaptive.selector import (
     CaseInfo,
     LearnerState,
     assessment_order,
+    qa_ok,
     review_candidates,
     select_next,
 )
@@ -49,6 +51,8 @@ from shared.contracts import (
 log = logging.getLogger("blindspot.services")
 ASSESS_MODES = ("assess_A", "assess_B")
 MAX_ASKS = 3  # SPEC §8.9: up to 3 follow-up questions per case
+DEMO_NAME, DEMO_CODE = "demo", "DEMO"  # learner created by `make demo` (backend/app/demo_seed.py)
+DEFAULT_MAX_MARKS = 50  # QA issue 7; overridable by config/scoring.yaml submit.max_marks
 
 
 def is_assessment(mode: str) -> bool:
@@ -74,6 +78,12 @@ def create_session(body: SessionCreate) -> SessionCreated:
                 body.participant_code,
             )
             lid = r["id"] if r else None
+        if lid is None and not body.participant_code and body.display_name.strip().casefold() == DEMO_NAME:
+            r = row(con, "SELECT id FROM learners WHERE participant_code=? ORDER BY created_at LIMIT 1", DEMO_CODE)
+            lid = r["id"] if r else None
+        settings = dict(body.settings or {})
+        if lid is not None and body.mode == "practice" and "playlist" not in settings:
+            settings.update(_demo_playlist_settings(con, lid))
         if lid is None:
             lid = new_id()
             con.execute(
@@ -83,9 +93,22 @@ def create_session(body: SessionCreate) -> SessionCreated:
         sid = new_id()
         con.execute(
             "INSERT INTO sessions(id, learner_id, mode, settings_json, started_at) VALUES (?,?,?,?,?)",
-            (sid, lid, body.mode, json.dumps(body.settings or {}), now),
+            (sid, lid, body.mode, json.dumps(settings), now),
         )
     return SessionCreated(session_id=sid, learner_id=lid, mode=body.mode)
+
+
+def _demo_playlist_settings(con, lid: str) -> dict[str, Any]:
+    """The seeded demo learner (participant_code DEMO, see demo_seed.py) gets the seeded playlist on every new
+    Practice session, so typing "Demo" on the onboarding page replays the playlist from slot 1."""
+    lr = row(con, "SELECT participant_code FROM learners WHERE id=?", lid)
+    if not lr or lr["participant_code"] != DEMO_CODE:
+        return {}
+    for r in rows(con, "SELECT settings_json FROM sessions WHERE learner_id=? ORDER BY started_at DESC", lid):
+        pl = jload(r["settings_json"], {}).get("playlist")
+        if isinstance(pl, list) and pl:
+            return {"playlist": pl}
+    return {}
 
 
 def _session(con, sid: str) -> dict[str, Any]:
@@ -96,18 +119,30 @@ def _session(con, sid: str) -> dict[str, Any]:
     return s
 
 
+def _servable(repo: CaseRepository, cid: str) -> bool:
+    """Case exists and carries no QA flag outside the allowlist (selector.BENIGN_FLAGS)."""
+    c = repo.get(cid)
+    if c is None:
+        return False
+    if not qa_ok(c.qa_flags):
+        log.warning("refusing to serve %s: qa_flags=%s", cid, c.qa_flags)
+        return False
+    return True
+
+
 def _assessment_ids(repo: CaseRepository, mode: str) -> list[str]:
-    """Fixed order: data/processed/splits.json[mode] if it is an ordered list, else seeded order of the split."""
+    """Fixed order: data/processed/splits.json[mode] if it is an ordered list, else seeded order of the split.
+    QA-flagged cases (outside the allowlist) are dropped with a warning (REVIEW_NOTES issue 11)."""
     p = repo.root / "splits.json"
     if p.exists():
         try:
             d = json.loads(p.read_text())
             ids = d.get(mode)
             if isinstance(ids, list) and ids and all(isinstance(x, str) for x in ids):
-                return [i for i in ids if repo.get(i) is not None]
+                return [i for i in ids if _servable(repo, i)]
         except (ValueError, AttributeError):
             pass
-    return assessment_order([c.case_id for c in repo.by_split(mode)])
+    return assessment_order([c.case_id for c in repo.by_split(mode) if _servable(repo, c.case_id)])
 
 
 def _b_values(con) -> dict[str, tuple[float, int]]:
@@ -214,9 +249,12 @@ def _select_practice(con, repo: CaseRepository, s: dict, n_done: int) -> Case | 
     seed = int(hashlib.sha256(f"{sid}:{n_done}".encode()).hexdigest()[:12], 16)
     rng = random.Random(seed)
 
+    playlist = _playlist_pick(repo, st, sess)
+    if playlist is not None:
+        return playlist
     if mode == "review":
         cid = _review_pick(con, lid, state, rng)
-        if cid and (c := repo.get(cid)):
+        if cid and _servable(repo, cid) and (c := repo.get(cid)):
             return c
     prevalence = st.get("prevalence")
     try:
@@ -237,6 +275,22 @@ def _select_practice(con, repo: CaseRepository, s: dict, n_done: int) -> Case | 
         prevalence=prevalence,
     )
     return repo.get(pick.case_id) if pick else None
+
+
+def _playlist_pick(repo: CaseRepository, settings: dict, sess: list[dict]) -> Case | None:
+    """Session settings {"playlist": [case_id, ...]} (demo): serve those cases IN ORDER, skipping ones already
+    shown in this session and any that are missing, QA-flagged or not in the practice split; then adaptive."""
+    pl = settings.get("playlist")
+    if not isinstance(pl, list):
+        return None
+    shown = {r["case_id"] for r in sess}
+    for cid in pl:
+        if not isinstance(cid, str) or cid in shown or not _servable(repo, cid):
+            continue
+        c = repo.get(cid)
+        if c is not None and c.split == "practice":
+            return c
+    return None
 
 
 def _review_pick(con, lid: str, state: LearnerState, rng: random.Random) -> str | None:
@@ -298,6 +352,37 @@ def history_for(con, lid: str, labels: list[str], exclude_aid: str) -> dict[str,
     return out
 
 
+def submit_problems(body: AttemptSubmit, width: float, height: float, max_marks: int) -> list[str]:
+    """Pure check of a submit against the image (REVIEW_NOTES issue 7). Empty list = valid."""
+    errs: list[str] = []
+    if len(body.marks) > max_marks:
+        errs.append(f"too many marks ({len(body.marks)} > {max_marks})")
+    seen: set[str] = set()
+    for m in body.marks:
+        if m.mark_id in seen:
+            errs.append(f"duplicate mark_id {m.mark_id!r}")
+        seen.add(m.mark_id)
+        if not (math.isfinite(m.x) and math.isfinite(m.y)):
+            errs.append(f"mark {m.mark_id!r} has non-finite coordinates")
+        elif not (0.0 <= m.x <= width and 0.0 <= m.y <= height):
+            errs.append(f"mark {m.mark_id!r} is outside the image ({m.x:g}, {m.y:g}) not in [0,{width}]x[0,{height}]")
+    for i, e in enumerate(body.telemetry):
+        vals = [e.t, e.zoom, e.x, e.y, *(e.vp or ())]
+        if any(v is not None and not math.isfinite(v) for v in vals):
+            errs.append(f"telemetry event {i} has non-finite values")
+            break
+    if body.normal_confidence is not None and not math.isfinite(float(body.normal_confidence)):
+        errs.append("normal_confidence is not finite")
+    return errs
+
+
+def validate_submit(body: AttemptSubmit, case: Case) -> None:
+    max_marks = int(config.scoring().get("submit", {}).get("max_marks", DEFAULT_MAX_MARKS))
+    errs = submit_problems(body, case.width, case.height, max_marks)
+    if errs:
+        raise HTTPException(status_code=422, detail=errs)
+
+
 def submit(aid: str, body: AttemptSubmit) -> tuple[SubmitResult | AssessmentRecorded, dict | None]:
     """Returns (response, debrief_job_kwargs or None)."""
     repo = get_repo()
@@ -308,6 +393,7 @@ def submit(aid: str, body: AttemptSubmit) -> tuple[SubmitResult | AssessmentReco
         case = repo.get(a["case_id"])
         if case is None:
             raise _404("case")
+        validate_submit(body, case)
         ev = evaluate(case, body, repo, hints_used=a["hints_used"])
         hints = max(body.hints_used, a["hints_used"])
         assess = is_assessment(a["mode"])
@@ -439,6 +525,7 @@ def run_debrief_job(aid: str, case: Case, submit: AttemptSubmit, ev: Evaluation,
             input_tokens=out.get("input_tokens"),
             output_tokens=out.get("output_tokens"),
             provenance=out.get("provenance"),
+            error=out.get("error"),
         )
     except Exception as e:  # noqa: BLE001 — a debrief failure must never break the read loop
         log.exception("debrief job failed for %s", aid)
@@ -470,6 +557,7 @@ def get_debrief(aid: str) -> DebriefResponse:
         provenance=d["provenance"],
         validator=jload(d["validator_json"]),
         latency_ms=d["latency_ms"],
+        error=d.get("error"),
     )
 
 

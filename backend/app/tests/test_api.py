@@ -399,7 +399,8 @@ def test_about(api_env):
     assert {"ChestX-Det", "NIH ChestX-ray14"} <= names and body["limitations"]
 
 
-def test_dev_overlay_png(api_env):
+def test_dev_overlay_png(api_env, monkeypatch):
+    monkeypatch.setenv("BLINDSPOT_DEV", "1")  # /api/dev is 404 unless BLINDSPOT_DEV=1
     r = api_env().get("/api/dev/cases/syn_005/overlay", params={"layers": "zones,findings"})
     assert r.status_code == 200 and r.content[:8] == b"\x89PNG\r\n\x1a\n"
 

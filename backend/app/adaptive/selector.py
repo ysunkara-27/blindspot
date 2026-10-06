@@ -11,7 +11,13 @@ from dataclasses import dataclass, field
 
 from backend.app.adaptive.elo import case_theta, p_success
 
-BENIGN_FLAGS = frozenset({"synthetic", "anatomy_failed", "zones_approximate", "approximate_zones"})
+# QA flags that do NOT disqualify a case from being served (allowlist). Any other flag (e.g. orientation_suspect,
+# merged_duplicate_instances) keeps the case out of assessment forms and the practice/drill/review pools.
+BENIGN_FLAGS = frozenset({"synthetic", "anatomy_missing", "anatomy_failed", "zones_approximate", "approximate_zones"})
+
+
+def qa_ok(flags: Sequence[str]) -> bool:
+    return all(f in BENIGN_FLAGS for f in flags)
 
 
 @dataclass(frozen=True)
@@ -37,7 +43,7 @@ class LearnerState:
 def eligible(info: CaseInfo, core: Sequence[str]) -> bool:
     if info.split != "practice":
         return False
-    if any(f not in BENIGN_FLAGS for f in info.qa_flags):
+    if not qa_ok(info.qa_flags):
         return False
     return info.is_normal or any(lab in core for lab in info.labels)
 
@@ -74,7 +80,7 @@ def select_next(
     if drill_label:
         base = [c for c in base if c.is_normal or drill_label in c.labels]
     if not base:
-        base = [c for c in pool if c.split == "practice"]  # never fall back to assess/bench
+        base = [c for c in pool if c.split == "practice" and qa_ok(c.qa_flags)]  # never assess/bench/flagged
     if not base:
         return None
     recent = set(state.recent[-int(cfg["recent_window"]) :])

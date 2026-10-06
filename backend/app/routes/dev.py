@@ -1,5 +1,9 @@
 """Dev / clinical-QA routes: overlays of anatomy, zones and findings. Exposes ground truth by design —
-used only by /dev/case/:id for QA, never by the reading flow."""
+used only by /dev/case/:id for QA, never by the reading flow.
+
+Gated: every route returns 404 unless BLINDSPOT_DEV=1 (settings.blindspot_dev), so a pilot participant or demo
+audience on the same origin can never read answers. `make dev`/`make demo` leave it off.
+"""
 
 from __future__ import annotations
 
@@ -7,12 +11,20 @@ import colorsys
 
 import cv2
 import numpy as np
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
 
 from backend.app.cases import get_repo
+from backend.app.settings import get_settings
 
-router = APIRouter(prefix="/dev", tags=["dev"])
+
+def require_dev() -> None:
+    """404 (not 403): when dev mode is off the routes should look absent."""
+    if not get_settings().blindspot_dev:
+        raise HTTPException(status_code=404, detail="Not Found")
+
+
+router = APIRouter(prefix="/dev", tags=["dev"], dependencies=[Depends(require_dev)], include_in_schema=False)
 CYAN_BGR = (0xDD, 0xC9, 0x35)
 GRATICULE_BGR = (0xA6, 0x99, 0x8C)
 

@@ -32,3 +32,5 @@ validator:
   banned_patterns: ["\\btreat(ment|ed|ing)?\\b", "\\bmanage(ment)?\\b", "\\bantibiotic", "\\bchest tube\\b", "\\bdrain(age)?\\b",
                     "\\bbiopsy\\b", "\\badmit\\b", "\\burgent", "\\bfollow-?up (ct|imaging|scan)\\b", "\\bthis patient (has|should)\\b",
                     "\\b\\d+(\\.\\d+)?\\s?(cm|mm)\\b"]
+submit:
+  max_marks: 50

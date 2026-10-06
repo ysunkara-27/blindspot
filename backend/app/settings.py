@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     blindspot_db_path: Path = Path("./data/blindspot.sqlite")
     blindspot_offline: bool = False
     blindspot_max_live_calls_per_min: int = 30
+    # /api/dev/* (clinical-QA overlays; exposes ground truth). Off by default; BLINDSPOT_DEV=1 enables.
+    blindspot_dev: bool = False
 
     @property
     def data_dir(self) -> Path:

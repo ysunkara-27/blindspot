@@ -101,7 +101,21 @@ def generate_debrief(
         return None
     d = out["debrief"]
     out["debrief"] = d if isinstance(d, DebriefOutput) else DebriefOutput.model_validate(d)
+    out.setdefault("error", fallback_error(out))
     return out
+
+
+# validator.fallback_reason (tutor.service) → DebriefResponse.error, so the UI can say why it got a template.
+_FALLBACK_ERRORS = {"live_rate_limited": "rate_limited"}
+
+
+def fallback_error(out: dict[str, Any]) -> str | None:
+    """'rate_limited' when the tutor client's per-minute cap turned a live call into a template; else None."""
+    if out.get("source") != "template":
+        return None
+    v = out.get("validator") or {}
+    reason = v.get("fallback_reason") if isinstance(v, dict) else None
+    return _FALLBACK_ERRORS.get(reason) if isinstance(reason, str) else None
 
 
 # ------------------------------------------------------------------ cards
