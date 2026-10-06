@@ -11,6 +11,12 @@ Special entries:
 
 ---
 
+2026-10-06 00:09 — orchestrator — ysunkara.com/blindspot LIVE — green
+- Site is the Vercel project `reyash` (GitHub ysunkara-27/reyash), not Yash-Portfolio (my wrong-repo commit there was reverted). Rewrites added in reyash/vercel.json: /blindspot, /blindspot/, /blindspot/:path* → https://yashwrites-blindspot.hf.space/blindspot/… (commits cecfbcf, d706a1d; fresh clone ~/Dev/Personal/_reyash_deploy; Yash's working clone untouched).
+- Browser walk via https://www.ysunkara.com/blindspot: gate → cookie bs_access (Path=/blindspot, Secure, domain www.ysunkara.com) → landing → Try the demo → /read → mark → submit → "Claude debrief" tag in 6.6 s. Screenshots hosted-site-*.png / live-hosted-site-03-reveal.png (gitignored).
+- Note: Vercel's `:path*` does not match the empty trailing segment, hence the explicit `/blindspot/` rule.
+
+
 2026-10-06 00:01 — orchestrator — HOSTED DEPLOY live — green
 - Repo moved to ~/Dev/Personal/blindspot (macOS TCC blocked ~/Downloads for the headless session); venv reinstalled.
 - HF: user yashwrites (PRO). Private dataset yashwrites/blindspot-data (1.3 GB bundle: 3,427 cases, gz zones). Space yashwrites/blindspot (Docker, cpu-basic) with secrets ANTHROPIC_API_KEY/HF_TOKEN/BLINDSPOT_ACCESS_CODE/BLINDSPOT_REVIEW_CODE and variables BASE_PATH=/blindspot, DATA_REPO, models, SEED_DEMO=1. Build 30 s, app start ~7 min (bundle download), RUNNING.
