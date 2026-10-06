@@ -66,19 +66,37 @@ _CHIP = {
 }
 
 
+def _cap(s: str) -> str:
+    return s[:1].upper() + s[1:]
+
+
+def _pattern_where(f: FactsFinding, level: str) -> str:
+    """Pattern findings: the code-built relative_location (when FACTS has one) + what to compare. No side words
+    beyond those inside relative_location, so R3 holds."""
+    loc = (f.relative_location or "").strip().rstrip(".")
+    if f.label == "cardiomegaly":
+        guide = "compare the heart width with the inner chest width"
+        if not loc:
+            ctr = f" (automatic CTR {f.ctr:.2f}; AP films exaggerate heart size)" if f.ctr is not None else ""
+            return "Heart width against the inner chest width" + (ctr if level in ("full", "short") else "") + "."
+        if f.ctr is not None and "CTR" not in loc and level in ("full", "short"):
+            loc += f" (automatic CTR {f.ctr:.2f})"
+        return _sentence(f"{_cap(loc)}; {guide}" if level in ("full", "short") else _cap(loc))
+    if not loc:
+        return "Both lungs as a whole, compared side to side and top to bottom."
+    return _sentence(f"{_cap(loc)}; compare both lungs side to side" if level in ("full", "short") else _cap(loc))
+
+
 def _where(f: FactsFinding, level: str) -> str:
     if level == "tiny":
         if f.kind == "pattern":
+            if f.primary_zone:
+                return _sentence(_cap(vocab.zone_human(f.primary_zone)))
             return "Heart against chest width." if f.label == "cardiomegaly" else "Both lungs overall."
         loc = vocab.zone_human(f.primary_zone) if f.primary_zone else None
         return _sentence(loc[:1].upper() + loc[1:]) if loc else "See the outline."
     if f.kind == "pattern":
-        if f.label == "cardiomegaly":
-            ctr = f" (automatic CTR {f.ctr:.2f}; AP films exaggerate heart size)" if f.ctr is not None else ""
-            return (
-                "Heart width against the inner chest width" + (ctr if level == "full" or level == "short" else "") + "."
-            )
-        return "Both lungs as a whole, compared side to side and top to bottom."
+        return _pattern_where(f, level)
     if level == "minimal" or not f.relative_location:
         loc = vocab.zone_human(f.primary_zone) if f.primary_zone else None
         if loc:

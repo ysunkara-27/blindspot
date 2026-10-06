@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -18,12 +19,13 @@ from backend.app.tutor import cards as cards_mod
 from backend.app.tutor import vocab
 from backend.app.tutor.cache import cache_key_for_facts
 from backend.app.tutor.client import (
-    DEBRIEF_MAX_TOKENS,
     AnthropicTutorClient,
     LiveCallError,
     TutorClient,
     as_tutor_client,
+    debrief_max_tokens,
     debrief_schema,
+    fallback_error,
     system_blocks,
     user_content,
 )
@@ -31,8 +33,8 @@ from backend.app.tutor.facts import facts_json
 from backend.app.tutor.prompts import load_prompt
 from backend.app.tutor.render import ordered, primary_target, render_images
 from backend.app.tutor.templates import template_debrief
-from backend.app.tutor.validator import validate
-from shared.contracts import AttemptSubmit, Case, DebriefFacts, DebriefOutput
+from backend.app.tutor.validator import total_word_limit, total_words, validate
+from shared.contracts import AttemptSubmit, Case, DebriefFacts, DebriefOutput, TeachingCard
 
 log = logging.getLogger("blindspot.tutor")
 
@@ -71,9 +73,72 @@ def build_request(facts: DebriefFacts, case: Case, images: dict[str, bytes] | No
     return system, messages
 
 
+LENGTH_TARGET_WORDS = 110  # what the v2 prompt asks for; the validator cap stays total_max_words (160)
+_R7_TOTAL = re.compile(r"R7: all text fields together have (\d+) words; maximum (\d+)")
+_R7_HEADLINE = re.compile(r"R7: headline has (\d+) words; maximum (\d+)")
+
+
 def fix_messages(messages: list[dict], previous_text: str, errors: list[str]) -> list[dict]:
-    fix = "Fix these problems: " + "; ".join(errors) + ". Return the full corrected JSON."
+    """Regeneration turn: the validator errors plus, for length failures, the exact count and a concrete target."""
+    parts = ["Fix these problems: " + "; ".join(errors) + "."]
+    total = next((m for m in map(_R7_TOTAL.search, errors) if m), None)
+    if total:
+        have, cap = int(total[1]), int(total[2])
+        target = LENGTH_TARGET_WORDS if cap <= 160 else round(0.7 * cap)
+        parts.append(
+            f"Your text fields total {have} words; the hard limit is {cap}. Rewrite to at most {target} words in "
+            f"total (cut at least {max(1, have - target)} words): follow the LENGTH BUDGET, shorten every "
+            "where_to_look and why, and keep at most one what_it_looks_like item per finding."
+        )
+    head = next((m for m in map(_R7_HEADLINE.search, errors) if m), None)
+    if head:
+        parts.append(f"The headline has {head[1]} words; use at most 10.")
+    parts.append("Keep every finding_id, result, mark_id and fact_id unchanged. Return the full corrected JSON.")
+    fix = " ".join(parts)
     return [*messages, {"role": "assistant", "content": previous_text}, {"role": "user", "content": fix}]
+
+
+def _length_only(errors: list[str]) -> bool:
+    return bool(errors) and all(_R7_TOTAL.search(e) for e in errors)
+
+
+def trim_to_fit(
+    out: DebriefOutput,
+    facts: DebriefFacts,
+    cards: dict[str, TeachingCard],
+    cfg: dict[str, Any],
+    zone_mimics: dict[str, Any],
+) -> DebriefOutput | None:
+    """Length-only failure: delete whole optional list items (never edit a word) until R7 holds, then re-validate.
+
+    Order: extra possible_mimics -> extra what_it_looks_like items -> signs of findings the learner found ->
+    calibration_note. Returns None if it still does not fit or does not validate."""
+    found = {f.finding_id for f in out.findings if f.result in ("found", "pattern_found")}
+    steps = (
+        lambda o: o.model_copy(
+            update={"overcalls": [x.model_copy(update={"possible_mimics": x.possible_mimics[:1]}) for x in o.overcalls]}
+        ),
+        lambda o: o.model_copy(
+            update={
+                "findings": [x.model_copy(update={"what_it_looks_like": x.what_it_looks_like[:1]}) for x in o.findings]
+            }
+        ),
+        lambda o: o.model_copy(
+            update={
+                "findings": [
+                    x.model_copy(update={"what_it_looks_like": []}) if x.finding_id in found else x for x in o.findings
+                ]
+            }
+        ),
+        lambda o: o.model_copy(update={"calibration_note": ""}),
+    )
+    limit = total_word_limit(facts, cfg)
+    cur = out
+    for step in steps:
+        cur = step(cur)
+        if total_words(cur) <= limit:
+            return cur if validate(cur, facts, cards, cfg, zone_mimics=zone_mimics).ok else None
+    return None
 
 
 def _parse(text: str) -> DebriefOutput:
@@ -99,6 +164,7 @@ def _result(
     pv: str,
     key: str,
     tokens: tuple[int | None, int | None],
+    error: str | None = None,
 ) -> dict[str, Any]:
     return {
         "debrief": out,
@@ -111,6 +177,7 @@ def _result(
         "cache_key": key,
         "input_tokens": tokens[0],
         "output_tokens": tokens[1],
+        "error": error,  # None unless source == "template" (then offline | rate_limited | timeout | ...)
     }
 
 
@@ -127,7 +194,11 @@ def generate_debrief(
     images: dict[str, bytes] | None = None,
 ) -> dict[str, Any]:
     """Return {"debrief", "source", "provenance", "validator", "latency_ms", "model", "prompt_version",
-    "cache_key", "input_tokens", "output_tokens"}. The caller persists it (debriefs table)."""
+    "cache_key", "input_tokens", "output_tokens", "error"}. The caller persists it (debriefs table).
+
+    `error` is None for live/cache results; for source == "template" it is the short code from
+    client.fallback_error(validator["fallback_reason"]): offline | rate_limited | timeout | unavailable |
+    validator_failed | internal_error."""
     t0 = time.perf_counter()
     settings = get_settings()
     offline = settings.offline if offline is None else offline
@@ -159,6 +230,7 @@ def generate_debrief(
                 pv,
                 key,
                 (None, None),
+                fallback_error(reason),
             )
         v = validate(out, facts, cards, cfg, zone_mimics=zm)
         vd = {
@@ -169,7 +241,7 @@ def generate_debrief(
             "regenerated": len(attempts) > 1,
         }
         toks = (tokens_in or None, tokens_out or None) if used_live else (None, None)
-        return _result(out, "template", provenance, vd, t0, None, pv, key, toks)
+        return _result(out, "template", provenance, vd, t0, None, pv, key, toks, fallback_error(reason))
 
     try:
         # 1. cache (only live-generated rows; always re-validated against the current FACTS)
@@ -216,9 +288,10 @@ def generate_debrief(
                 images = None
         system, messages = build_request(facts, case, images)
         schema = debrief_schema()
+        max_tokens = debrief_max_tokens(len(facts.case.findings))
         for attempt in (1, 2):
             try:
-                resp = tc.complete(system=system, messages=messages, schema=schema, max_tokens=DEBRIEF_MAX_TOKENS)
+                resp = tc.complete(system=system, messages=messages, schema=schema, max_tokens=max_tokens)
             except LiveCallError as e:
                 attempts.append({"attempt": attempt, "ok": False, "errors": [f"live call failed: {e.kind}"]})
                 return template(f"live_{e.kind}")
@@ -233,22 +306,31 @@ def generate_debrief(
                 errors = v.errors
             except Exception as e:  # noqa: BLE001 — malformed JSON or schema mismatch
                 out, errors = None, [f"R0 schema: {str(e).splitlines()[0][:200]}"]
+            trimmed = None
+            if out is not None and _length_only(errors):
+                trimmed = trim_to_fit(out, facts, cards, cfg, zm)
             attempts.append(
                 {
                     "attempt": attempt,
                     "ok": not errors,
                     "errors": errors,
+                    "trimmed": trimmed is not None,
+                    "words": total_words(out) if out is not None else None,
                     "latency_ms": round(resp.latency_ms, 1),
+                    "output_tokens": resp.output_tokens,
                     "cache_read_input_tokens": resp.cache_read_input_tokens,
                 }
             )
+            if trimmed is not None:
+                out, errors = trimmed, []
             if out is not None and not errors:
                 vd = {
                     "ok": True,
                     "errors": [],
                     "n_errors": 0,
                     "attempts": attempts,
-                    "first_try_ok": attempts[0]["ok"],
+                    "first_try_ok": attempts[0]["ok"],  # the raw model output, before any trim
+                    "trimmed": attempts[-1]["trimmed"],
                     "regenerated": attempt > 1,
                 }
                 return _result(

@@ -107,3 +107,61 @@ def test_very_crowded_film_uses_tiny_level_within_scaled_limit():
         "Looked past it.",
         "Looked, judged it normal.",
     }
+
+
+# --------------------------------------------------------------------------- pattern locations (syn_007)
+def _with_pattern_location(name: str, rel: str, side: str, zones: list[str], primary: str):
+    f, _, _ = facts_for(name)
+    ff = f.case.findings[0].model_copy(
+        update={"relative_location": rel, "side": side, "zones": zones, "primary_zone": primary}
+    )
+    case = f.case.model_copy(update={"findings": [ff]})
+    return f.model_copy(update={"case": case})
+
+
+@pytest.mark.parametrize("name", ["pattern_found", "pattern_missed"])
+def test_pattern_templates_use_relative_location(name):
+    f, _, _ = facts_for(name)  # syn_007: cardiomegaly, relative_location "cardiac silhouette", ctr 0.62
+    out = template_debrief(f)
+    where = out.findings[0].where_to_look
+    assert where.startswith("Cardiac silhouette") and "CTR 0.62" in where and "heart width" in where
+    assert validate(out, f).ok, validate(out, f).errors
+
+
+@pytest.mark.parametrize(
+    ("rel", "side", "zones", "primary"),
+    [
+        (
+            "cardiac silhouette, enlarged (CTR 0.62, measured automatically)",
+            "midline",
+            ["cardiac_silhouette", "retrocardiac", "left_lower_zone"],
+            "cardiac_silhouette",
+        ),
+        (
+            "both lungs, mainly the upper zones",
+            "bilateral",
+            ["right_upper_zone", "left_upper_zone", "right_apex", "left_apex"],
+            "right_upper_zone",
+        ),
+        (
+            "left lung, mainly the upper zone, including the apex, overlapping the left clavicle",
+            "left",
+            ["left_upper_zone", "left_apex"],
+            "left_upper_zone",
+        ),
+    ],
+)
+def test_validator_accepts_pattern_location_wording_and_templates_copy_it(rel, side, zones, primary):
+    f = _with_pattern_location("pattern_missed", rel, side, zones, primary)
+    out = template_debrief(f)
+    where = out.findings[0].where_to_look
+    assert where.lower().startswith(rel.split(" (")[0].split(",")[0].lower()), where
+    assert where.count("CTR") <= 1  # no duplicated ratio when the location already carries it
+    v = validate(out, f)
+    assert v.ok, v.errors
+    # the same wording, verbatim, is accepted in a live-style where_to_look; a zone FACTS lacks is still caught
+    ok = out.model_copy(update={"findings": [out.findings[0].model_copy(update={"where_to_look": rel + "."})]})
+    assert validate(ok, f).ok, validate(ok, f).errors
+    bad_where = "Right costophrenic angle." if side != "right" else "Left costophrenic angle."
+    bad = out.model_copy(update={"findings": [out.findings[0].model_copy(update={"where_to_look": bad_where})]})
+    assert not validate(bad, f).ok

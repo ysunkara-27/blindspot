@@ -84,7 +84,8 @@ def lowest_provenance(
 FIELD_GUIDE = """OUTPUT FIELD GUIDE (applies to every debrief)
 - findings: exactly one entry per FACTS finding id (F1, F2, ...); copy each result from FACTS outcomes.
 - where_to_look: build it from that finding's relative_location and zone names in FACTS (plain words, never ids
-  with underscores). For a pattern finding, say what to compare instead (for cardiomegaly: heart width against
+  with underscores). For a pattern finding, start from its relative_location when FACTS gives one (e.g. "cardiac
+  silhouette", "left lung, mainly the lower zone") and say what to compare (for cardiomegaly: heart width against
   inner chest width, using ctr if given).
 - what_it_looks_like: one or two short signs from that label's card.
 - overcalls: exactly one entry per FACTS outcome whose result is false_positive (use its mark id). possible_mimics:

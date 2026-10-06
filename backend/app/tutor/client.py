@@ -25,7 +25,19 @@ from backend.app.settings import get_settings
 from backend.app.tutor import vocab
 
 TIMEOUT_S = 12.0
-DEBRIEF_MAX_TOKENS = 1200
+# Debrief output cap. v2 prompt targets ~110 words (~350 output tokens incl. JSON keys and low-effort adaptive
+# thinking, which counts against max_tokens). Base 700 per the 2026-10-05 smoke review, +50 per finding beyond 2 so
+# crowded films are not truncated (a max_tokens stop falls back to the template). eval/adapters reads the base.
+DEBRIEF_MAX_TOKENS = 700
+DEBRIEF_MAX_TOKENS_PER_EXTRA_FINDING = 50
+DEBRIEF_MAX_TOKENS_CEILING = 1200
+
+
+def debrief_max_tokens(n_findings: int) -> int:
+    extra = DEBRIEF_MAX_TOKENS_PER_EXTRA_FINDING * max(0, int(n_findings) - 2)
+    return min(DEBRIEF_MAX_TOKENS_CEILING, DEBRIEF_MAX_TOKENS + extra)
+
+
 ASK_MAX_TOKENS = 600
 # Effort for runtime calls (latency). "none" omits the parameter for models without effort support.
 DEFAULT_EFFORT = "low"
@@ -53,6 +65,29 @@ class LiveCallError(Exception):
         super().__init__(f"{kind}: {detail}" if detail else kind)
         self.kind = kind
         self.detail = detail
+
+
+# Template fallback reason (validator["fallback_reason"]) -> short `error` code for the UI ("The tutor is busy/offline.
+# Showing the built-in explanation instead."). Codes: offline | rate_limited | timeout | unavailable |
+# validator_failed | internal_error.
+FALLBACK_ERRORS: dict[str, str] = {
+    "offline": "offline",
+    "no_api_key": "offline",
+    "live_rate_limited": "rate_limited",
+    "live_timeout": "timeout",
+    "live_api": "unavailable",
+    "live_refusal": "validator_failed",
+    "live_max_tokens": "validator_failed",
+    "live_empty": "validator_failed",
+    "bad_json": "validator_failed",
+    "validator_failed": "validator_failed",
+    "internal_error": "internal_error",
+}
+
+
+def fallback_error(reason: str | None) -> str:
+    """Error code for a template fallback reason (unknown reasons -> internal_error)."""
+    return FALLBACK_ERRORS.get(reason or "", "internal_error")
 
 
 @dataclass

@@ -50,10 +50,12 @@ def test_patient_side_convention_in_facts():
                 assert src.centroid[0] > case.width / 2
 
 
-def test_pattern_finding_has_ctr_and_no_size():
-    f, _, _ = facts_for("pattern_found")
+def test_pattern_finding_has_ctr_location_and_no_size():
+    f, _, _ = facts_for("pattern_found")  # syn_007 cardiomegaly
     ff = f.case.findings[0]
-    assert ff.kind == "pattern" and ff.ctr == 0.62 and ff.size is None and ff.relative_location is None
+    assert ff.kind == "pattern" and ff.ctr == 0.62 and ff.size is None and ff.difficulty is None
+    # pattern findings keep their code-built location (vision-ml now writes it for every pattern finding)
+    assert ff.relative_location == "cardiac silhouette" and ff.primary_zone == "cardiac_silhouette"
 
 
 def test_teaching_cards_include_learner_labels_and_history_is_filtered():

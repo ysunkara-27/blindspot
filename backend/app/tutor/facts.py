@@ -82,7 +82,9 @@ def facts_finding(f: Finding, case: Case) -> FactsFinding:
         side=f.side,
         primary_zone=f.primary_zone,
         zones=list(f.zones),
-        relative_location=_location_text(f, case.zones_approximate) if focal else None,
+        relative_location=_location_text(
+            f, case.zones_approximate
+        ),  # code-built; patterns too (e.g. cardiac silhouette)
         size=size_text(f.area_frac) if focal else None,
         difficulty=difficulty_word(f.difficulty) if focal else None,  # type: ignore[arg-type]
         zones_approximate=case.zones_approximate,

@@ -421,6 +421,11 @@ def _text_fields(out: DebriefOutput) -> list[tuple[str, str]]:
     return fields
 
 
+def total_words(output: DebriefOutput) -> int:
+    """Words across every text field, exactly as R7 counts them."""
+    return sum(words(t) for _, t in _text_fields(output))
+
+
 def _ctx(
     facts: DebriefFacts,
     cards: dict[str, TeachingCard] | None,
@@ -533,7 +538,7 @@ def validate(
     tmax = total_word_limit(facts, vcfg)
     if words(output.headline) > hmax:
         errs.append(f"R7: headline has {words(output.headline)} words; maximum {hmax}")
-    total = sum(words(t) for _, t in _text_fields(output))
+    total = total_words(output)
     if total > tmax:
         errs.append(f"R7: all text fields together have {total} words; maximum {tmax}")
 
@@ -550,6 +555,20 @@ def validate(
 
     errs = list(dict.fromkeys(errs))  # dedupe, keep order
     return ValidationResult(not errs, errs)
+
+
+def _without_mimic_phrases(text: str, ctx: _Ctx) -> str:
+    """Remove verbatim zone-mimic / card-mimic phrases (normal anatomy such as "overlap of the first rib and the
+    clavicle") so the rib-level rule only fires on positions the answer invents."""
+    raw: list[str] = []
+    for ms in (ctx.zone_mimics.get("entries") or {}).values():
+        raw += list(ms)
+    for c in ctx.cards.values():
+        raw += list(c.mimics)
+    phrases = {p.strip() for m in raw for p in (m, re.sub(r"\s*\([^)]*\)", "", m)) if p.strip()}
+    for p in sorted(phrases, key=len, reverse=True):
+        text = re.sub(re.escape(p), " ", text, flags=re.I)
+    return text
 
 
 def validate_ask(
@@ -571,7 +590,7 @@ def validate_ask(
     for z in sided:
         if z not in ctx.zone_universe:
             errs.append(f"R3 answer: '{vocab.zone_human(z)}' is not a location in FACTS")
-    m = _LOBE_RE.search(text or "") or _RIB_LEVEL_RE.search(text or "")
+    m = _LOBE_RE.search(text or "") or _RIB_LEVEL_RE.search(_without_mimic_phrases(text or "", ctx))
     if m:
         errs.append(f"R4 answer: names a location FACTS does not have ('{m.group(0)}')")
     errs += _label_errors("answer", text, ctx)

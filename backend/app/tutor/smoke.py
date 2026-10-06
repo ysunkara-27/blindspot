@@ -253,9 +253,11 @@ def main(argv: list[str] | None = None) -> int:
             }
         )
         v = r["validator"]
+        att = v.get("attempts") or []
         print(
             f"{i + 1:2d} {case.case_id:12s} {behaviour:19s} {r['source']:8s} {r['latency_ms']:8.0f} ms "
-            f"first_try_ok={v.get('first_try_ok')} final_ok={v.get('ok')}"
+            f"first_try_ok={v.get('first_try_ok')} trimmed={v.get('trimmed')} calls={len(att)} "
+            f"words={[x.get('words') for x in att]} final_ok={v.get('ok')}"
         )
     a.out.parent.mkdir(parents=True, exist_ok=True)
     with a.out.open("w") as fh:
@@ -273,7 +275,13 @@ def main(argv: list[str] | None = None) -> int:
                 "p50_latency_ms": round(statistics.median(lat), 1),
                 "p90_latency_ms": round(sorted(lat)[max(0, int(0.9 * len(lat)) - 1)], 1),
                 "first_try_pass": sum(bool(r["validator"].get("first_try_ok")) for r in rows),
-                "live_after_regen": len(live_rows),
+                "trimmed_no_regen": sum(
+                    bool(r["validator"].get("trimmed")) and not r["validator"].get("regenerated") for r in rows
+                ),
+                "single_call": sum(len(r["validator"].get("attempts") or []) == 1 for r in live_rows),
+                "regenerated": sum(bool(r["validator"].get("regenerated")) for r in rows),
+                "first_try_words": [((r["validator"].get("attempts") or [{}])[0]).get("words") for r in rows],
+                "live_final": len(live_rows),
                 "template_fallbacks": sum(r["source"] == "template" for r in rows),
                 "final_validator_failures": sum(not r["validator"].get("ok") for r in rows),
                 "tokens_in": tin,
