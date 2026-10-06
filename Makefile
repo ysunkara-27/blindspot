@@ -57,7 +57,7 @@ test-web:
 	cd frontend && $(NPM) run test -- --run
 
 e2e:
-	cd frontend && BLINDSPOT_OFFLINE=1 npx playwright test --config ../tests/e2e/playwright.config.ts
+	cd frontend && BLINDSPOT_OFFLINE=1 NODE_PATH=$$PWD/node_modules npx playwright test --config ../tests/e2e/playwright.config.ts
 
 lint:
 	$(UV) run ruff check . && $(UV) run ruff format --check .

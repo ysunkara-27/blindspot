@@ -1,0 +1,243 @@
+/* Viewer: PACS surround, film-black letterbox, amber = learner, cyan = expert truth (SPEC §14.1). */
+.viewer {
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  background: var(--pacs-surround);
+}
+.stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  cursor: default;
+}
+.marking { cursor: crosshair; }
+.panning { cursor: grabbing; }
+.layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+}
+.film {
+  position: absolute;
+  inset: -1px;
+  background: var(--film-black);
+  box-shadow: 0 0 0 1px #000;
+}
+.image, .trace {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: block;
+  pointer-events: none;
+}
+.trace {
+  opacity: 0.45;
+  image-rendering: auto;
+  mix-blend-mode: screen; /* reads as light where you looked, not a stain */
+}
+.overlay {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+/* Marks: grease-pencil amber. Unlabeled marks are dashed. Overcalls get a hollow ring after the reveal. */
+.mark { cursor: grab; }
+.markHalo { fill: none; stroke: rgba(0, 0, 0, 0.55); }
+.markRing { fill: none; stroke: var(--grease-amber); }
+.markDot { fill: var(--grease-amber); }
+.markText {
+  fill: var(--grease-amber);
+  stroke: rgba(0, 0, 0, 0.75);
+  paint-order: stroke;
+  font-weight: 700;
+}
+.overcallRing {
+  fill: none;
+  stroke: var(--grease-amber);
+  stroke-opacity: 0.9;
+}
+
+/* Expert outlines: cyan. */
+.outline {
+  fill: var(--lightbox-cyan);
+  fill-opacity: 0.07;
+  stroke: var(--lightbox-cyan);
+  stroke-linejoin: round;
+}
+.findingText {
+  fill: var(--lightbox-cyan);
+  stroke: rgba(0, 0, 0, 0.8);
+  paint-order: stroke;
+  font-weight: 700;
+}
+.missChip { fill: rgba(0, 0, 0, 0.7); stroke: var(--lightbox-cyan); }
+.missChipText { fill: var(--lightbox-cyan); font-weight: 700; }
+.arrow {
+  fill: none;
+  stroke: var(--grease-amber);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.arrowText {
+  fill: var(--grease-amber);
+  stroke: rgba(0, 0, 0, 0.85);
+  paint-order: stroke;
+  font-weight: 700;
+}
+
+/* ---- Reveal choreography (~1.2 s). The only self-starting motion in the app. ---- */
+.revealTrace { animation: fadeTrace 320ms ease-out both; }
+.revealOutline {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  fill-opacity: 0;
+  animation: drawFill 480ms ease-in-out 300ms forwards;
+}
+.revealLabel { animation: fade 200ms ease-out 760ms both; }
+.revealArrow {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: draw 340ms ease-out 760ms forwards;
+}
+.revealArrowHead {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: draw 120ms ease-out 1080ms forwards;
+}
+.revealArrowText { animation: fade 180ms ease-out 1020ms both; }
+.settle { animation: fade 200ms ease-out 1100ms both; }
+
+@keyframes fadeTrace { from { opacity: 0; } to { opacity: 0.45; } }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+@keyframes drawFill {
+  80% { stroke-dashoffset: 0; fill-opacity: 0; }
+  to { stroke-dashoffset: 0; fill-opacity: 0.07; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .revealTrace, .revealLabel, .revealArrowText, .settle { animation: none; }
+  .revealOutline, .revealArrow, .revealArrowHead { animation: none; stroke-dashoffset: 0; stroke-dasharray: none; }
+  .revealOutline { fill-opacity: 0.07; }
+}
+
+/* Loupe: 180 px, 2.5×. */
+.loupe {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: none;
+  border-radius: 50%;
+  overflow: hidden;
+  pointer-events: none;
+  background: var(--film-black);
+  box-shadow: 0 0 0 1.5px rgba(140, 153, 166, 0.9), 0 0 0 4px rgba(0, 0, 0, 0.55), 0 6px 18px rgba(0, 0, 0, 0.5);
+}
+.loupeImg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  max-width: none;
+  transform-origin: 0 0;
+}
+.loupeCross {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: 50%;
+  border: 1px solid rgba(240, 169, 46, 0.8);
+}
+
+.loading, .notice {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #c9d1d8;
+  font-size: var(--fs-1);
+  pointer-events: none;
+}
+.loading { top: 45%; }
+.notice {
+  top: 14px;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 6px 12px;
+  border-radius: var(--radius);
+}
+
+/* Image tools: a quiet strip along the bottom of the surround. */
+.tools {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 6px 12px;
+  border-radius: var(--radius);
+  background: rgba(14, 16, 18, 0.82);
+  color: #c9d1d8;
+  font-size: var(--fs-1);
+}
+.zoom { min-width: 3.2em; font-variant-numeric: tabular-nums; color: #e6ebef; }
+.slider { display: flex; align-items: center; gap: 6px; }
+.slider input { width: 92px; accent-color: var(--graticule); }
+.tool {
+  background: transparent;
+  color: #e6ebef;
+  border: 1px solid #4a535c;
+  border-radius: var(--radius);
+  padding: 3px 10px;
+  cursor: pointer;
+}
+.tool:hover { border-color: var(--graticule); }
+.toolOn { background: #e6ebef; color: #111; }
+
+/* Mark popover: report paper on the dark surround. */
+.popover {
+  position: absolute;
+  z-index: 5;
+  background: var(--report-paper);
+  color: var(--report-ink);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  padding: 12px 12px 10px;
+  font-size: var(--fs-1);
+  cursor: default;
+}
+.popHead { display: flex; gap: 8px; align-items: baseline; font-weight: 700; margin-bottom: 8px; }
+.popId { color: #9a6200; }
+.popLabels { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.popLabel {
+  text-align: left;
+  border: 1px solid var(--report-rule);
+  background: #fff;
+  border-radius: 4px;
+  padding: 5px 8px;
+  cursor: pointer;
+  color: var(--report-ink);
+  font-size: var(--fs-1);
+}
+.popLabel:hover { border-color: var(--grease-amber); }
+.popLabelOn { background: var(--grease-amber); border-color: var(--grease-amber); color: #1d1300; font-weight: 700; }
+.popConf { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
+.popFoot { display: flex; justify-content: space-between; margin-top: 10px; }
+.popDelete { background: none; border: none; color: var(--report-ink-muted); text-decoration: underline; cursor: pointer; padding: 4px 0; }
+.popDone {
+  background: var(--report-ink);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  padding: 5px 16px;
+  cursor: pointer;
+}
+.popDone:disabled { opacity: 0.4; cursor: default; }

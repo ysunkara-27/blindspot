@@ -1,32 +1,15 @@
-# React + TypeScript + Vite
+# Blindspot frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Vite + React 19 + TypeScript (strict). Reading room per SPEC §5 and §14.
 
-Currently, two official plugins are available:
+- `npm run dev` — web on :5173, proxies `/api` to :8000.
+- Mock API: `VITE_MOCK=1 npm run dev`, or open `/?mock=1` (sticky per tab; `/?mock=0` clears). The app also falls back to
+  the mock when `/api/health` is unreachable or reports 0 cases. The mock serves 10 SYNTHETIC drawn-shape cases
+  (`public/mock/`, regenerate with `node scripts/gen-mock.mjs`); a "Synthetic demo cases" badge shows in the header.
+- `npm run gen:types` — regenerate `src/types/contracts.ts` from `shared/schemas` (never hand-edit).
+- `npm run test -- --run` (vitest) · `npm run lint` (oxlint) · `npx tsc --noEmit -p tsconfig.app.json` · `npm run build`.
+- e2e (from `frontend/`): `NODE_PATH=$PWD/node_modules npx playwright test --config ../tests/e2e/playwright.config.ts`
+  (mock by default; `E2E_REAL=1` runs against the API). Screenshots: `tests/e2e/__screenshots__/`.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
-```
-
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Layout: `viewer/` (coords, telemetry, heatmap, Viewer, loupe, popover, reveal), `read/` (marks reducer),
+`rail/` (your read, outcomes, facts card, debrief, ask), `pages/`, `state/` (zustand session), `api/` (client, labels, mock).

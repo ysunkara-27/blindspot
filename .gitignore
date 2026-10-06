@@ -26,3 +26,7 @@ playwright-report/
 test-results/
 # os
 .DS_Store
+
+# playwright scratch (may contain dataset images)
+.playwright-mcp/
+tests/e2e/test-results/
