@@ -1,0 +1,31 @@
+/* Blindspot design tokens — SPEC §14.1. Cyan = expert truth, amber = the learner. Never red/green for correctness. */
+:root {
+  --pacs-surround: #1c1f22;
+  --film-black: #000000;
+  --report-paper: #f3f5f6;
+  --report-ink: #1d2329;
+  --report-ink-muted: #5b6672;
+  --report-rule: #d5dbe0;
+  --lightbox-cyan: #35c9dd;
+  --grease-amber: #f0a92e;
+  --graticule: #8c99a6;
+
+  --font: 'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --fs-1: 15px;
+  --fs-2: 17px;
+  --fs-3: 20px;
+  --fs-4: 26px;
+  --fs-5: 34px;
+
+  --rail-min: 360px;
+  --stroke: 2px;
+  --radius: 6px;
+}
+:root[data-projector='1'] {
+  --stroke: 4px;
+  --fs-1: 18px;
+  --fs-2: 21px;
+  --fs-3: 25px;
+  --fs-4: 32px;
+  --fs-5: 42px;
+}

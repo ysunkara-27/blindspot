@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://blindspot.local/schemas/attempt_submit.json",
+  "title": "AttemptSubmit",
+  "description": "Body of POST /api/attempts/{id}/submit.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["marks", "patterns", "declared_normal", "telemetry", "hints_used", "client_timing"],
+  "$defs": {
+    "Confidence": {"type": "integer", "enum": [1, 2, 3, 4, 5]},
+    "Mark": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mark_id", "x", "y", "label", "confidence"],
+      "properties": {
+        "mark_id": {"type": "string", "pattern": "^M[0-9]+$"},
+        "x": {"type": "number"},
+        "y": {"type": "number"},
+        "label": {"type": "string", "enum": ["pneumothorax", "effusion", "consolidation", "atelectasis", "nodule", "mass", "calcification", "fracture", "pleural_thickening", "not_sure"]},
+        "confidence": {"$ref": "#/$defs/Confidence"}
+      }
+    },
+    "PatternSelection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "confidence"],
+      "properties": {
+        "label": {"type": "string", "enum": ["cardiomegaly", "emphysema", "fibrosis", "diffuse_nodule"]},
+        "confidence": {"$ref": "#/$defs/Confidence"}
+      }
+    }
+  },
+  "properties": {
+    "marks": {"type": "array", "items": {"$ref": "#/$defs/Mark"}},
+    "patterns": {"type": "array", "items": {"$ref": "#/$defs/PatternSelection"}},
+    "declared_normal": {"type": "boolean"},
+    "normal_confidence": {"anyOf": [{"$ref": "#/$defs/Confidence"}, {"type": "null"}], "default": null},
+    "telemetry": {"type": "array", "items": {"$ref": "telemetry_event.json"}, "maxItems": 20000},
+    "hints_used": {"type": "integer", "minimum": 0, "maximum": 3},
+    "client_timing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["shown_at", "submitted_at"],
+      "properties": {
+        "shown_at": {"type": "string", "format": "date-time"},
+        "submitted_at": {"type": "string", "format": "date-time"}
+      }
+    }
+  }
+}

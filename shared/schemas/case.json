@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://blindspot.local/schemas/case.json",
+  "title": "Case",
+  "description": "Canonical case record (one line of data/processed/cases.jsonl). Coordinates: pixel space of the canonical 1024 px PNG, origin top-left, x right, y down, floats. Sides and zone ids name the PATIENT's side.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["case_id", "source", "source_split", "split", "image_path", "width", "height", "is_normal", "findings", "license_tag", "attribution"],
+  "properties": {
+    "case_id": {"type": "string", "pattern": "^cxd_[A-Za-z0-9_]+$|^vdr_[A-Za-z0-9_]+$|^nih_[A-Za-z0-9_]+$|^syn_[A-Za-z0-9_]+$"},
+    "source": {"type": "string", "enum": ["chestx-det", "vindr-cxr", "nih-bbox", "synthetic"]},
+    "source_split": {"type": "string"},
+    "split": {"type": "string", "enum": ["practice", "assess_A", "assess_B", "bench", "holdout"]},
+    "image_path": {"type": "string"},
+    "width": {"type": "integer", "minimum": 1},
+    "height": {"type": "integer", "minimum": 1},
+    "pixel_spacing_mm": {"type": ["number", "null"], "default": null},
+    "is_normal": {"type": "boolean"},
+    "findings": {"type": "array", "items": {"$ref": "finding.json"}},
+    "anatomy_path": {"type": ["string", "null"], "default": null},
+    "zones_path": {"type": ["string", "null"], "default": null},
+    "zones_approximate": {"type": "boolean", "default": false},
+    "cardiothoracic_ratio": {"type": ["number", "null"], "default": null},
+    "difficulty_prior": {"type": "number", "default": 0.0},
+    "features": {"type": "object", "additionalProperties": {"type": "number"}, "default": {}},
+    "license_tag": {"type": "string"},
+    "attribution": {"type": "string"},
+    "qa_flags": {"type": "array", "items": {"type": "string"}, "default": []}
+  }
+}

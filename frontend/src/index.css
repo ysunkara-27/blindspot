@@ -1,0 +1,21 @@
+@import './styles/tokens.css';
+@import url('https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
+body {
+  font-family: var(--font);
+  font-size: var(--fs-2);
+  color: var(--report-ink);
+  background: var(--report-paper);
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+button { font: inherit; }
+a { color: inherit; }
+.footer-disclaimer {
+  font-size: var(--fs-1);
+  color: var(--report-ink-muted);
+  padding: 8px 16px;
+  border-top: 1px solid var(--report-rule);
+}

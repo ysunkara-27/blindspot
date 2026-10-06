@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://blindspot.local/schemas/debrief_response.json",
+  "title": "DebriefResponse",
+  "description": "Response of GET /api/attempts/{id}/debrief.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["status"],
+  "properties": {
+    "status": {"type": "string", "enum": ["pending", "ready", "failed", "disabled"]},
+    "debrief": {"anyOf": [{"$ref": "debrief_output.json"}, {"type": "null"}], "default": null},
+    "source": {"type": ["string", "null"], "enum": ["live", "cache", "template", null], "default": null},
+    "provenance": {"type": ["string", "null"], "enum": ["ai_draft", "student_reviewed", "radiologist_reviewed", null], "default": null},
+    "validator": {"type": ["object", "null"], "additionalProperties": true, "default": null},
+    "latency_ms": {"type": ["number", "null"], "default": null},
+    "error": {"type": ["string", "null"], "default": null}
+  }
+}

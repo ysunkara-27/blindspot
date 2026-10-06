@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://blindspot.local/schemas/submit_result.json",
+  "title": "SubmitResult",
+  "description": "Response of POST /api/attempts/{id}/submit in practice, drill and review modes. Assessment mode returns {recorded: true} instead and never includes ground truth.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["score", "success", "outcomes", "reveal", "facts_card", "debrief_status"],
+  "$defs": {
+    "OutcomeResult": {"type": "string", "enum": ["found", "mislabeled", "missed_search", "missed_recognition", "missed_decision", "pattern_found", "pattern_missed", "pattern_false", "true_positive", "duplicate", "false_positive", "true_negative"]},
+    "Outcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["target", "result"],
+      "properties": {
+        "target": {"type": "string", "description": "finding short id (F1), mark id (M1), or 'case' for true_negative"},
+        "result": {"$ref": "#/$defs/OutcomeResult"},
+        "dwell_ms": {"type": ["number", "null"], "default": null},
+        "zone": {"type": ["string", "null"], "default": null},
+        "matched": {"type": ["string", "null"], "default": null, "description": "for marks: the matched finding short id; for findings: the matched mark id"},
+        "learner_label": {"type": ["string", "null"], "default": null}
+      }
+    },
+    "RevealFinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["finding_id", "label", "display", "kind", "bbox", "zones"],
+      "properties": {
+        "finding_id": {"type": "string", "description": "short id F<n>"},
+        "label": {"type": "string"},
+        "display": {"type": "string"},
+        "kind": {"type": "string", "enum": ["focal", "pattern"]},
+        "polygon": {"type": ["array", "null"], "items": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2}, "default": null},
+        "bbox": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4},
+        "centroid": {"type": ["array", "null"], "items": {"type": "number"}, "minItems": 2, "maxItems": 2, "default": null},
+        "side": {"type": ["string", "null"], "default": null},
+        "zones": {"type": "array", "items": {"type": "string"}},
+        "primary_zone": {"type": ["string", "null"], "default": null},
+        "relative_location": {"type": ["string", "null"], "default": null},
+        "result": {"$ref": "#/$defs/OutcomeResult"},
+        "dwell_ms": {"type": ["number", "null"], "default": null}
+      }
+    },
+    "RevealMark": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mark_id", "result"],
+      "properties": {
+        "mark_id": {"type": "string"},
+        "result": {"type": "string", "enum": ["true_positive", "duplicate", "false_positive"]},
+        "matched_finding": {"type": ["string", "null"], "default": null},
+        "zone": {"type": ["string", "null"], "default": null}
+      }
+    },
+    "Arrow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from_mark", "to_finding", "text"],
+      "properties": {
+        "from_mark": {"type": ["string", "null"], "description": "mark id, or null = image centre"},
+        "to_finding": {"type": "string"},
+        "text": {"type": "string"},
+        "from_xy": {"type": ["array", "null"], "items": {"type": "number"}, "minItems": 2, "maxItems": 2, "default": null},
+        "to_xy": {"type": ["array", "null"], "items": {"type": "number"}, "minItems": 2, "maxItems": 2, "default": null}
+      }
+    },
+    "SearchSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lung_coverage_pct", "unvisited_review_areas"],
+      "properties": {
+        "lung_coverage_pct": {"type": "number"},
+        "unvisited_review_areas": {"type": "array", "items": {"type": "string"}},
+        "visited_review_areas": {"type": "array", "items": {"type": "string"}, "default": []},
+        "first_visits": {"type": "array", "items": {"type": "string"}, "default": []},
+        "time_to_first_mark_s": {"type": ["number", "null"], "default": null},
+        "total_time_s": {"type": ["number", "null"], "default": null},
+        "zoom_used": {"type": "boolean", "default": false},
+        "loupe_used": {"type": "boolean", "default": false},
+        "heatmap_png_b64": {"type": ["string", "null"], "default": null}
+      }
+    }
+  },
+  "properties": {
+    "score": {"type": "number", "minimum": 0, "maximum": 100},
+    "success": {"type": "boolean"},
+    "outcomes": {"type": "array", "items": {"$ref": "#/$defs/Outcome"}},
+    "reveal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["findings", "marks", "arrows", "search"],
+      "properties": {
+        "findings": {"type": "array", "items": {"$ref": "#/$defs/RevealFinding"}},
+        "marks": {"type": "array", "items": {"$ref": "#/$defs/RevealMark"}},
+        "arrows": {"type": "array", "items": {"$ref": "#/$defs/Arrow"}},
+        "search": {"$ref": "#/$defs/SearchSummary"},
+        "ctr": {"type": ["number", "null"], "default": null},
+        "is_normal": {"type": "boolean", "default": false},
+        "zones_approximate": {"type": "boolean", "default": false}
+      }
+    },
+    "facts_card": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["headline", "lines"],
+      "properties": {
+        "headline": {"type": "string"},
+        "lines": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "debrief_status": {"type": "string", "enum": ["pending", "disabled"]}
+  }
+}

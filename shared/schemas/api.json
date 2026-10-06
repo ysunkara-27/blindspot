@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://blindspot.local/schemas/api.json",
+  "title": "BlindspotApi",
+  "description": "Smaller request/response shapes for the /api routes not covered by their own file. See docs/SPEC.md §13.",
+  "$defs": {
+    "Level": {"type": "string", "enum": ["MS1", "MS2", "MS3", "MS4", "intern", "resident", "PA/NP student", "other"]},
+    "Mode": {"type": "string", "enum": ["practice", "drill", "assess_A", "assess_B", "review"]},
+    "Health": {"type": "object", "additionalProperties": false, "required": ["ok", "offline", "cases"],
+      "properties": {"ok": {"type": "boolean"}, "offline": {"type": "boolean"}, "cases": {"type": "integer"}, "version": {"type": ["string", "null"], "default": null}}},
+    "SessionCreate": {"type": "object", "additionalProperties": false, "required": ["display_name", "level", "mode"],
+      "properties": {
+        "display_name": {"type": "string", "minLength": 1, "maxLength": 80},
+        "level": {"$ref": "#/$defs/Level"},
+        "participant_code": {"type": ["string", "null"], "default": null},
+        "mode": {"$ref": "#/$defs/Mode"},
+        "settings": {"type": "object", "additionalProperties": true, "default": {},
+          "description": "drill: {label}; practice: {prevalence_abnormal}; any: {projector: bool}"}
+      }},
+    "SessionCreated": {"type": "object", "additionalProperties": false, "required": ["session_id", "learner_id", "mode"],
+      "properties": {"session_id": {"type": "string"}, "learner_id": {"type": "string"}, "mode": {"$ref": "#/$defs/Mode"}}},
+    "NextCase": {"type": "object", "additionalProperties": false, "required": ["attempt_id", "case", "index"],
+      "description": "INVARIANT: never contains ground truth (findings, is_normal, zones, masks, difficulty).",
+      "properties": {
+        "attempt_id": {"type": "string"},
+        "case": {"type": "object", "additionalProperties": false, "required": ["case_id", "image_url", "width", "height"],
+          "properties": {"case_id": {"type": "string"}, "image_url": {"type": "string"}, "width": {"type": "integer"}, "height": {"type": "integer"}}},
+        "index": {"type": "integer"},
+        "total": {"type": ["integer", "null"], "default": null},
+        "hints_enabled": {"type": "boolean", "default": true},
+        "done": {"type": "boolean", "default": false}
+      }},
+    "HintRequest": {"type": "object", "additionalProperties": false, "required": ["marks", "telemetry"],
+      "properties": {"marks": {"type": "array", "items": {"$ref": "attempt_submit.json#/$defs/Mark"}}, "telemetry": {"type": "array", "items": {"$ref": "telemetry_event.json"}}}},
+    "HintResponse": {"type": "object", "additionalProperties": false, "required": ["level", "text", "remaining"],
+      "properties": {"level": {"type": "integer", "minimum": 1, "maximum": 3}, "text": {"type": "string"}, "remaining": {"type": "integer", "minimum": 0}}},
+    "AskRequest": {"type": "object", "additionalProperties": false, "required": ["question"],
+      "properties": {"question": {"type": "string", "minLength": 1, "maxLength": 500}}},
+    "AskResponse": {"type": "object", "additionalProperties": false, "required": ["answer", "remaining"],
+      "properties": {"answer": {"type": "string"}, "remaining": {"type": "integer"}, "source": {"type": "string", "enum": ["live", "template"], "default": "live"}}},
+    "AssessmentRecorded": {"type": "object", "additionalProperties": false, "required": ["recorded"],
+      "properties": {"recorded": {"type": "boolean", "const": true}, "index": {"type": "integer"}, "total": {"type": "integer"}}},
+    "AssessmentSummary": {"type": "object", "additionalProperties": true, "required": ["session_id", "mode", "n_cases", "sensitivity", "specificity", "localization_fraction", "false_positives_per_image", "miss_type_mix", "score_mean"],
+      "properties": {
+        "session_id": {"type": "string"}, "mode": {"$ref": "#/$defs/Mode"}, "n_cases": {"type": "integer"},
+        "sensitivity": {"type": ["number", "null"]}, "specificity": {"type": ["number", "null"]},
+        "localization_fraction": {"type": ["number", "null"]}, "false_positives_per_image": {"type": "number"},
+        "miss_type_mix": {"type": "object", "additionalProperties": {"type": "integer"}},
+        "score_mean": {"type": "number"},
+        "cases": {"type": "array", "items": {"type": "object", "additionalProperties": true}}
+      }},
+    "ReviewRating": {"type": "object", "additionalProperties": false, "required": ["reviewer", "role", "item_type", "item_id", "accuracy", "teaching", "safety_flag"],
+      "properties": {
+        "reviewer": {"type": "string"}, "role": {"type": "string"},
+        "item_type": {"type": "string", "enum": ["debrief", "card"]}, "item_id": {"type": "string"},
+        "accuracy": {"type": "integer", "minimum": 1, "maximum": 5}, "teaching": {"type": "integer", "minimum": 1, "maximum": 5},
+        "safety_flag": {"type": "boolean"}, "comment": {"type": ["string", "null"], "default": null},
+        "card_edits": {"type": ["object", "null"], "additionalProperties": true, "default": null}
+      }},
+    "SusSubmit": {"type": "object", "additionalProperties": false, "required": ["learner_id", "answers"],
+      "properties": {"learner_id": {"type": "string"}, "answers": {"type": "array", "items": {"type": "integer", "minimum": 1, "maximum": 5}, "minItems": 10, "maxItems": 10}}},
+    "SusResult": {"type": "object", "additionalProperties": false, "required": ["score"], "properties": {"score": {"type": "number"}}}
+  }
+}

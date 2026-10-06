@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://blindspot.local/schemas/debrief_output.json",
+  "title": "DebriefOutput",
+  "description": "Structured output returned by Claude for a debrief. Keep constant across calls (prompt caching). Length limits are enforced by the validator, not here.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["headline", "verdict", "findings", "overcalls", "search_coaching", "calibration_note", "next_step", "fact_ids"],
+  "properties": {
+    "headline": {"type": "string"},
+    "verdict": {"type": "string", "enum": ["all_found", "partly_found", "missed", "overcall", "correct_normal", "missed_normal_call"]},
+    "findings": {"type": "array", "items": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["finding_id", "result", "where_to_look", "what_it_looks_like", "why"],
+      "properties": {
+        "finding_id": {"type": "string"},
+        "result": {"type": "string", "enum": ["found", "mislabeled", "missed_search", "missed_recognition", "missed_decision", "pattern_found", "pattern_missed"]},
+        "where_to_look": {"type": "string"},
+        "what_it_looks_like": {"type": "array", "items": {"type": "string"}},
+        "why": {"type": "string"}
+      }
+    }},
+    "overcalls": {"type": "array", "items": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mark_id", "explanation", "possible_mimics"],
+      "properties": {
+        "mark_id": {"type": "string"},
+        "explanation": {"type": "string"},
+        "possible_mimics": {"type": "array", "items": {"type": "string"}}
+      }
+    }},
+    "search_coaching": {"type": "string"},
+    "calibration_note": {"type": "string"},
+    "next_step": {"type": "string"},
+    "fact_ids": {"type": "array", "items": {"type": "string"}}
+  }
+}

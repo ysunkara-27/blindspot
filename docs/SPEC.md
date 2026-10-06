@@ -198,46 +198,49 @@ Browser (Vite + React + TS)              FastAPI (Python 3.11)                  
 from typing import Literal
 from pydantic import BaseModel
 
-Side = Literal["right", "left", "bilateral", "midline"]     # PATIENT side
+Side = Literal["right", "left", "bilateral", "midline"]  # PATIENT side
+
 
 class Geometry(BaseModel):
     kind: Literal["polygon", "bbox"]
-    bbox: tuple[float, float, float, float]                 # x0, y0, x1, y1 (image px)
+    bbox: tuple[float, float, float, float]  # x0, y0, x1, y1 (image px)
     polygon: list[tuple[float, float]] | None = None
-    mask_path: str | None = None                             # 0/255 PNG, same size as image
+    mask_path: str | None = None  # 0/255 PNG, same size as image
+
 
 class Finding(BaseModel):
-    finding_id: str                     # "<case_id>#F<n>", 1-based
-    label: str                          # canonical id from taxonomy.yaml
+    finding_id: str  # "<case_id>#F<n>", 1-based
+    label: str  # canonical id from taxonomy.yaml
     source_label: str
     kind: Literal["focal", "pattern"]
     geometry: Geometry
     centroid: tuple[float, float]
-    area_frac: float                    # mask area / image area
-    side: Side | None = None            # filled by M2
-    zones: list[str] = []               # filled by M2, ordered by overlap
+    area_frac: float  # mask area / image area
+    side: Side | None = None  # filled by M2
+    zones: list[str] = []  # filled by M2, ordered by overlap
     primary_zone: str | None = None
-    relative_location: str | None = None    # templated human string (M2)
-    contrast: float | None = None       # |z| lesion vs surrounding ring (M2)
-    model_prob: float | None = None     # TXV classifier prob for mapped pathology (M2)
-    readers: int | None = None          # VinDr only
-    agreement: float | None = None      # VinDr only
+    relative_location: str | None = None  # templated human string (M2)
+    contrast: float | None = None  # |z| lesion vs surrounding ring (M2)
+    model_prob: float | None = None  # TXV classifier prob for mapped pathology (M2)
+    readers: int | None = None  # VinDr only
+    agreement: float | None = None  # VinDr only
+
 
 class Case(BaseModel):
-    case_id: str                        # "cxd_<image_id>"
+    case_id: str  # "cxd_<image_id>"
     source: Literal["chestx-det", "vindr-cxr", "nih-bbox"]
     source_split: str
     split: Literal["practice", "assess_A", "assess_B", "bench", "holdout"]
     image_path: str
     width: int
     height: int
-    pixel_spacing_mm: float | None = None   # unknown for ChestX-Det → never state cm
+    pixel_spacing_mm: float | None = None  # unknown for ChestX-Det → never state cm
     is_normal: bool
     findings: list[Finding]
-    anatomy_path: str | None = None         # npz, 14 packed-bit masks (M2)
-    zones_path: str | None = None           # json, RLE zone masks (M2)
+    anatomy_path: str | None = None  # npz, 14 packed-bit masks (M2)
+    zones_path: str | None = None  # json, RLE zone masks (M2)
     cardiothoracic_ratio: float | None = None
-    difficulty_prior: float = 0.0           # b0 (M2)
+    difficulty_prior: float = 0.0  # b0 (M2)
     features: dict[str, float] = {}
     license_tag: str
     attribution: str
@@ -285,12 +288,11 @@ import torch, torchvision, skimage.io
 import torchxrayvision as xrv
 
 seg = xrv.baseline_models.chestx_det.PSPNet().eval()
-img = skimage.io.imread(path)                         # uint8, (1024, 1024)
-x = xrv.datasets.normalize(img, 255)[None, ...]       # (1, H, W), range [-1024, 1024]
-x = torchvision.transforms.Compose([xrv.datasets.XRayCenterCrop(),
-                                    xrv.datasets.XRayResizer(512)])(x)
+img = skimage.io.imread(path)  # uint8, (1024, 1024)
+x = xrv.datasets.normalize(img, 255)[None, ...]  # (1, H, W), range [-1024, 1024]
+x = torchvision.transforms.Compose([xrv.datasets.XRayCenterCrop(), xrv.datasets.XRayResizer(512)])(x)
 with torch.no_grad():
-    out = seg(torch.from_numpy(x)[None, ...])          # (1, 14, 512, 512)
+    out = seg(torch.from_numpy(x)[None, ...])  # (1, 14, 512, 512)
 # Check the value range empirically: if outputs are logits, apply sigmoid. Threshold 0.5.
 # Upsample masks to 1024 with nearest-neighbour.
 targets = seg.targets
@@ -393,10 +395,11 @@ type TelemetryEvent = {
 
 ### 6.1 Hit test
 ```python
-TAU = scoring.tolerance_frac * width            # default 0.02 → ~20 px at 1024
+TAU = scoring.tolerance_frac * width  # default 0.02 → ~20 px at 1024
+
 
 def hits(x: float, y: float, f: Finding) -> bool:
-    if f.geometry.mask_path:                    # dilated instance mask, LRU-cached
+    if f.geometry.mask_path:  # dilated instance mask, LRU-cached
         m = dilated_mask(f.finding_id, TAU)
         return bool(m[int(round(y)), int(round(x))])
     x0, y0, x1, y1 = f.geometry.bbox
@@ -431,17 +434,17 @@ def dwell_ms(events, region, cfg) -> float:
     """region: boolean mask (H, W). Returns attention-proxy dwell inside region."""
     total, still = 0.0, 0.0
     for e0, e1 in pairwise(events):
-        dt = min(e1.t - e0.t, cfg.max_dt_ms)                      # default 250
+        dt = min(e1.t - e0.t, cfg.max_dt_ms)  # default 250
         if e0.x is None:
-            continue                                               # pointer off-image
+            continue  # pointer off-image
         moved = e1.x is None or (abs(e1.x - e0.x) + abs(e1.y - e0.y)) > 1.0
         still = 0.0 if moved else still + dt
-        if still > cfg.max_still_ms:                               # default 1500: idle cap
+        if still > cfg.max_still_ms:  # default 1500: idle cap
             continue
         if region[int(e0.y), int(e0.x)]:
             total += dt
-        if e0.zoom >= cfg.zoom_dwell_min and center_in(e0.vp, region):   # 2.0×
-            total += cfg.zoom_dwell_weight * dt                     # 0.5
+        if e0.zoom >= cfg.zoom_dwell_min and center_in(e0.vp, region):  # 2.0×
+            total += cfg.zoom_dwell_weight * dt  # 0.5
     return total
 ```
 Finding ROI = instance mask dilated by `ρ = roi_frac·W` (default 0.035 → ~36 px), a stand-in for a useful field of view around the point of attention.
@@ -575,21 +578,27 @@ Use an empty string for `calibration_note` when there is nothing to say. Avoid s
 ### 8.5 API call (`client.py`) — verify parameter names against the current docs and SDK before coding
 ```python
 from anthropic import Anthropic
-client = Anthropic()          # reads ANTHROPIC_API_KEY
+
+client = Anthropic()  # reads ANTHROPIC_API_KEY
 
 resp = client.messages.create(
-    model=settings.model_debrief,                     # env, never hard-coded
+    model=settings.model_debrief,  # env, never hard-coded
     max_tokens=1200,
     system=[
         {"type": "text", "text": DEBRIEF_SYSTEM},
         {"type": "text", "text": ALL_TEACHING_CARDS, "cache_control": {"type": "ephemeral"}},
     ],
-    messages=[{"role": "user", "content": [
-        {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": full_annotated_b64}},
-        {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": crop_clean_b64}},
-        {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": crop_outlined_b64}},
-        {"type": "text", "text": "FACTS:\n" + facts_json},
-    ]}],
+    messages=[
+        {
+            "role": "user",
+            "content": [
+                {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": full_annotated_b64}},
+                {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": crop_clean_b64}},
+                {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": crop_outlined_b64}},
+                {"type": "text", "text": "FACTS:\n" + facts_json},
+            ],
+        }
+    ],
     output_config={"format": {"type": "json_schema", "schema": DEBRIEF_SCHEMA}},
 )
 ```
@@ -667,8 +676,8 @@ Elo as a lightweight Rasch model: `P(success) = 1 / (1 + exp(−(θ − b)))`.
 ```python
 def update(theta, b, outcome, n_learner, n_case, cfg):
     p = 1 / (1 + math.exp(-(theta - b)))
-    k_t = cfg.k_learner / (1 + cfg.k_decay * n_learner)      # 0.4, 0.05
-    k_b = cfg.k_case / (1 + cfg.k_decay * n_case)            # 0.3
+    k_t = cfg.k_learner / (1 + cfg.k_decay * n_learner)  # 0.4, 0.05
+    k_b = cfg.k_case / (1 + cfg.k_decay * n_case)  # 0.3
     return theta + k_t * (outcome - p), b - k_b * (outcome - p)
 ```
 - Abnormal case: update each involved `θ_label` with that finding's outcome (1 = localized) against the case `b`; update `b` with the case success. Normal case: update `θ_normal` and `b` with success.
