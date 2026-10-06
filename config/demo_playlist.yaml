@@ -1,27 +1,28 @@
-# Filled Wednesday by Sri from /dev/case/:id. Each entry: case id, the story it tells, and the rehearsed actions.
+# Demo playlist. Candidates pre-selected by the orchestrator from data/processed (practice split, no qa flags);
+# Sri confirms the final case_id per slot on Wednesday from /dev/case/:id. `make demo` seeds these in order.
 version: 1
 cases:
   - slot: 1
     story: "Small apical pneumothorax — search error (never looked at the apex)"
-    case_id: null
+    case_id: cxd_39747            # pneumothorax, right upper zone, area 0.33% — candidates: cxd_56023 (left), cxd_36294 (larger)
     rehearsed_actions: "Read fast, mark lower zone, submit"
   - slot: 2
     story: "Hilar or retrocardiac finding — decision error (looked, judged normal)"
-    case_id: null
+    case_id: cxd_45719            # calcification, right hilum — candidates: cxd_58509 (left hilum, tiny), cxd_40032 (retrocardiac nodule + cardiomegaly)
     rehearsed_actions: "Linger on the region, call it normal"
   - slot: 3
     story: "Pleural effusion — easy win"
-    case_id: null
+    case_id: cxd_41951            # effusion, right lower zone, area 4.8% — candidates: cxd_39076, cxd_45654 (left)
     rehearsed_actions: "Mark the costophrenic angle correctly"
   - slot: 4
     story: "Normal film — specificity and calibration"
-    case_id: null
+    case_id: cxd_36201            # normal, CTR 0.44 — candidates: cxd_36200, cxd_36202
     rehearsed_actions: "Call it normal with confidence 4"
   - slot: 5
     story: "Multi-finding case — satisfaction of search"
-    case_id: null
+    case_id: cxd_41478            # large left effusion + tiny right lower calcification — candidates: cxd_70319, cxd_60740
     rehearsed_actions: "Find one finding, stop"
   - slot: 6
     story: "Cardiomegaly — CTR overlay"
-    case_id: null
+    case_id: cxd_57494            # cardiomegaly only, CTR 0.63 — candidates: cxd_45507, cxd_41811
     rehearsed_actions: "Tick cardiomegaly in global findings"
