@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { apiMode } from '../api/client';
+import { BrandMark } from './BrandMark';
 import s from './Shell.module.css';
 
 export const DISCLAIMER = 'For education. Not for clinical use.';
@@ -35,16 +36,17 @@ export function Nav() {
   );
 }
 
-/** Paper page: header, single report column, disclaimer footer. */
-export function PageShell({ children, wide = false }: { children: ReactNode; wide?: boolean }) {
+/** Paper page: header, optional full-bleed hero, single report column, disclaimer footer. */
+export function PageShell({ children, wide = false, hero }: { children: ReactNode; wide?: boolean; hero?: ReactNode }) {
   return (
     <div className={s.page}>
       <header className={s.pageHeader}>
-        <Link to="/" className={s.brand}>Blindspot</Link>
+        <Link to="/" className={s.brand}><BrandMark size={22} className={s.brandMark} />Blindspot</Link>
         <SyntheticBadge />
         <span className={s.spacer} />
         <Nav />
       </header>
+      {hero}
       <main className={s.pageMain} style={wide ? { maxWidth: 1100 } : undefined}>{children}</main>
       <Footer className={s.pageFooter} />
     </div>

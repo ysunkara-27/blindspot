@@ -3,7 +3,7 @@
 // long submitted). Fits the column width; no zoom or pan. Key it by item id so per-item state resets.
 import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { api } from '../api/client';
+import { api, assetUrl } from '../api/client';
 import { ErrorBoundary } from '../app/ErrorBoundary';
 import type { Arrow, OutcomeResult, RevealFinding, RevealMark } from '../types/contracts';
 import { RevealLayer, type RevealView } from '../viewer/RevealLayer';
@@ -32,17 +32,38 @@ export function ReviewFigure({ item }: { item: DebriefItem }) {
   const [wrapRef, boxW] = useWidth<HTMLDivElement>();
   const [imgFailed, setImgFailed] = useState(false);
   const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
-  const cq = useQuery({ queryKey: ['dev-case', item.case_id], queryFn: () => api.devCase(item.case_id), enabled: !!item.case_id, retry: false, staleTime: Infinity });
+  // Prefer the geometry on the item (reviewer-gated); fall back to the dev route for older servers.
+  const geo = item.geometry;
+  const cq = useQuery({ queryKey: ['dev-case', item.case_id], queryFn: () => api.devCase(item.case_id), enabled: !!item.case_id && !geo, retry: false, staleTime: Infinity });
 
   const c = cq.data;
-  const width = c?.width ?? natural?.w ?? 1024;
-  const height = c?.height ?? natural?.h ?? 1024;
+  const width = geo?.width ?? c?.width ?? natural?.w ?? 1024;
+  const height = geo?.height ?? c?.height ?? natural?.h ?? 1024;
   const scale = boxW > 0 ? boxW / width : 0;
   const k = scale > 0 ? 1 / scale : 1;
   const outcome = new Map((item.facts?.outcomes ?? []).map((o) => [o.target, o]));
   const factFinding = new Map((item.facts?.case.findings ?? []).map((f) => [f.id, f]));
 
-  const findings: RevealFinding[] = (c?.findings ?? []).map((f) => {
+  const fromGeo: RevealFinding[] | null = geo ? geo.findings.map((g) => {
+    const id = shortId(g.finding_id);
+    const ff = factFinding.get(id);
+    const label = g.label ?? ff?.label ?? '';
+    return {
+      finding_id: id,
+      label,
+      display: ff?.display ?? label,
+      kind: g.kind,
+      polygon: g.polygon,
+      bbox: g.bbox,
+      centroid: g.centroid ?? [(g.bbox[0] + g.bbox[2]) / 2, (g.bbox[1] + g.bbox[3]) / 2],
+      side: ff?.side ?? null,
+      zones: ff?.zones ?? [],
+      primary_zone: ff?.primary_zone ?? null,
+      relative_location: ff?.relative_location ?? null,
+      result: outcome.get(id)?.result as OutcomeResult | undefined,
+    } as RevealFinding;
+  }) : null;
+  const findings: RevealFinding[] = fromGeo ?? (c?.findings ?? []).map((f) => {
     const id = shortId(f.finding_id);
     const ff = factFinding.get(id);
     return {
@@ -69,9 +90,10 @@ export function ReviewFigure({ item }: { item: DebriefItem }) {
   const arrows: Arrow[] = [];
   const draft: DraftMark[] = item.learner.marks.map((m) => ({ ...m, label: m.label as DraftMark['label'], confidence: Math.min(5, Math.max(1, Math.round(m.confidence))) as DraftMark['confidence'] }));
   const view: RevealView = { findings, marks, arrows, heatmapUrl: null, showTrace: false };
-  const imageUrl = item.image_url ?? api.imageUrl(item.case_id);
-  // Expert geometry comes from /api/dev/cases (off unless BLINDSPOT_DEV=1). Without it: film + marks, and say so.
-  const noOutlines = cq.isError;
+  const imageUrl = item.image_url ? assetUrl(item.image_url) : api.imageUrl(item.case_id);
+  // Without geometry on the item, outlines come from /api/dev/cases (off unless BLINDSPOT_DEV=1); else film + marks.
+  const noOutlines = !geo && cq.isError;
+  const hasOutlines = !!geo || !!c;
 
   return (
     <figure className={r.figure}>
@@ -80,11 +102,11 @@ export function ReviewFigure({ item }: { item: DebriefItem }) {
           <p className={r.filmNote} data-testid="review-film-missing">
             The film for {item.case_id || 'this item'} could not be loaded{item.origin === 'curated' ? ' (curated bench item)' : ''}. Review the facts and debrief text instead.
           </p>
-        ) : scale > 0 && (c || noOutlines) ? (
+        ) : scale > 0 && (hasOutlines || noOutlines) ? (
           <div className={`${vs.layer} ${vs.still}`} style={{ width, height, transform: `scale(${scale})` }}>
             <img src={imageUrl} alt={`Chest radiograph ${item.case_id}`} className={vs.image} width={width} height={height}
-              onError={() => setImgFailed(true)} onLoad={(e) => !c && setNatural({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })} data-testid="review-film" />
-            {c && (
+              onError={() => setImgFailed(true)} onLoad={(e) => !hasOutlines && setNatural({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })} data-testid="review-film" />
+            {hasOutlines && (
               <ErrorBoundary>
                 <RevealLayer reveal={view} width={width} height={height} k={k} strokePx={2} marks={draft} />
               </ErrorBoundary>

@@ -127,6 +127,12 @@ export async function mockRequest(method: string, path: string, body: unknown): 
 
   if (method === 'POST' && (m = p.match(/^\/attempts\/([^/]+)\/flag$/))) return { ok: true };
 
+  if (method === 'GET' && (m = p.match(/^\/attempts\/([^/]+)\/anatomy$/))) {
+    const a = need(attempts.get(m[1]));
+    if (!a.result) throw new MockHttpError(409, 'not submitted');
+    return mockAnatomy(byId(a.caseId));
+  }
+
   if (method === 'GET' && (m = p.match(/^\/sessions\/([^/]+)\/summary$/))) {
     const s = need(sessions.get(m[1]));
     const scored = s.attempts.map((id) => attempts.get(id)!).filter((a) => a.submit).map((a) => ({ a, r: scoreAttempt(byId(a.caseId), a.submit!) }));
@@ -167,6 +173,24 @@ function zoneBox(z: string, c: MockCase): [number, number, number, number] {
   if (z === 'retrocardiac') return [0.5 * w, 0.55 * h, 0.7 * w, 0.85 * h];
   if (z === 'right_costophrenic_angle') return [0.08 * w, 0.75 * h, 0.3 * w, 0.95 * h];
   return [0.7 * w, 0.75 * h, 0.92 * w, 0.95 * h];
+}
+
+/** Synthetic zone outlines: rectangles on the drawn lungs plus a heart ellipse. Patient right = image left. */
+function mockAnatomy(c: MockCase) {
+  const w = c.width;
+  const h = c.height;
+  const rect = (x0: number, y0: number, x1: number, y1: number) => [[x0 * w, y0 * h], [x1 * w, y0 * h], [x1 * w, y1 * h], [x0 * w, y1 * h]];
+  const bands: [string, number, number][] = [['upper', 0.08, 0.36], ['mid', 0.36, 0.62], ['lower', 0.62, 0.9]];
+  const zones = bands.flatMap(([b, y0, y1]) => [
+    { zone_id: `right_${b}_zone`, polygons: [rect(0.08, y0, 0.46, y1)] },
+    { zone_id: `left_${b}_zone`, polygons: [rect(0.54, y0, 0.92, y1)] },
+  ]);
+  const heart = Array.from({ length: 24 }, (_, i) => {
+    const t = (i / 24) * Math.PI * 2;
+    return [w * (0.55 + 0.16 * Math.cos(t)), h * (0.68 + 0.14 * Math.sin(t))];
+  });
+  zones.push({ zone_id: 'cardiac_silhouette', polygons: [heart] });
+  return { zones, approximate: true };
 }
 
 function need<T>(v: T | undefined): T {

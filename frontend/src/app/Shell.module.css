@@ -35,7 +35,10 @@
 :root[data-projector='1'] .header .nav { display: none; }
 .brand { font-weight: 700; color: #f3f5f6; text-decoration: none; letter-spacing: 0.01em; font-size: var(--fs-2); }
 .mode { color: #f3f5f6; font-weight: 700; }
-.caseIdx { font-variant-numeric: tabular-nums; }
+.caseIdx { font-variant-numeric: tabular-nums; display: inline-flex; align-items: center; gap: 10px; }
+.progress { display: inline-block; width: 72px; height: 4px; border-radius: 2px; background: #3a4148; overflow: hidden; }
+.progress span { display: block; height: 100%; background: #c9d1d8; }
+.kbdHead { display: inline-block; padding: 0 5px; border: 1px solid #4a535c; border-radius: 3px; font: inherit; font-size: 12px; line-height: 16px; }
 .spacer { flex: 1; }
 .synthetic {
   padding: 2px 8px;
@@ -81,9 +84,19 @@
   height: 54px;
   border-bottom: 1px solid var(--report-rule);
 }
-.pageHeader .brand { color: var(--report-ink); }
+.pageHeader .brand { color: var(--report-ink); display: inline-flex; align-items: center; gap: 9px; }
+.brandMark { flex-shrink: 0; }
 .pageHeader .nav a { color: var(--report-ink-muted); }
 .pageHeader .nav a:hover { color: var(--report-ink); }
 .pageMain { flex: 1; width: 100%; max-width: 760px; margin: 0 auto; padding: 32px 24px 48px; }
 .pageFooter { max-width: 760px; width: 100%; margin: 0 auto; padding: 12px 24px 20px; border-top: 1px solid var(--report-rule); color: var(--report-ink-muted); font-size: 14px; }
 .pageHeader .synthetic { color: var(--report-ink-muted); border-color: #9aa5af; }
+
+/* Narrow screens (landing and About only reach here): the header nav wraps under the brand. */
+@media (max-width: 899.98px) {
+  .pageHeader { height: auto; min-height: 54px; flex-wrap: wrap; padding: 10px 16px; gap: 8px 14px; }
+  .pageHeader .spacer { display: none; }
+  .pageHeader .nav { flex-wrap: wrap; gap: 6px 14px; width: 100%; }
+  .pageMain { padding: 24px 16px 40px; }
+  .pageFooter { padding: 12px 16px 20px; }
+}

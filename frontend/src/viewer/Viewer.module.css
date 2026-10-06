@@ -246,3 +246,54 @@
 .still .revealTrace, .still .revealLabel, .still .revealArrowText, .still .settle { animation: none; }
 .still .revealOutline, .still .revealArrow, .still .revealArrowHead { animation: none; stroke-dashoffset: 0; stroke-dasharray: none; }
 .still .revealOutline { fill-opacity: 0.07; }
+
+/* Anatomy (key A, after submit): graticule grey at ~40%. Zones take hover so their names can show. */
+.zone {
+  fill: transparent;
+  stroke: var(--graticule);
+  stroke-opacity: 0.4;
+  stroke-linejoin: round;
+  pointer-events: all;
+}
+.zoneOn { stroke-opacity: 0.95; fill: var(--graticule); fill-opacity: 0.08; }
+.zoneName {
+  position: absolute;
+  right: 14px;
+  top: 14px;
+  padding: 5px 10px;
+  border-radius: var(--radius);
+  background: rgba(0, 0, 0, 0.7);
+  color: #e6ebef;
+  font-size: var(--fs-1);
+  pointer-events: none;
+  border: 1px solid rgba(140, 153, 166, 0.5);
+}
+
+/* Empty-state nudges: quiet, never in the way of a click. */
+.nudge {
+  position: absolute;
+  left: 50%;
+  top: 14px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 14px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #c9d1d8;
+  font-size: var(--fs-1);
+  pointer-events: none;
+  white-space: nowrap;
+}
+.nudge span + span::before { content: '·'; margin-right: 14px; color: #6b7680; }
+.kbdTool {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 5px;
+  border: 1px solid #4a535c;
+  border-radius: 3px;
+  font-size: 12px;
+  line-height: 16px;
+  color: #c9d1d8;
+}
+.toolOn .kbdTool { border-color: #9aa5af; color: #333; }

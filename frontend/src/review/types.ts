@@ -7,6 +7,13 @@ export type LearnerAnswer = {
   declared_normal: boolean;
 };
 
+/** Expert geometry carried by the review item itself (reviewer-gated route), so /review needs no dev route. */
+export type ItemFinding = {
+  finding_id: string; label: string | null; kind: 'focal' | 'pattern'; polygon: [number, number][] | null;
+  bbox: [number, number, number, number]; centroid: [number, number] | null;
+};
+export type ItemGeometry = { width: number; height: number; findings: ItemFinding[] };
+
 export type DebriefItem = {
   item_id: string;
   origin: 'live' | 'curated' | string;
@@ -22,6 +29,7 @@ export type DebriefItem = {
   flags: number;
   flag_comments: string | null;
   behaviour: string | null;
+  geometry: ItemGeometry | null;
 };
 
 export type CardItem = { item_id: string; card: TeachingCard };
@@ -42,6 +50,32 @@ function learner(v: unknown): LearnerAnswer {
     isObj(p) && typeof p.label === 'string' ? [{ label: p.label, confidence: typeof p.confidence === 'number' ? p.confidence : 3 }] : [],
   );
   return { marks, patterns, declared_normal: o.declared_normal === true };
+}
+
+const num4 = (v: unknown): v is [number, number, number, number] => Array.isArray(v) && v.length === 4 && v.every((x) => typeof x === 'number');
+const pt = (v: unknown): v is [number, number] => Array.isArray(v) && v.length >= 2 && typeof v[0] === 'number' && typeof v[1] === 'number';
+
+function geometry(it: Obj): ItemGeometry | null {
+  const src = Array.isArray(it.findings) ? it.findings : isObj(it.geometry) && Array.isArray(it.geometry.findings) ? it.geometry.findings : null;
+  if (!src) return null;
+  const g = isObj(it.geometry) ? it.geometry : it;
+  const findings = src.flatMap((f): ItemFinding[] => {
+    if (!isObj(f) || typeof f.finding_id !== 'string') return [];
+    const geo = isObj(f.geometry) ? f.geometry : f;
+    if (!num4(geo.bbox)) return [];
+    const poly = Array.isArray(geo.polygon) ? geo.polygon.filter(pt).map((p) => [p[0], p[1]] as [number, number]) : null;
+    return [{
+      finding_id: f.finding_id,
+      label: str(f.label),
+      kind: f.kind === 'pattern' ? 'pattern' : 'focal',
+      polygon: poly && poly.length >= 3 ? poly : null,
+      bbox: geo.bbox,
+      centroid: pt(f.centroid) ? [f.centroid[0], f.centroid[1]] : null,
+    }];
+  });
+  const width = typeof g.width === 'number' ? g.width : typeof it.width === 'number' ? it.width : 1024;
+  const height = typeof g.height === 'number' ? g.height : typeof it.height === 'number' ? it.height : 1024;
+  return { width, height, findings };
 }
 
 export function guardDebriefItems(v: unknown): DebriefItem[] {
@@ -66,6 +100,7 @@ export function guardDebriefItems(v: unknown): DebriefItem[] {
       flags: typeof it.flags === 'number' ? it.flags : 0,
       flag_comments: str(it.flag_comments),
       behaviour: str(it.behaviour),
+      geometry: geometry(it),
     }];
   });
 }

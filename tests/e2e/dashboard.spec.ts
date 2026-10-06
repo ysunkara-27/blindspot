@@ -3,7 +3,7 @@
 // "E2E dashboard (test)" — test data, never demo data (`make db-reset` clears it). Dashboard shots show no films.
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
-const API = 'http://127.0.0.1:8000/api';
+const API = process.env.E2E_API ?? 'http://127.0.0.1:8000/api';
 const SHOTS = `${process.cwd().endsWith('frontend') ? '../' : ''}tests/e2e/__screenshots__`;
 
 test.use({ viewport: { width: 1280, height: 800 } });

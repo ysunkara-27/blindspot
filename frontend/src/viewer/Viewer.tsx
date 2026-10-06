@@ -6,6 +6,8 @@ import { clampView, clientToImage, fitView, imageToScreen, insideImage, visibleR
 import type { TelemetryBuffer, Sample } from './telemetry';
 import { MarkPopover } from './MarkPopover';
 import { RevealLayer, type RevealView } from './RevealLayer';
+import { AnatomyLayer } from './AnatomyLayer';
+import type { Anatomy } from './anatomy';
 import { ErrorBoundary } from '../app/ErrorBoundary';
 import s from './Viewer.module.css';
 
@@ -33,6 +35,9 @@ export type ViewerProps = {
   telemetry: TelemetryBuffer;
   reveal: RevealView | null;
   onShown: () => void;
+  /** "Show anatomy" (after submit only): off, or the fetched outlines and their state. */
+  anatomy?: { on: boolean; status: 'pending' | 'error' | 'success'; data: Anatomy | null };
+  onToggleAnatomy?: () => void;
 };
 
 type Gesture =
@@ -50,6 +55,8 @@ export function Viewer(p: ViewerProps) {
   const [loaded, setLoaded] = useState(false);
   const [wl, setWl] = useState({ brightness: 100, contrast: 100, invert: false });
   const [panning, setPanning] = useState(false);
+  const [zoomed, setZoomed] = useState(false); // quiets the "use the wheel" nudge once the reader has zoomed
+  const [hoverZone, setHoverZone] = useState<string | null>(null);
   const gesture = useRef<Gesture>({ kind: 'none' });
   const overImage = useRef(false);
   const placeTimer = useRef<number | null>(null);
@@ -110,6 +117,7 @@ export function Viewer(p: ViewerProps) {
       live.current.view = clamped;
       setView(clamped);
       live.current.zoom = clamped.scale / f.scale;
+      if (clamped.scale !== v.scale) setZoomed(true);
       p.telemetry.push('wheel', sample(clientToImage(e.clientX, e.clientY, r, clamped)));
     };
     el.addEventListener('wheel', onWheel, { passive: false });
@@ -284,6 +292,9 @@ export function Viewer(p: ViewerProps) {
             data-testid="film"
             onLoad={() => { setLoaded(true); p.onShown(); }}
           />
+          {p.reveal && p.anatomy?.on && p.anatomy.data && (
+            <AnatomyLayer anatomy={p.anatomy.data} width={p.width} height={p.height} k={k} hovered={hoverZone} onHover={setHoverZone} />
+          )}
           {p.reveal && (
             <ErrorBoundary>
               <RevealLayer reveal={p.reveal} width={p.width} height={p.height} k={k} strokePx={strokePx} marks={p.marks} />
@@ -322,6 +333,20 @@ export function Viewer(p: ViewerProps) {
 
         {!loaded && <div className={s.loading}>Loading film…</div>}
         {p.markBlockedReason && !p.reveal && <div className={s.notice}>{p.markBlockedReason}</div>}
+        {loaded && p.canMark && !p.reveal && (p.marks.length === 0 || !zoomed) && (
+          <div className={s.nudge} data-testid="nudge" aria-hidden="true">
+            {p.marks.length === 0 && <span>Click the film to mark a finding</span>}
+            {!zoomed && <span>Use the wheel to zoom</span>}
+          </div>
+        )}
+        {p.reveal && p.anatomy?.on && (
+          <div className={s.zoneName} data-testid="zone-name" aria-live="polite">
+            {p.anatomy.status === 'pending' ? 'Loading anatomy…'
+              : p.anatomy.status === 'error' || !p.anatomy.data?.zones.length ? 'Anatomy outlines are not available for this case.'
+              : hoverZone ? (p.anatomy.data.zones.find((z) => z.id === hoverZone)?.name ?? '')
+              : `Point at a zone to name it${p.anatomy.data.approximate ? ' · zones are approximate' : ''}`}
+          </div>
+        )}
 
         {popMark && popPos && (
           <MarkPopover
@@ -351,6 +376,12 @@ export function Viewer(p: ViewerProps) {
           <button type="button" className={s.tool} onClick={() => { setWlLogged({ brightness: 100, contrast: 100, invert: false }); resetView(); }}>
             Reset view
           </button>
+          {p.reveal && p.onToggleAnatomy && (
+            <button type="button" className={`${s.tool} ${p.anatomy?.on ? s.toolOn : ''}`} aria-pressed={!!p.anatomy?.on}
+              onClick={p.onToggleAnatomy} data-testid="anatomy-toggle">
+              {p.anatomy?.on ? 'Hide anatomy' : 'Show anatomy'}<kbd className={s.kbdTool}>A</kbd>
+            </button>
+          )}
         </div>
       </div>
     </div>

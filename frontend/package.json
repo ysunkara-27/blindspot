@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:site": "tsc -b && VITE_BASE_PATH=/blindspot/ vite build",
     "lint": "oxlint",
     "preview": "vite preview",
     "gen:types": "node scripts/gen-types.mjs",

@@ -1,6 +1,7 @@
 // /progress — the Reading log (SPEC §10.1). Real attempts only (practice, drill, review; assessments excluded by the API).
 // Every section states its n. In mock mode the log is not shown: synthetic data never appears on a dashboard (§10.3).
 import { useQuery } from '@tanstack/react-query';
+import { useTitle } from '../app/useTitle';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, apiMode, ApiError } from '../api/client';
 import { PageShell } from '../app/Shell';
@@ -17,6 +18,7 @@ import d from '../dashboard/Dashboard.module.css';
 import s from './Pages.module.css';
 
 export function ProgressPage() {
+  useTitle('Reading log');
   const session = useSession((st) => st.session);
   const [params] = useSearchParams();
   // ?learner=<id> lets an instructor (or a test) open a specific learner's log; otherwise the current session's learner.

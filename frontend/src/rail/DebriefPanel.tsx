@@ -4,14 +4,9 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '../api/client';
 import type { DebriefResponse, RevealFinding } from '../types/contracts';
 import { OutcomeChip } from './OutcomeList';
+import { BUSY, PROVENANCE, SOURCE, SOURCE_TITLE } from './debriefCopy';
 import s from './Rail.module.css';
 
-const PROVENANCE: Record<string, string> = {
-  ai_draft: 'AI draft, not yet reviewed',
-  student_reviewed: 'Reviewed by a medical student',
-  radiologist_reviewed: 'Reviewed by a radiologist',
-};
-const SOURCE: Record<string, string> = { live: 'Written for this read', cache: 'Saved explanation', template: 'Built-in explanation' };
 const SLOW_MS = 15_000;
 
 export function DebriefPanel({ attemptId, findings, disabled }: { attemptId: string; findings: RevealFinding[]; disabled: boolean }) {
@@ -36,6 +31,8 @@ export function DebriefPanel({ attemptId, findings, disabled }: { attemptId: str
   if (disabled || q.data?.status === 'disabled') return null;
   const d = q.data;
   const failed = q.isError || d?.status === 'failed';
+  // Rate-limited or failed: say so plainly, and still show any built-in explanation the server sent.
+  const busy = failed || d?.error === 'rate_limited';
 
   const flag = () => {
     setFlagged(true);
@@ -46,11 +43,14 @@ export function DebriefPanel({ attemptId, findings, disabled }: { attemptId: str
     <section className={s.section} aria-labelledby="debrief-h" aria-live="polite" data-testid="debrief">
       <div className={s.row}>
         <h3 id="debrief-h" className={s.h3}>Debrief</h3>
-        {d?.status === 'ready' && d.source && <span className={s.sourceLabel} data-testid="debrief-source">{SOURCE[d.source] ?? d.source}</span>}
+        {d?.status === 'ready' && d.source && (
+          <span className={`${s.sourceTag} ${d.source === 'template' ? '' : s.sourceClaude}`} title={SOURCE_TITLE[d.source]} data-testid="debrief-source">
+            {SOURCE[d.source] ?? d.source}
+          </span>
+        )}
       </div>
-      {failed ? (
-        <p className={s.notice}>The tutor is offline. Showing the built-in explanation instead.</p>
-      ) : !d || d.status === 'pending' ? (
+      {busy && <p className={s.notice} data-testid="debrief-busy">{BUSY}</p>}
+      {failed && !d?.debrief ? null : !d || d.status === 'pending' ? (
         <p className={s.muted} data-testid="debrief-pending">{slow ? 'The tutor is taking longer than usual. The facts above are complete.' : 'Writing your debrief…'}</p>
       ) : d.debrief ? (
         <div className={s.debrief}>
@@ -92,8 +92,8 @@ export function DebriefPanel({ attemptId, findings, disabled }: { attemptId: str
             )}
           </div>
         </div>
-      ) : (
-        <p className={s.notice}>The tutor is offline. Showing the built-in explanation instead.</p>
+      ) : busy ? null : (
+        <p className={s.notice} data-testid="debrief-busy">{BUSY}</p>
       )}
     </section>
   );

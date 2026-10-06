@@ -1,9 +1,11 @@
 // Catch-all route: a short "Page not found" inside the paper shell, so the disclaimer footer is on every page.
 import { Link, useLocation } from 'react-router-dom';
+import { useTitle } from '../app/useTitle';
 import { PageShell } from '../app/Shell';
 import s from './Pages.module.css';
 
 export function NotFoundPage() {
+  useTitle('Page not found');
   const { pathname } = useLocation();
   return (
     <PageShell>

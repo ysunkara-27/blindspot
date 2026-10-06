@@ -3,12 +3,14 @@ import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api, apiMode } from '../api/client';
 import { PageShell } from '../app/Shell';
+import { useTitle } from '../app/useTitle';
 import s from './Pages.module.css';
 
 const LAYERS = ['anatomy', 'zones', 'findings'] as const;
 
 export function DevCasePage() {
   const { id = '' } = useParams();
+  useTitle(`Case ${id} · Clinical QA`);
   const [on, setOn] = useState<Record<string, boolean>>({ anatomy: true, zones: true, findings: true });
   const layers = LAYERS.filter((l) => on[l]).join(',');
   return (

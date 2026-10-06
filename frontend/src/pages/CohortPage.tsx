@@ -1,8 +1,10 @@
 // /cohort — instructor view (SPEC §10.2): the learner metrics aggregated across learners, per-label difficulty,
 // cohort blind-spot map. Filters (level, mode, date) are query params sent to the API and mirrored in the URL.
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { useSearchParams } from 'react-router-dom';
-import { api, apiMode } from '../api/client';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useTitle } from '../app/useTitle';
+import { Link, useSearchParams } from 'react-router-dom';
+import { api, apiMode, isGateError } from '../api/client';
+import { ReviewerGate } from '../app/Gate';
 import { LEVELS, MODES } from '../api/labels';
 import { PageShell } from '../app/Shell';
 import { BlindSpotMap } from '../dashboard/charts/BlindSpotMap';
@@ -21,9 +23,11 @@ import s from './Pages.module.css';
 const FILTERS = ['level', 'mode', 'from', 'to'] as const;
 
 export function CohortPage() {
+  useTitle('Cohort');
   const [params, setParams] = useSearchParams();
   const qs = cohortQuery(params);
   const mock = apiMode().mode === 'mock';
+  const qc = useQueryClient();
   const q = useQuery({
     queryKey: ['cohort-dashboard', qs],
     queryFn: async () => guardCohortDashboard(await api.cohortDashboard(qs)),
@@ -73,6 +77,8 @@ export function CohortPage() {
         <p className={s.notice} data-testid="dashboard-mock">The synthetic demo has no cohort: dashboards only show real reads. Start the API to see the cohort.</p>
       ) : q.isPending ? (
         <p className={s.muted}>Loading the cohort…</p>
+      ) : isGateError(q.error, 'reviewer') ? (
+        <ReviewerGate what="cohort" onDone={() => qc.resetQueries({ queryKey: ['cohort-dashboard'] })} />
       ) : q.isError ? (
         <p className={s.notice}>The cohort could not be loaded. Check that the API is running, then reload.</p>
       ) : (
@@ -98,7 +104,7 @@ export function CohortPage() {
                   <tbody>
                     {[...data!.learners].sort((a, b) => b.n - a.n).map((l) => (
                       <tr key={l.learner_id}>
-                        <th scope="row" style={{ fontWeight: 400 }}><a href={`/progress?learner=${encodeURIComponent(l.learner_id)}`}>{l.learner_id.slice(0, 8)}</a></th>
+                        <th scope="row" style={{ fontWeight: 400 }}><Link to={`/progress?learner=${encodeURIComponent(l.learner_id)}`}>{l.learner_id.slice(0, 8)}</Link></th>
                         <td>{l.n}</td><td>{pct(l.sensitivity)}</td><td>{pct(l.specificity)}</td><td>{Math.round(l.score_mean)}</td>
                       </tr>
                     ))}

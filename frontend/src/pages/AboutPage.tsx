@@ -4,6 +4,8 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '../api/client';
 import { DISCLAIMER, PageShell } from '../app/Shell';
 import rail from '../rail/Rail.module.css';
+import { PROVENANCE, SOURCE } from '../rail/debriefCopy';
+import { useTitle } from '../app/useTitle';
 import a from './About.module.css';
 import s from './Pages.module.css';
 
@@ -53,6 +55,7 @@ function guard(v: unknown): About {
 }
 
 export function AboutPage() {
+  useTitle('About');
   const q = useQuery({ queryKey: ['about'], queryFn: api.about, retry: false });
   const about = guard(q.data);
   return (
@@ -91,12 +94,12 @@ export function AboutPage() {
       <section className={s.ruled} data-testid="about-badges">
         <h2 className={s.h2}>Reading the badges on a debrief</h2>
         <dl className={a.badges}>
-          <dt><span className={rail.badge}>Written for this read</span></dt><dd>Claude wrote it from this attempt's facts, and it passed the validator.</dd>
-          <dt><span className={rail.badge}>Saved explanation</span></dt><dd>The same facts were explained before; the saved text is shown.</dd>
-          <dt><span className={rail.badge}>Built-in explanation</span></dt><dd>A fixed template filled from the facts: the tutor is offline or its draft failed the validator.</dd>
-          <dt><span className={rail.badge}>AI draft, not yet reviewed</span></dt><dd>The teaching cards behind it were drafted by AI and are not yet reviewed.</dd>
-          <dt><span className={`${rail.badge} ${rail.prov_student_reviewed}`}>Reviewed by a medical student</span></dt><dd>A medical student has checked the teaching cards used.</dd>
-          <dt><span className={`${rail.badge} ${rail.prov_radiologist_reviewed}`}>Reviewed by a radiologist</span></dt><dd>A radiologist has checked the teaching cards used.</dd>
+          <dt><span className={`${rail.sourceTag} ${rail.sourceClaude}`}>{SOURCE.live}</span></dt><dd>Claude wrote it from this attempt's facts, and it passed the validator.</dd>
+          <dt><span className={`${rail.sourceTag} ${rail.sourceClaude}`}>{SOURCE.cache}</span></dt><dd>Claude explained the same facts before; the saved text is shown.</dd>
+          <dt><span className={rail.sourceTag}>{SOURCE.template}</span></dt><dd>A fixed explanation filled from the facts: the tutor is offline or busy, or its draft failed the validator.</dd>
+          <dt><span className={rail.badge}>{PROVENANCE.ai_draft}</span></dt><dd>The teaching cards behind it were drafted by AI and are not yet reviewed.</dd>
+          <dt><span className={`${rail.badge} ${rail.prov_student_reviewed}`}>{PROVENANCE.student_reviewed}</span></dt><dd>A medical student has checked the teaching cards used.</dd>
+          <dt><span className={`${rail.badge} ${rail.prov_radiologist_reviewed}`}>{PROVENANCE.radiologist_reviewed}</span></dt><dd>A radiologist has checked the teaching cards used.</dd>
         </dl>
         <p className={s.mutedSmall}>The badge shows the lowest review level among the cards a debrief draws on. Learners can flag any debrief with “This seems wrong”; flags go to the expert review queue.</p>
       </section>
@@ -112,6 +115,17 @@ export function AboutPage() {
           <p>{about.privacy}</p>
         </section>
       )}
+
+      <section className={s.ruled} data-testid="about-run">
+        <h2 className={s.h2}>Run it yourself</h2>
+        <p>
+          Source code: <strong>Private repo during the hackathon.</strong> Blindspot is a FastAPI service with a React
+          reading room. With the data downloaded, <code>make setup</code>, <code>make data</code>, <code>make anatomy</code> and{' '}
+          <code>make features</code> build the case bank, and <code>make dev</code> starts the API and the web app. Without an
+          Anthropic key the tutor runs offline and shows the built-in explanations.
+        </p>
+        <p className={s.mutedSmall}>The images are research radiographs under the NIH terms above; they are not redistributed with the code.</p>
+      </section>
 
       <section className={s.ruled}>
         <h2 className={s.h2}>Disclaimer</h2>

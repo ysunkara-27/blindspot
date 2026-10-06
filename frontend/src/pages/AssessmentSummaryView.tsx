@@ -1,6 +1,7 @@
 // End-of-assessment summary (SPEC §1.4, §9.3): the only feedback an assessment gives, shown after the last case.
 // Every figure carries its n. Then the pilot's SUS survey.
 import { useQuery } from '@tanstack/react-query';
+import { useTitle } from '../app/useTitle';
 import { Link } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { modeDisplay, OUTCOME_COPY } from '../api/labels';
@@ -43,6 +44,7 @@ function caseLine(c: SummaryCase): string {
 }
 
 export function AssessmentSummaryView({ session }: { session: SessionInfo }) {
+  useTitle('Assessment results');
   const q = useQuery({ queryKey: ['summary', session.sessionId], queryFn: () => api.summary(session.sessionId) });
   const st = q.data ? statsFrom(q.data) : null;
   const mix = st?.miss_type_mix;

@@ -1,8 +1,10 @@
 // /review — expert review (SPEC §11.1): Debriefs | Teaching cards. Reviewer identity persists in localStorage.
 import { useRef } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useTitle } from '../app/useTitle';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { api, apiMode } from '../api/client';
+import { api, apiMode, isGateError } from '../api/client';
+import { ReviewerGate } from '../app/Gate';
 import { PageShell } from '../app/Shell';
 import { CardReview } from '../review/CardReview';
 import { DebriefReview } from '../review/DebriefReview';
@@ -14,6 +16,7 @@ import s from './Pages.module.css';
 type Tab = 'debrief' | 'card';
 
 export function ReviewPage() {
+  useTitle('Expert review');
   const [params, setParams] = useSearchParams();
   const tab: Tab = params.get('tab') === 'cards' ? 'card' : 'debrief';
   const [reviewer, setReviewer] = useReviewer();
@@ -22,11 +25,19 @@ export function ReviewPage() {
 
   const dq = useQuery({ queryKey: ['review-items', 'debrief'], queryFn: async () => guardDebriefItems(await api.reviewItems('debrief')), enabled: !mock && tab === 'debrief' });
   const cq = useQuery({ queryKey: ['review-items', 'card'], queryFn: async () => guardCardItems(await api.reviewItems('card')), enabled: !mock && tab === 'card' });
+  const qc = useQueryClient();
+  const gated = isGateError(dq.error, 'reviewer') || isGateError(cq.error, 'reviewer');
   const setTab = (t: Tab) => setParams(t === 'card' ? { tab: 'cards' } : {}, { replace: true });
   const needReviewer = () => nameRef.current?.focus();
 
   return (
     <PageShell wide>
+      {gated ? (
+        <>
+          <h1 className={s.h1}>Expert review</h1>
+          <ReviewerGate what="review" onDone={() => qc.resetQueries({ queryKey: ['review-items'] })} />
+        </>
+      ) : (<>
       <header className={r.pageHead}>
         <h1 className={s.h1}>Expert review</h1>
         <div className={r.identity}>
@@ -72,6 +83,7 @@ export function ReviewPage() {
           : cq.data.length === 0 ? <p className={s.lede} data-testid="cards-empty">No teaching cards found in content/teaching_cards/.</p>
           : <CardReview items={cq.data} reviewer={reviewer} onNeedReviewer={needReviewer} />
       )}
+      </>)}
     </PageShell>
   );
 }

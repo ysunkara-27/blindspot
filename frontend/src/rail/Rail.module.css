@@ -194,6 +194,8 @@
 .prov_radiologist_reviewed { border-color: #127a88; color: #0c5560; }
 .prov_student_reviewed { border-color: #7d8a96; color: var(--report-ink); }
 .sourceLabel { font-size: 13px; color: var(--report-ink-muted); }
+.sourceTag { font-size: 13px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--report-rule); color: var(--report-ink-muted); background: #fff; white-space: nowrap; }
+.sourceClaude { border-color: #9aa5af; color: var(--report-ink); }
 
 .qa { padding: 6px 0; }
 .q { margin: 6px 0 2px; font-weight: 700; }

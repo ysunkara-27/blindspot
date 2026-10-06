@@ -1,0 +1,46 @@
+/* Access and reviewer gates, small-screen note: one calm column on report paper. */
+.page { min-height: 100vh; display: flex; flex-direction: column; background: var(--report-paper); }
+.head { display: flex; align-items: center; height: 54px; padding: 0 24px; border-bottom: 1px solid var(--report-rule); }
+.brand { font-weight: 700; font-size: var(--fs-2); color: var(--report-ink); text-decoration: none; }
+.main { flex: 1; width: 100%; max-width: 520px; margin: 0 auto; padding: 14vh 24px 48px; }
+.mark { display: block; margin-bottom: 22px; }
+.title { font-size: var(--fs-4); font-weight: 700; line-height: 1.25; margin: 0 0 6px; }
+.lede { font-size: var(--fs-2); line-height: 1.5; margin: 0 0 24px; color: var(--report-ink); }
+.form { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+.field { display: flex; flex-direction: column; gap: 6px; font-weight: 700; flex: 1 1 220px; }
+.input {
+  font: inherit;
+  font-weight: 400;
+  padding: 10px 12px;
+  border: 1px solid #b9c2ca;
+  border-radius: var(--radius);
+  background: #fff;
+  color: var(--report-ink);
+  letter-spacing: 0.04em;
+}
+.button {
+  padding: 11px 22px;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--report-ink);
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+.button:disabled { background: #a7b0b8; cursor: default; }
+.input:focus-visible, .button:focus-visible { outline: 2px solid var(--grease-amber); outline-offset: 2px; }
+.error { margin: 14px 0 0; padding: 10px 12px; background: #e7ecef; border-left: 3px solid var(--grease-amber); border-radius: 0 4px 4px 0; font-size: var(--fs-1); }
+.note { margin: 28px 0 0; color: var(--report-ink-muted); font-size: var(--fs-1); line-height: 1.5; }
+.foot { width: 100%; max-width: 520px; margin: 0 auto; padding: 12px 24px 20px; border-top: 1px solid var(--report-rule); color: var(--report-ink-muted); font-size: 14px; }
+
+/* Reviewer prompt sits inside a page column, not a full page. */
+.inline { max-width: 520px; padding: 6vh 0 24px; }
+
+/* Small-screen note: the PACS surround, so it reads as "this is a workstation". */
+.narrow { min-height: 100vh; display: flex; flex-direction: column; background: var(--pacs-surround); color: #e6ebef; }
+.narrowMain { flex: 1; padding: 18vh 16px 32px; max-width: 460px; margin: 0 auto; }
+.narrowMain .title { color: #f3f5f6; }
+.narrowMain p { line-height: 1.55; color: #c9d1d8; }
+.narrowMain a { color: var(--lightbox-cyan); }
+.narrowFoot { padding: 12px 16px 18px; border-top: 1px solid #2a2f34; color: #9aa5af; font-size: 14px; }

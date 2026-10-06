@@ -3,7 +3,7 @@
 // never rewrites content/teaching_cards/*.yaml. Shots containing films are named live-*.png (gitignored).
 import { expect, test, type APIRequestContext } from '@playwright/test';
 
-const API = 'http://127.0.0.1:8000/api';
+const API = process.env.E2E_API ?? 'http://127.0.0.1:8000/api';
 const SHOTS = `${process.cwd().endsWith('frontend') ? '../' : ''}tests/e2e/__screenshots__`;
 const REVIEWER = 'E2E reviewer (test)';
 
@@ -79,7 +79,7 @@ test('debrief review: keyboard rating, auto-advance, persisted reviewer, CSV exp
 
   // The export link serves the stored rating.
   const href = await page.getByTestId('export-csv').getAttribute('href');
-  const csv = await (await request.get(`http://127.0.0.1:5173${href}`)).text();
+  const csv = await (await request.get(`${process.env.E2E_WEB ?? 'http://127.0.0.1:5173'}${href}`)).text();
   expect(csv.split('\n')[0]).toContain('reviewer,role,item_type,item_id,accuracy,teaching,safety_flag,comment');
   expect(csv).toContain(`${REVIEWER},Radiologist,debrief,${body.item_id},4,5,0,Clear and correct; e2e test rating.`);
   expect(errors).toEqual([]);

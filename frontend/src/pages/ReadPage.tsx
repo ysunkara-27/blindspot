@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, Navigate } from 'react-router-dom';
-import { api, ApiError, isSubmitResult } from '../api/client';
+import { api, ApiError, assetUrl, isSubmitResult } from '../api/client';
 import { labelDisplay, modeDisplay } from '../api/labels';
 import { canSubmit, initialRead, readReducer, toSubmitMarks, toSubmitPatterns } from '../read/readState';
 import { ReadRail } from '../rail/ReadRail';
@@ -18,6 +18,10 @@ import { colorizeServerHeatmap, densityFromTelemetry, densityToDataUrl } from '.
 import { TelemetryBuffer } from '../viewer/telemetry';
 import { Footer, Nav, SyntheticBadge } from '../app/Shell';
 import { AssessmentSummaryView } from './AssessmentSummaryView';
+import { KeysHelp } from '../read/KeysHelp';
+import { shouldShowKeysOnFirstVisit } from '../read/keys';
+import { useTitle } from '../app/useTitle';
+import { guardAnatomy } from '../viewer/anatomy';
 import shell from '../app/Shell.module.css';
 import rail from '../rail/Rail.module.css';
 
@@ -38,6 +42,18 @@ function ReadSession({ session }: { session: SessionInfo }) {
   const [loupe, setLoupe] = useState(() => !isAssessment(session.mode));
   const sid = session.sessionId;
   const next = useQuery({ queryKey: ['next', sid, seq], queryFn: () => api.next(sid), staleTime: Infinity, gcTime: Infinity, retry: false });
+  const [help, setHelp] = useState(shouldShowKeysOnFirstVisit);
+  const closeHelp = useCallback(() => setHelp(false), []);
+  useTitle(!next.data ? 'Reading room' : next.data.done ? (isAssessment(session.mode) ? 'Assessment results' : 'Set complete') : `Case ${next.data.index} · Reading room`);
+  // "?" opens the key list from anywhere in the reading room (the open dialog handles its own keys).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === '?' && !e.metaKey && !e.ctrlKey && !e.altKey && !isTyping(e.target)) { e.preventDefault(); setHelp(true); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+  const helpLayer = help ? <KeysHelp onClose={closeHelp} /> : null;
 
   // After a submit, fetch the next case and warm its image so "Next case" is instant (SPEC §5.1).
   const prefetchNext = useCallback(() => {
@@ -45,13 +61,13 @@ function ReadSession({ session }: { session: SessionInfo }) {
     qc.prefetchQuery({ queryKey: key, queryFn: () => api.next(sid), staleTime: Infinity, gcTime: Infinity })
       .then(() => {
         const n = qc.getQueryData<NextCase>(key);
-        if (n && !n.done && n.case.image_url) preload(n.case.image_url);
+        if (n && !n.done && n.case.image_url) preload(assetUrl(n.case.image_url));
       })
       .catch(() => { /* the Next button will retry */ });
   }, [qc, sid, seq]);
 
   const header = (n?: NextCase) => (
-    <RoomHeader session={session} next={n} loupe={loupe} setLoupe={setLoupe} />
+    <RoomHeader session={session} next={n} loupe={loupe} setLoupe={setLoupe} onHelp={() => setHelp(true)} />
   );
 
   if (next.isPending || next.isError) {
@@ -70,6 +86,7 @@ function ReadSession({ session }: { session: SessionInfo }) {
           </div>
         </div>
         <aside className={shell.rail}><div className={shell.railBody} /><Footer /></aside>
+        {helpLayer}
       </div>
     );
   }
@@ -85,6 +102,8 @@ function ReadSession({ session }: { session: SessionInfo }) {
     );
   }
   return (
+    <>
+    {helpLayer}
     <ReadingRoom
       key={next.data.attempt_id}
       session={session}
@@ -95,10 +114,13 @@ function ReadSession({ session }: { session: SessionInfo }) {
       onNext={() => setSeq((n) => n + 1)}
       prefetchNext={prefetchNext}
     />
+    </>
   );
 }
 
-function RoomHeader({ session, next, loupe, setLoupe }: { session: SessionInfo; next?: NextCase; loupe: boolean; setLoupe: (v: boolean) => void }) {
+function RoomHeader({ session, next, loupe, setLoupe, onHelp }: {
+  session: SessionInfo; next?: NextCase; loupe: boolean; setLoupe: (v: boolean) => void; onHelp: () => void;
+}) {
   const projector = useSession((s) => s.projector);
   const setProjector = useSession((s) => s.setProjector);
   return (
@@ -108,15 +130,25 @@ function RoomHeader({ session, next, loupe, setLoupe }: { session: SessionInfo; 
         {modeDisplay(session.mode)}{session.mode === 'drill' && session.drillLabel ? ` · ${labelDisplay(session.drillLabel)}` : ''}
       </span>
       {next && (
-        <span className={shell.caseIdx} data-testid="case-index">Case {next.index}{next.total ? ` of ${next.total}` : ''}</span>
+        <span className={shell.caseIdx} data-testid="case-index">
+          Case {next.index}{next.total ? ` of ${next.total}` : ''}
+          {next.total ? (
+            <span className={shell.progress} role="progressbar" aria-label="Cases read" aria-valuemin={0} aria-valuemax={next.total} aria-valuenow={next.index - 1}>
+              <span style={{ width: `${(100 * Math.max(0, next.index - 1)) / next.total}%` }} />
+            </span>
+          ) : null}
+        </span>
       )}
       <SyntheticBadge />
       <span className={shell.spacer} />
       <button type="button" className={`${shell.toggle} ${loupe ? shell.toggleOn : ''}`} aria-pressed={loupe} onClick={() => setLoupe(!loupe)} data-testid="loupe-toggle" title="Loupe (L)">
-        <span className={shell.dot} />Loupe
+        <span className={shell.dot} />{loupe ? 'Loupe on' : 'Loupe off'}
       </button>
       <button type="button" className={`${shell.toggle} ${projector ? shell.toggleOn : ''}`} aria-pressed={projector} onClick={() => setProjector(!projector)} data-testid="projector-toggle" title="Projector mode: brighter film, thicker lines, larger type">
         <span className={shell.dot} />Projector
+      </button>
+      <button type="button" className={shell.toggle} onClick={onHelp} data-testid="keys-button" title="Keyboard shortcuts (?)">
+        Keys <kbd className={shell.kbdHead}>?</kbd>
       </button>
       <Nav />
     </header>
@@ -146,6 +178,7 @@ function ReadingRoom({ session, next, header, loupe, setLoupe, onNext, prefetchN
   const [result, setResult] = useState<SubmitResult | AssessmentRecorded | null>(null);
   const [heatmapUrl, setHeatmapUrl] = useState<string | null>(null);
   const hintsEnabled = !assessment && next.hints_enabled !== false;
+  const [anatomyOn, setAnatomyOn] = useState(false);
 
   // Dev/e2e only: lets Playwright count telemetry events (SPEC §15.2 M4). Never in production builds.
   useEffect(() => {
@@ -213,9 +246,10 @@ function ReadingRoom({ session, next, header, loupe, setLoupe, onNext, prefetchN
 
   // Keyboard shortcuts (SPEC §5.1).
   const conflict = submitM.error instanceof ApiError && submitM.error.status === 409;
-  const keys = useRef({ submit, askHint, callNormal, read, result, onNext, loupe, setLoupe, conflict });
+  const canAnatomy = !!result && isSubmitResult(result);
+  const keys = useRef({ submit, askHint, callNormal, read, result, onNext, loupe, setLoupe, conflict, canAnatomy });
   useLayoutEffect(() => {
-    keys.current = { submit, askHint, callNormal, read, result, onNext, loupe, setLoupe, conflict };
+    keys.current = { submit, askHint, callNormal, read, result, onNext, loupe, setLoupe, conflict, canAnatomy };
   });
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -227,6 +261,7 @@ function ReadingRoom({ session, next, header, loupe, setLoupe, onNext, prefetchN
         case 'l': case 'L': k.setLoupe(!k.loupe); break;
         case 'n': case 'N': k.callNormal(); break;
         case 'h': case 'H': k.askHint(); break;
+        case 'a': case 'A': if (k.canAnatomy) setAnatomyOn((v) => !v); break;
         case '1': case '2': case '3': case '4': case '5':
           if (sel && !k.result) dispatch({ type: 'confidence', id: sel, confidence: Number(e.key) as 1 | 2 | 3 | 4 | 5 });
           break;
@@ -254,6 +289,15 @@ function ReadingRoom({ session, next, header, loupe, setLoupe, onNext, prefetchN
   }, []);
 
   const submitResult = result && isSubmitResult(result) ? result : null;
+  // Zone outlines come from the server only after this attempt is submitted (never before: no ground truth leaks).
+  const anatomyQ = useQuery({
+    queryKey: ['anatomy', aid],
+    queryFn: async () => guardAnatomy(await api.anatomy(aid)),
+    enabled: anatomyOn && !!submitResult,
+    staleTime: Infinity,
+    retry: false,
+  });
+  const toggleAnatomy = useCallback(() => setAnatomyOn((v) => !v), []);
   const reveal: RevealView | null = submitResult
     ? { findings: submitResult.reveal.findings, marks: submitResult.reveal.marks, arrows: submitResult.reveal.arrows, heatmapUrl, showTrace: true }
     : null;
@@ -265,7 +309,7 @@ function ReadingRoom({ session, next, header, loupe, setLoupe, onNext, prefetchN
         <div className={shell.viewerWrap}>
           <Viewer
             caseId={next.case.case_id}
-            imageUrl={next.case.image_url}
+            imageUrl={assetUrl(next.case.image_url)}
             width={next.case.width}
             height={next.case.height}
             marks={read.marks}
@@ -279,6 +323,8 @@ function ReadingRoom({ session, next, header, loupe, setLoupe, onNext, prefetchN
             telemetry={telemetry}
             reveal={reveal}
             onShown={onShown}
+            anatomy={{ on: anatomyOn, status: anatomyQ.status, data: anatomyQ.data ?? null }}
+            onToggleAnatomy={toggleAnatomy}
           />
         </div>
       </div>
