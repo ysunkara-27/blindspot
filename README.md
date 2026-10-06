@@ -38,6 +38,16 @@ A ready-to-run Claude Code project for the UVA SoM AIM × Anthropic hackathon (O
    ```
 6. **Answer the human checkpoints** when it stops: confirming the API key exists, approving eval spend over $5, any dataset terms, and deletions outside `data/`.
 
+## Run it (after the build)
+```bash
+make setup                 # uv sync + npm install; creates .env from .env.example
+make data                  # ChestX-Det ingest → data/processed (≈1.4 GB download, ~6 min)
+make setup-ml && make anatomy && make features   # segmentation (~25 min on Apple Silicon), zones, difficulty, CTR
+make dev                   # API http://127.0.0.1:8000  ·  app http://127.0.0.1:5173
+make test · make lint · make e2e
+```
+Offline mode (`BLINDSPOT_OFFLINE=1`, or simply no key in `.env`) serves template debriefs; with a key the Claude debrief is live. Projector mode: `http://127.0.0.1:5173/?projector=1`.
+
 ## Model and usage strategy
 - The main session runs Fable at `xhigh`: it plans, writes the contracts, and integrates.
 - Subagents default to Opus (builders, ML, tutor, evals) and Sonnet (QA). Subagent usage counts against the same plan limits as your main session, and seven agents in parallel burn usage fast. Running out on Wednesday would hurt more than slightly weaker boilerplate.
