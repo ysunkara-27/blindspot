@@ -11,6 +11,14 @@ Special entries:
 
 ---
 
+2026-10-06 16:50 — orchestrator — round 3 (med-student feedback + UX audit) integrated and DEPLOYED to the Space — green
+- Commits: backend fc83140 (+ .dockerignore, magnifier wording, about), frontend fc04dc0. Hints free (config/scoring.yaml hint 0).
+- Verified: pytest 657 passed / 7 skipped; ruff clean; tsc, oxlint, vitest 160, build + build:site; e2e on the throwaway stack — mock 71 passed / 2 skipped, E2E_REAL=1 70 passed / 3 skipped; Docker image built and run with the bundle in hosted config (reference 13 labels / 39 examples / 3 normals, 12 review items, 5-film session total 5).
+- Space redeployed with deletions mirrored (stale FactsCard/SusForm removed); RUNNING. Browser walk via https://ysunkara.com/blindspot: gate → landing (no hackathon/pilot/demo wording) → Start reading → /read?tutorial=1 "Case 1 of 10" → armed Consolidation → click → key 4 → submit → "Claude debrief" in 7.3 s; /reference loads the finding library.
+- NOT pushed to GitHub (Yash stopped the last README rewrite + push); awaiting his call on README + push.
+- Open: reference picks need a clinician glance; single-finding "mislabeled" debriefs regenerate once (7–13 s); tutorial time counts toward the first case's reading time; keyboard marking exists but is basic.
+
+
 2026-10-06 16:25 — frontend-engineer (pages around the reading room) — round 3: self-serve landing, start screen, end-of-set summary, film review, finding library, reading-log fixes, copy sweep — green
 - A Landing + start: `/` keeps the hero and three lines; "Start reading" → `/start` (name or personal code, optional; what to practice: mixed · my weak spots (disabled with the reason until 5 reads) · one finding type (13 display names) · test myself (A, then B); 5/10/20 films; "Chest X-ray" chip + "More body regions are planned"); no level picker (`level: "other"`); "Try a sample set" (display name `Demo` is sent, never shown; the log calls that reader "Sample set"); the half-normal sentence; returning reader: "Welcome back, {name}" + Continue (localStorage `bs_learner`, `settings.learner_id`); first session navigates to `/read?tutorial=1` while `bs_tutorial_done` is missing. Mapping: `frontend/src/api/sessionOptions.ts`.
 - B End of set: `pages/SessionSummaryView.tsx` (+ `summaryModel.ts`) for every mode: counts (films, findings found/total, normals called normal, false alarms), "You most often never looked at the finding.", labelled miss bars, one row per film → `/review-case/:attemptId?set=…` (the reading room's CaseReview + ResultSummary + DebriefPanel), "Read another set" / "Open my reading log". Test summary gets the same rows; "Take the SUS survey" → "Give feedback" (`pilot/FeedbackForm.tsx`, optional, plain intro).
