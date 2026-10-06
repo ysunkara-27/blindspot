@@ -11,6 +11,13 @@ Special entries:
 
 ---
 
+2026-10-06 19:33 — orchestrator — analytics + tutor guard DEPLOYED — green
+- Site repo (reyash 5226ce8): worker accepts site blindspot + /analytics/track events; /stats shows a Blindspot card (views, sessions, films, debriefs, hints, reference, tutor spend). Worker version 2eb10b05.
+- Blindspot 072db68: frontend tracker (anonymous id, off on localhost/automation), tutor status banner + specific debrief error lines; backend guard (credits/rate/auth/unavailable pauses, persisted), budgets (hour 2 / day 8 / total 60 USD, env), /api/admin/spend + resume (review-gated), spend events to the worker.
+- Verified: pytest 698; vitest 201; e2e real 88 passed; Space RUNNING; live health shows tutor.mode live (spend hidden from the public, visible with the review header); /api/admin/spend 401 without the code.
+- Note: the Space has no persistent disk, so spend history (and the pause state) resets on rebuild; the stats worker keeps the cumulative tutor_spend_usd events.
+
+
 ## ANALYTICS CONTRACT (ysunkara.com stats — live since 2026-10-06)
 
 Worker: `https://hooraas-rides-api.sunkarayashaswi.workers.dev` (Cloudflare Worker `hooraas-rides-api`, D1 `hooraas-rides`). Source: `dog/analytics-api.mjs` in the `reyash` repo. Read-out: https://www.ysunkara.com/stats (password-protected; Blindspot card shows views + "Interactions · 24h / 7d" + tutor spend).
