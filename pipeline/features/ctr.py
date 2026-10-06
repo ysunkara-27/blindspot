@@ -7,6 +7,8 @@ not depend on the Left/Right channel naming.
 Debrief caveat (tutor): "measured automatically; the projection (PA vs AP) is not recorded for these images,
 and AP films exaggerate heart size." Values outside [0.25, 0.85] are treated as segmentation failures →
 null (+ qa flag `ctr_implausible` only on cardiomegaly cases). Cases with anatomy_failed / no anatomy → null.
+Located cardiomegaly findings get their relative_location refreshed from the new CTR (locate.cardiomegaly_location),
+because `make anatomy` (zones/locate) runs before `make features`.
 
 Run: python -m pipeline.features.ctr
 """
@@ -83,10 +85,15 @@ def main(argv: list[str] | None = None) -> None:
                 if any(f["label"] == "cardiomegaly" for f in by_id[cid]["findings"]):
                     implausible.add(cid)
 
+    from pipeline.anatomy.locate import cardiomegaly_location
+
     def upd(d: dict[str, Any]) -> None:
         if d["case_id"] not in res:
             return
         d["cardiothoracic_ratio"] = res[d["case_id"]]
+        for f in d["findings"]:
+            if f["label"] == "cardiomegaly" and f.get("primary_zone"):
+                f["relative_location"] = cardiomegaly_location(d["cardiothoracic_ratio"])
         if d["case_id"] in implausible:
             C.add_flag(d, "ctr_implausible")
         else:

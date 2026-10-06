@@ -2,7 +2,8 @@
 
 Public, torch-free API (safe for the backend to import):
 - derive_zones(masks, width, height) -> (zones, meta)            SPEC §4.3
-- locate_finding(mask, zones, midline_x, label=None) -> {side, zones, primary_zone, relative_location}   §4.4
+- locate_finding(mask, zones, midline_x, label=None, *, kind=None, ctr=None)
+      -> {side, zones, primary_zone, relative_location}   §4.4 (focal and pattern findings; kind defaults from label)
 - zone_at(x, y, zones, nearest=False) -> zone id | None           (zone of a learner mark)
 - spatial_relation(mark_xy, finding, zones, midline_x, finding_name=None) -> {text, same_side, zone_steps, ...}
 Zones come from shared.rle.read_zones(data/processed/<zones_path>) → (zones, meta); meta["midline_x"].

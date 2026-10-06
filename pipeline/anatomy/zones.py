@@ -8,7 +8,10 @@ Zones are approximate anatomical regions (thirds of each lung's own extent, band
 NOT lobes, rib levels, or distances; never describe them as such.
 
 Batch entry point: `python -m pipeline.anatomy.zones` — writes data/processed/zones/<case_id>.json (RLE),
-a small preview PNG, and fills finding locations (locate.py) + Case.anatomy_path/zones_path in cases.jsonl.
+a small preview PNG, and fills finding locations (locate.py; focal AND pattern findings) +
+Case.anatomy_path/zones_path in cases.jsonl.
+`python -m pipeline.anatomy.zones --locate-only` re-reads the existing zones files and rewrites ONLY the finding
+location fields (side, zones, primary_zone, relative_location); zones files, previews, flags are untouched.
 """
 
 from __future__ import annotations
@@ -277,10 +280,100 @@ def zones_preview(zones: dict[str, np.ndarray], size: int = 256) -> np.ndarray:
 
 
 # --------------------------------------------------------------------------- batch job
-def process_case(c: dict[str, Any], previews: bool = True) -> tuple[str, dict[str, Any]]:
-    """Derive + write zones for one case and locate its focal findings. Returns (case_id, result)."""
+LOC_FIELDS = ("side", "zones", "primary_zone", "relative_location")
+
+
+def finding_mask(f: dict[str, Any], width: int, height: int) -> np.ndarray:
+    """Expert mask of a finding (mask PNG, else its bbox)."""
     from pipeline.anatomy import common as C
+
+    mp = f["geometry"].get("mask_path")
+    if mp:
+        return C.read_mask_png(mp, C.processed_dir())
+    x0, y0, x1, y1 = f["geometry"]["bbox"]
+    fm = np.zeros((int(height), int(width)), bool)
+    fm[int(y0) : int(np.ceil(y1)), int(x0) : int(np.ceil(x1))] = True
+    return fm
+
+
+def locate_case_findings(
+    c: dict[str, Any], zones: dict[str, np.ndarray], midline_x: float
+) -> dict[str, dict[str, Any]]:
+    """{finding_id: {side, zones, primary_zone, relative_location}} for every finding (focal and pattern)."""
     from pipeline.anatomy.locate import locate_finding
+
+    W, H = int(c["width"]), int(c["height"])
+    ctr = c.get("cardiothoracic_ratio")
+    return {
+        f["finding_id"]: locate_finding(finding_mask(f, W, H), zones, midline_x, f["label"], kind=f["kind"], ctr=ctr)
+        for f in c["findings"]
+    }
+
+
+def _locate_only_case(c: dict[str, Any]) -> tuple[str, dict[str, dict[str, Any]]]:
+    from pipeline.anatomy import common as C
+    from shared.rle import read_zones
+
+    if not c["findings"] or not c.get("zones_path"):
+        return c["case_id"], {}
+    zones, meta = read_zones(C.processed_dir() / c["zones_path"])
+    return c["case_id"], locate_case_findings(c, zones, float(meta["midline_x"]))
+
+
+def locate_only(cases: list[dict[str, Any]], workers: int) -> None:
+    """Re-locate every finding from the existing zones files; rewrite only LOC_FIELDS in cases.jsonl."""
+    from collections import Counter
+    from concurrent.futures import ProcessPoolExecutor
+
+    from pipeline.anatomy import common as C
+
+    log = C.get_logger("zones")
+    t0 = time.time()
+    locs: dict[str, dict[str, dict[str, Any]]] = {}
+    with ProcessPoolExecutor(max_workers=workers) as ex:
+        for i, (cid, r) in enumerate(ex.map(_locate_only_case, cases, chunksize=8)):
+            locs[cid] = r
+            if (i + 1) % 1000 == 0:
+                el = time.time() - t0
+                log.info(
+                    "locate %d/%d  %.1f cases/s  eta %.0fs",
+                    i + 1,
+                    len(cases),
+                    (i + 1) / el,
+                    (len(cases) - i - 1) * el / (i + 1),
+                )
+    changed: Counter[str] = Counter()
+    located: Counter[str] = Counter()
+    unlocated: Counter[str] = Counter()
+
+    def upd(d: dict[str, Any]) -> None:
+        r = locs.get(d["case_id"], {})
+        for f in d["findings"]:
+            loc = r.get(f["finding_id"])
+            if loc is None:
+                continue
+            new = {k: loc[k] for k in LOC_FIELDS}
+            if any(f.get(k) != new[k] for k in LOC_FIELDS):
+                changed[f"{f['kind']}:{f['label']}"] += 1
+            f.update(new)
+            (located if new["side"] and new["primary_zone"] else unlocated)[f["kind"]] += 1
+
+    n_lines = C.update_cases(upd)
+    log.info(
+        "locate-only done: %d cases in %.0fs; lines changed=%d; findings changed by kind:label=%s; "
+        "located=%s unlocated=%s",
+        len(cases),
+        time.time() - t0,
+        n_lines,
+        dict(sorted(changed.items())),
+        dict(located),
+        dict(unlocated),
+    )
+
+
+def process_case(c: dict[str, Any], previews: bool = True) -> tuple[str, dict[str, Any]]:
+    """Derive + write zones for one case and locate all its findings. Returns (case_id, result)."""
+    from pipeline.anatomy import common as C
     from shared.rle import write_zones
 
     proc = C.processed_dir()
@@ -299,18 +392,7 @@ def process_case(c: dict[str, Any], previews: bool = True) -> tuple[str, dict[st
     write_zones(zpath, cid, zones, approximate=approx, midline_x=meta["midline_x"])
     if previews:
         cv2.imwrite(str(zpath.with_suffix(".png")), zones_preview(zones))
-    locs: dict[str, dict[str, Any]] = {}
-    for f in c["findings"]:
-        if f["kind"] != "focal":
-            continue
-        mp = f["geometry"].get("mask_path")
-        if mp:
-            fm = C.read_mask_png(mp, proc)
-        else:
-            x0, y0, x1, y1 = f["geometry"]["bbox"]
-            fm = np.zeros((H, W), bool)
-            fm[int(y0) : int(np.ceil(y1)), int(x0) : int(np.ceil(x1))] = True
-        locs[f["finding_id"]] = locate_finding(fm, zones, meta["midline_x"], f["label"])
+    locs = locate_case_findings(c, zones, meta["midline_x"])
     return cid, {
         "anatomy_path": C.anatomy_rel(cid) if has_anat else None,
         "zones_path": C.zones_rel(cid),
@@ -335,11 +417,17 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--workers", type=int, default=6)
     ap.add_argument("--no-previews", action="store_true")
     ap.add_argument("--overlays", type=int, default=20, help="random QA overlays to write (0 = none)")
+    ap.add_argument(
+        "--locate-only", action="store_true", help="re-locate findings from existing zones files; touch nothing else"
+    )
     args = ap.parse_args(argv)
     log = C.get_logger("zones")
     cases = C.read_cases()
     if args.limit:
         cases = cases[: args.limit]
+    if args.locate_only:
+        locate_only(cases, args.workers)
+        return
     t0 = time.time()
     results: dict[str, dict[str, Any]] = {}
     jobs = [(c, not args.no_previews) for c in cases]

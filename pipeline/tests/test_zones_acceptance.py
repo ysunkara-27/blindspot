@@ -54,6 +54,36 @@ def test_every_focal_finding_located_and_featured(cases):
                 assert f["model_prob"] is not None, f["finding_id"]
 
 
+def test_every_finding_incl_pattern_has_side_and_primary_zone():
+    """QA issue 9: every finding in cases.jsonl (all splits, focal AND pattern) is located."""
+    lung_lead = {"right": "right lung", "left": "left lung", "bilateral": "both lungs", "midline": "central chest"}
+    raw = C.read_cases()
+    n_pattern = n_cm = n_cm_heart = 0
+    for c in raw:
+        for f in c["findings"]:
+            fid = f["finding_id"]
+            assert f["side"] in ("right", "left", "bilateral", "midline"), fid
+            assert f["primary_zone"] and f["zones"] and f["primary_zone"] == f["zones"][0], fid
+            assert len(f["zones"]) <= 3, fid
+            rel = f["relative_location"]
+            assert rel and not BANNED.search(rel), fid
+            if f["kind"] != "pattern":
+                continue
+            n_pattern += 1
+            assert "subdiaphragmatic" not in f["zones"], fid
+            if f["label"] == "cardiomegaly":
+                n_cm += 1
+                n_cm_heart += f["primary_zone"] == "cardiac_silhouette"
+                assert f["side"] == "midline", fid
+                ctr = c["cardiothoracic_ratio"]
+                want = "cardiac silhouette" if ctr is None else f"cardiac silhouette, enlarged (CTR {ctr:.2f},"
+                assert rel.startswith(want), (fid, rel, ctr)
+            else:
+                assert rel.startswith(lung_lead[f["side"]] + ","), (fid, rel)
+    assert n_pattern > 0 and n_cm > 0
+    assert n_cm_heart / n_cm >= 0.99, (n_cm_heart, n_cm)
+
+
 def test_case_b0_and_ctr(cases):
     seg_ok = [c for c in cases if c.get("anatomy_path") and "anatomy_failed" not in c["qa_flags"]]
     assert sum(c["cardiothoracic_ratio"] is not None for c in seg_ok) / len(seg_ok) >= 0.95

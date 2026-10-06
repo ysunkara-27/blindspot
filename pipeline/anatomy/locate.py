@@ -9,13 +9,14 @@ Patient RIGHT is on the image LEFT: a pixel with x < midline_x is on the patient
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from typing import Any
+from collections.abc import Mapping, Sequence
+from typing import Any, get_args
 
 import numpy as np
 
 from pipeline.anatomy.common import adjacency, human, review_areas, zone_ids
 from pipeline.anatomy.zones import centroid, dilate, extent
+from shared.contracts import PatternLabel
 
 OVERLAP_MIN = 0.15  # zone counts for a finding at >= 15% of the finding's mask
 MAX_ZONES = 3
@@ -32,6 +33,17 @@ MIDLINE_ZONES = frozenset({"mediastinum", "spine"})
 NOT_SUBDIAPHRAGMATIC_LABELS = frozenset(
     {"effusion", "pleural_thickening", "consolidation", "atelectasis", "pneumothorax"}
 )
+
+# Pattern findings (SPEC §4.4, QA issue 9) are located from their expert mask like focal ones. Cardiomegaly is a
+# midline structure by definition; the lung patterns are parenchymal (intrathoracic, so never "below the diaphragm").
+PATTERN_LABELS = frozenset(get_args(PatternLabel))
+MIDLINE_PATTERN_LABELS = frozenset({"cardiomegaly"})
+# the structure a pattern IS: primary whenever it holds >= OVERLAP_MIN of the mask (TXV's heart is often a little
+# smaller than the expert's cardiomegaly outline; approximate zones use a template heart)
+PATTERN_PRIMARY = {"cardiomegaly": "cardiac_silhouette"}
+LEVEL_WORDS = ("upper", "mid", "lower")
+OVERLYING_ZONES = frozenset({"cardiac_silhouette", "mediastinum", "spine", "right_clavicle", "left_clavicle"})
+_PATTERN_SIDE_LEAD = {"right": "right lung", "left": "left lung", "bilateral": "both lungs", "midline": "central chest"}
 
 LUNG_THIRDS: dict[str, tuple[str, int]] = {
     f"{s}_{p}_zone": (s, i) for s in ("right", "left") for i, p in enumerate(("upper", "mid", "lower"))
@@ -119,10 +131,12 @@ def choose_zones(
     zones: Mapping[str, np.ndarray],
     cxy: tuple[float, float],
     exclude: frozenset[str] = frozenset(),
+    prefer: str | None = None,
 ) -> tuple[list[str], str | None]:
     """zones = overlap >= 0.15, primary first then by overlap desc, max 3.
 
     Nothing >= 0.15 → the zone it overlaps most (if it touches any), else the nearest zone by centroid.
+    `prefer` (a zone id) is the primary whenever it reaches the threshold (patterns: the structure the finding is).
     """
     areas: dict[str, int] = {}
     ov = {z: o for z, o in overlaps.items() if z not in exclude}
@@ -136,7 +150,10 @@ def choose_zones(
         return ([nz], nz) if nz else ([], None)
     mx = max(cand.values())
     tied = [z for z, o in cand.items() if o >= mx - PRIMARY_TIE]
-    primary = min(tied, key=lambda z: (zone_rank(z), -cand[z], _area(zones, z, areas), z))
+    if prefer in cand:
+        primary = prefer
+    else:
+        primary = min(tied, key=lambda z: (zone_rank(z), -cand[z], _area(zones, z, areas), z))
     rest = sorted((z for z in cand if z != primary), key=lambda z: (-cand[z], zone_rank(z), _area(zones, z, areas), z))
     return [primary, *rest[: MAX_ZONES - 1]], primary
 
@@ -266,12 +283,128 @@ def relative_location(
     return ", ".join(parts)
 
 
+def cardiomegaly_location(ctr: float | None) -> str:
+    """relative_location of a cardiomegaly finding. CTR is the automatic measurement (pipeline.features.ctr)."""
+    if ctr is None:
+        return "cardiac silhouette"
+    if ctr > 0.50:
+        return f"cardiac silhouette, enlarged (CTR {ctr:.2f}, measured automatically)"
+    return f"cardiac silhouette (CTR {ctr:.2f}, measured automatically; radiologists called it enlarged)"
+
+
+def _join(items: Sequence[str]) -> str:
+    items = list(items)
+    if len(items) <= 1:
+        return "".join(items)
+    return ", ".join(items[:-1]) + " and " + items[-1]
+
+
+def _strip_side(z: str, side: str) -> str:
+    """Human zone name without the side when the lead phrase already names that lung ('periphery', 'apex')."""
+    h = human(z)
+    zs = _zone_side(z)
+    if zs is None or zs != side:
+        return h
+    for pre in (f"{zs} lung ", f"{zs} "):
+        if h.startswith(pre):
+            return h[len(pre) :]
+    return h
+
+
+def lung_pattern_location(side: str | None, zone_list: Sequence[str]) -> str | None:
+    """'both lungs, mainly the upper zones' / 'right lung, throughout the upper, mid and lower zones' /
+    'left lung, mainly the upper zone, including the apex'. Built only from the finding's zones (max 3, primary
+    first); a primary that is a structure the lung shadow lies over leads: 'central chest, mainly over the
+    mediastinum and spine, including the right lung periphery'."""
+    if side is None or not zone_list:
+        return None
+    lead = _PATTERN_SIDE_LEAD.get(side, "both lungs")
+    single = side in ("right", "left")
+    level_sides: dict[int, set[str]] = {}
+    others: list[str] = []
+    for z in zone_list:
+        if z in LUNG_THIRDS:
+            s, i = LUNG_THIRDS[z]
+            level_sides.setdefault(i, set()).add(s)
+        else:
+            others.append(z)
+    grouped: list[str] = []  # level words that cover the lead phrase (that lung, or both lungs)
+    sided: list[str] = []  # a level present on one side only of a bilateral finding, or on the other lung
+    for i in sorted(level_sides):
+        ss = level_sides[i]
+        covered = {side} if single else {"right", "left"}
+        if covered <= ss:
+            grouped.append(LEVEL_WORDS[i])
+            ss = ss - covered
+        sided += [human(f"{s}_{LEVEL_WORDS[i]}_zone") for s in ("right", "left") if s in ss]
+    main: list[str] = []
+    if grouped:
+        plural = len(grouped) > 1 or not single
+        main.append(f"{_join(grouped)} zone{'s' if plural else ''}")
+    main += sided
+    # lung sub-regions (apex, hilum, periphery, costophrenic angle, retrocardiac) are "included"; structures the
+    # lung shadow lies over (heart, mediastinum, clavicle, spine) are "overlapped"
+    inner = [_strip_side(z, side) if single else human(z) for z in others if z not in OVERLYING_ZONES]
+    over = [human(z) for z in others if z in OVERLYING_ZONES]
+    if zone_list[0] in OVERLYING_ZONES:
+        text = f"{lead}, mainly over the {_join(over)}"
+        return text + (f", including the {_join(main + inner)}" if main or inner else "")
+    if not main and inner:
+        main, inner = inner, []
+    if not main:
+        return f"{lead}, overlapping the {_join(over)}" if over else lead
+    everywhere = len(grouped) == 3 and not sided
+    text = f"{lead}, {'throughout' if everywhere else 'mainly'} the {_join(main)}"
+    if inner:
+        text += f", including the {_join(inner)}"
+    if over:
+        text += f", overlapping the {_join(over)}"
+    return text
+
+
+def locate_pattern(
+    mask: np.ndarray,
+    zones: Mapping[str, np.ndarray],
+    midline_x: float,
+    label: str,
+    ctr: float | None = None,
+) -> dict[str, Any]:
+    """Pattern finding (cardiomegaly, emphysema, fibrosis, diffuse_nodule) located from its mask like a focal one
+    (overlap >= 0.15, max 3 zones, primary = argmax, except that cardiomegaly's primary is the cardiac silhouette
+    whenever it holds >= 0.15 of the mask; never the band below the diaphragm). side: cardiomegaly is
+    always midline; otherwise bilateral if both sides hold >= 25% of the mask (midline if the primary zone is
+    mediastinal), else the side holding more. relative_location is pattern-level, never a fine position."""
+    mask = np.asarray(mask, dtype=bool)
+    c = centroid(mask)
+    if c is None:
+        return {"side": None, "zones": [], "primary_zone": None, "relative_location": None}
+    ov = zone_overlaps(mask, zones)
+    zlist, primary = choose_zones(ov, zones, c, frozenset({"subdiaphragmatic"}), prefer=PATTERN_PRIMARY.get(label))
+    side = "midline" if label in MIDLINE_PATTERN_LABELS else finding_side(mask, midline_x, primary)
+    if label == "cardiomegaly":
+        rel = cardiomegaly_location(ctr) if primary else None
+    else:
+        rel = lung_pattern_location(side, zlist)
+    return {"side": side, "zones": zlist, "primary_zone": primary, "relative_location": rel}
+
+
 def locate_finding(
-    mask: np.ndarray, zones: Mapping[str, np.ndarray], midline_x: float, label: str | None = None
+    mask: np.ndarray,
+    zones: Mapping[str, np.ndarray],
+    midline_x: float,
+    label: str | None = None,
+    *,
+    kind: str | None = None,
+    ctr: float | None = None,
 ) -> dict[str, Any]:
     """side, zones, primary_zone, relative_location for one finding mask (Finding field names).
 
-    label (canonical id) only matters for NOT_SUBDIAPHRAGMATIC_LABELS."""
+    label (canonical id) matters for NOT_SUBDIAPHRAGMATIC_LABELS and pattern labels. kind defaults from the label;
+    kind "pattern" → locate_pattern (ctr = the case's cardiothoracic_ratio, used only for cardiomegaly)."""
+    if kind is None:
+        kind = "pattern" if label in PATTERN_LABELS else "focal"
+    if kind == "pattern":
+        return locate_pattern(mask, zones, midline_x, str(label), ctr)
     mask = np.asarray(mask, dtype=bool)
     c = centroid(mask)
     if c is None:
