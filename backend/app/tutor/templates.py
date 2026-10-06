@@ -2,6 +2,9 @@
 
 Used offline, when the API fails, or when a live debrief fails the validator twice. Every template must pass the
 validator (tested on every fixture scenario). Wording avoids side words except inside code-built location strings.
+
+Round 3 (UX audit): at EVERY level, crowded films and normal calls included, each finding row carries 1-2 key signs
+from its card and a full sentence for `why` (validator R9). Levels only shorten the wording around that core.
 """
 
 from __future__ import annotations
@@ -14,7 +17,8 @@ from backend.app.tutor.cards import load_cards, load_zone_mimics
 from backend.app.tutor.validator import allowed_verdicts, total_word_limit, validate, words
 from shared.contracts import DebriefFacts, DebriefFindingOut, DebriefOutput, DebriefOvercall, FactsFinding, TeachingCard
 
-LEVELS = ("full", "short", "minimal", "tiny")  # tiny: crowded films, chip-style wording
+LEVELS = ("full", "short", "minimal", "tiny")  # tiny: crowded films — zone name, one sign, one short sentence
+GENERIC_SIGN = "An edge or shadow that normal anatomy does not explain"  # only if a label has no card
 _COUNTABLE = {"pneumothorax", "effusion", "nodule", "mass", "calcification", "fracture"}
 _MISS_ORDER = ("missed_search", "missed_recognition", "missed_decision", "mislabeled", "pattern_missed")
 _NEXT_STEP = {
@@ -55,14 +59,14 @@ def with_article(label: str) -> str:
     return ("an " if d[0] in "aeiou" else "a ") + d
 
 
-_CHIP = {
-    "found": "Found it.",
-    "mislabeled": "Found it, named it wrong.",
-    "missed_search": "Never looked there.",
-    "missed_recognition": "Looked past it.",
-    "missed_decision": "Looked, judged it normal.",
-    "pattern_found": "Ticked it.",
-    "pattern_missed": "Not ticked.",
+# Crowded films ("tiny"): still one full sentence per finding (≥ 6 words, validator R9), without the zone name that
+# where_to_look already gives.
+_TINY_WHY = {
+    "found": "You marked it and named it correctly.",
+    "missed_search": "Your search never paused on this area.",
+    "missed_recognition": "Your cursor crossed this area only briefly.",
+    "missed_decision": "You looked here a while and judged it normal.",
+    "pattern_found": "You ticked it in Global findings.",
 }
 
 
@@ -118,8 +122,8 @@ def _why(
     level: str,
     cards: dict[str, TeachingCard],
 ) -> str:
-    if level == "tiny":
-        return _CHIP.get(result, "See the outline.")
+    if level == "tiny" and result in _TINY_WHY:
+        return _TINY_WHY[result]
     sign = _lc_first(card.key_signs[0]) if card and card.key_signs else None
     tip = card.search_tip if card else None
     zone = _zone_phrase(f)
@@ -161,15 +165,31 @@ def why_sentence(
 
 
 def _what(f: FactsFinding, result: str, card: TeachingCard | None, level: str) -> list[str]:
-    if not card:
-        return []
-    n = {"full": 2, "short": 1, "minimal": 0, "tiny": 0}[level]
-    if result in ("found", "pattern_found"):
-        n = min(n, 1)
+    """1-2 key signs from the label's card, at every level and for every result (never empty)."""
+    if not card or not card.key_signs:
+        return [GENERIC_SIGN]
+    n = 2 if level == "full" and result not in ("found", "pattern_found") else 1
     return [_strip_paren(s) if level != "full" else s for s in card.key_signs[:n]]
 
 
-def _headline(facts: DebriefFacts, verdict: str, n_found: int) -> str:
+def _focus_headline(facts: DebriefFacts, verdict: str, focus_label: str | None) -> str | None:
+    """Drill sessions: lead with the drill label when the film has it AND other labels too (otherwise the normal
+    headline already is about the focus). FACTS and the finding rows still cover every finding."""
+    fs = facts.case.findings
+    mine = [f for f in fs if f.label == focus_label]
+    if not focus_label or not mine or len(mine) == len(fs) or verdict not in ("all_found", "partly_found", "missed"):
+        return None
+    res = {o.target: o.result for o in facts.outcomes}
+    k = sum(res.get(f.id) in ("found", "mislabeled", "pattern_found") for f in mine)
+    rest = len(fs) - len(mine)
+    others = f"{rest} other finding{'s' if rest != 1 else ''} here"
+    return f"{_cap(vocab.display(focus_label))} drill: you found {k} of {len(mine)}; {others}."
+
+
+def _headline(facts: DebriefFacts, verdict: str, n_found: int, focus_label: str | None = None) -> str:
+    focused = _focus_headline(facts, verdict, focus_label)
+    if focused:
+        return focused
     fs = facts.case.findings
     n = len(fs)
     what = with_article(fs[0].label) if n == 1 else f"{n} findings"
@@ -261,7 +281,9 @@ def _next_step(facts: DebriefFacts) -> str:
     return _NEXT_STEP["ok"]
 
 
-def _build(facts: DebriefFacts, cards: dict[str, TeachingCard], zm: dict[str, Any], level: str) -> DebriefOutput:
+def _build(
+    facts: DebriefFacts, cards: dict[str, TeachingCard], zm: dict[str, Any], level: str, focus_label: str | None = None
+) -> DebriefOutput:
     res = {o.target: o for o in facts.outcomes}
     verdicts = allowed_verdicts(facts)
     pref = ("all_found", "partly_found", "overcall", "missed_normal_call", "missed", "correct_normal")
@@ -284,7 +306,7 @@ def _build(facts: DebriefFacts, cards: dict[str, TeachingCard], zm: dict[str, An
         )
     fact_ids = [f.id for f in facts.case.findings] + [o.target for o in facts.outcomes if o.result == "false_positive"]
     return DebriefOutput(
-        headline=_headline(facts, verdict, n_found),
+        headline=_headline(facts, verdict, n_found, focus_label),
         verdict=verdict,  # type: ignore[arg-type]
         findings=findings,
         overcalls=_overcalls(facts, cards, zm, level),
@@ -309,14 +331,17 @@ def template_debrief(
     cards: dict[str, TeachingCard] | None = None,
     zone_mimics: dict[str, Any] | None = None,
     cfg: dict[str, Any] | None = None,
+    *,
+    focus_label: str | None = None,
 ) -> DebriefOutput:
-    """Deterministic debrief from FACTS + cards. Shortens itself until it fits the validator's word limits."""
+    """Deterministic debrief from FACTS + cards. Shortens itself until it fits the validator's word limits.
+    `focus_label` (drill sessions) only changes the headline; every finding is still listed."""
     cards = cards if cards is not None else load_cards()
     zm = zone_mimics if zone_mimics is not None else load_zone_mimics()
     limit = total_word_limit(facts, cfg)
     out = None
     for level in LEVELS:
-        out = _build(facts, cards, zm, level)
+        out = _build(facts, cards, zm, level, focus_label)
         if _total_words(out) <= limit and validate(out, facts, cards, cfg, zone_mimics=zm).ok:
             return out
     assert out is not None

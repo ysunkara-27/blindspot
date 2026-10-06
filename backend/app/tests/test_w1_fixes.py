@@ -250,14 +250,16 @@ def _run(c, sid: str, k: int) -> list[str]:
     return out
 
 
-def test_playlist_served_in_order_then_adaptive(api_env, processed_copy):
+def test_playlist_served_in_order_then_done(api_env, processed_copy):
     _flag(processed_copy, "syn_004", ["orientation_suspect"])
     c = api_env(processed_copy)
     pl = ["syn_007", "syn_002", "syn_004", "nope_999", "syn_009", "syn_005"]
-    s = _session(c, settings={"playlist": pl})
+    s = _session(c, settings={"playlist": pl, "case_count": 10})  # the playlist length wins over case_count
+    assert c.get(f"/api/sessions/{s['session_id']}/next").json()["total"] == 4
     got = _run(c, s["session_id"], 7)
-    assert got[:4] == ["syn_007", "syn_002", "syn_009", "syn_005"]  # flagged + missing skipped, order kept
-    assert len(got) == 7 and len(set(got)) == 7 and "syn_004" not in got  # then adaptive, no repeats
+    assert got == ["syn_007", "syn_002", "syn_009", "syn_005"]  # flagged + missing skipped, order kept
+    done = c.get(f"/api/sessions/{s['session_id']}/next").json()  # round 3: total = playlist length, then done
+    assert done["done"] is True and done["total"] == 4 and done["attempt_id"] == ""
 
 
 def test_playlist_ignores_non_practice_cases(api_env, processed_copy):

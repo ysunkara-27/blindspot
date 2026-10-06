@@ -4,13 +4,17 @@ Rules (error strings are prefixed with the rule tag so the faithfulness eval can
   R1 finding ids exactly once, results equal the computed outcomes
   R2 overcall mark ids == false-positive marks
   R3 laterality: left/right words in where_to_look match the finding's side (image-relative phrasing ignored);
-     plus a sentence-level check elsewhere: a sentence naming a ground-truth label with only the opposite side word
+     plus a sentence-level check elsewhere: a sentence naming a ground-truth label with only the opposite side word;
+     plus "right" used to mean "correct" ("right spot", "got it right") anywhere: next to a location it reads as a
+     patient side (live run 2026-10-06: "Right area, wrong label" about a LEFT-sided finding)
   R4 zone vocabulary in where_to_look ⊆ the finding's zones ∪ neighbours ∪ its relative_location; no lobes or rib
      levels (we never compute them)
   R5 label mentions ⊆ ground truth ∪ learner labels ∪ related groups ∪ card/zone-mimic text (catches hallucinations)
   R6 banned content (config regexes + tutor safety list); cm/mm only allowed when pixel_spacing_mm is known
   R7 lengths: headline ≤ headline_max_words, all text ≤ total_max_words
   R8 structure: verdict consistent with outcomes, fact_ids known, required text present, no raw zone ids
+  R9 completeness (round 3, UX audit): every finding row has at least one what_it_looks_like item and a `why` of at
+     least 6 words (no empty sign lists, no stubs such as "Never examined." or "Pattern missed.")
 validate_ask applies R3 (sentence-level + sided zone phrases), R5, R6 and a 90-word limit.
 """
 
@@ -60,6 +64,31 @@ _IMAGE_RELATIVE = [
 ]
 _IMAGE_RELATIVE_RE = [re.compile(p, re.I) for p in _IMAGE_RELATIVE]
 _SIDE_WORD = re.compile(r"\b(right|left)\b", re.I)
+
+
+# "right" meaning "correct". In a laterality trainer "Right area, wrong label" about a left-sided finding reads as a
+# side, so these idioms are rejected everywhere (debrief fields and ask answers); the fix is to write "correct".
+_RIGHT_AS_CORRECT = re.compile(
+    r"\bright\s+(?:spot|place|area|region|location|idea|track|call|answer|label|name|instincts?|approach|way|thing"
+    r"|choice|diagnosis)\b"
+    r"|\b(?:got|get|gets|getting|had|have)\s+(?:it|this|that|them|these|those|both|everything|one)\s+right\b"
+    r"|\b(?:you\s+(?:were|are)|you're|that(?:'s|\s+is|\s+was))\s+right\b(?=\s*(?:[.,;:!?]|$|to\b|about\b|that\b))"
+    r"|\bright\s+(?:away|now)\b",
+    re.I,
+)
+
+
+def right_as_correct(text: str) -> list[str]:
+    """Phrases that use "right" to mean "correct" (or "immediately"), e.g. ['Right area']."""
+    return [m.group(0) for m in _RIGHT_AS_CORRECT.finditer(text or "")]
+
+
+def _idiom_errors(field_name: str, text: str) -> list[str]:
+    return [
+        f'R3 {field_name}: \'{p}\' uses "right" to mean correct; "right" and "left" are read as the patient\'s '
+        'side, so write "correct"'
+        for p in right_as_correct(text)
+    ]
 
 
 def strip_image_relative(text: str) -> str:
@@ -397,6 +426,15 @@ def allowed_verdicts(facts: DebriefFacts) -> set[str]:
 # per-finding allowance on top of total_max_words. Config keys override these defaults.
 BASE_LIMIT_FINDINGS = 8
 WORDS_PER_EXTRA_FINDING = 6
+# R9 makes a sign and a full `why` sentence mandatory for EVERY finding, so the limit can never be below what that
+# mandatory content needs: overhead (headline, search coaching, calibration, next step) + a row per finding + an entry
+# per false-positive mark. Below 5 findings this floor is under total_max_words and changes nothing. Config keys
+# (validator.words_overhead / words_per_finding / words_per_overcall / why_min_words / min_signs_per_finding) override.
+WORDS_OVERHEAD = 50
+WORDS_PER_FINDING = 28
+WORDS_PER_OVERCALL = 14
+WHY_MIN_WORDS = 6
+MIN_SIGNS_PER_FINDING = 1
 
 
 def total_word_limit(facts: DebriefFacts, cfg: dict[str, Any] | None = None) -> int:
@@ -404,7 +442,14 @@ def total_word_limit(facts: DebriefFacts, cfg: dict[str, Any] | None = None) -> 
     base = int(c.get("total_max_words", 160))
     n0 = int(c.get("total_limit_base_findings", BASE_LIMIT_FINDINGS))
     per = int(c.get("words_per_extra_finding", WORDS_PER_EXTRA_FINDING))
-    return base + per * max(0, len(facts.case.findings) - n0)
+    n = len(facts.case.findings)
+    n_fp = sum(o.result == "false_positive" for o in facts.outcomes)
+    mandatory = (
+        int(c.get("words_overhead", WORDS_OVERHEAD))
+        + int(c.get("words_per_finding", WORDS_PER_FINDING)) * n
+        + int(c.get("words_per_overcall", WORDS_PER_OVERCALL)) * n_fp
+    )
+    return max(base + per * max(0, n - n0), mandatory)
 
 
 def _text_fields(out: DebriefOutput) -> list[tuple[str, str]]:
@@ -517,6 +562,21 @@ def validate(
             errs.append(f"R8 {f.finding_id}.where_to_look is empty")
         if not (f.why or "").strip():
             errs.append(f"R8 {f.finding_id}.why is empty")
+        # R9 completeness: a sign for every finding and a real sentence for why
+        min_signs = int(ctx.cfg.get("min_signs_per_finding", MIN_SIGNS_PER_FINDING))
+        why_min = int(ctx.cfg.get("why_min_words", WHY_MIN_WORDS))
+        n_signs = sum(1 for s in f.what_it_looks_like if (s or "").strip())
+        if n_signs < min_signs:
+            errs.append(
+                f"R9 {f.finding_id}.what_it_looks_like has {n_signs} items; give at least {min_signs} key sign "
+                f"from the {ff.display.lower()} card, also for findings the learner found"
+            )
+        n_why = words(f.why)
+        if 0 < n_why < why_min:
+            errs.append(
+                f"R9 {f.finding_id}.why has {n_why} words ('{f.why.strip()}'); write a full sentence of at least "
+                f"{why_min} words about what the learner did there"
+            )
 
     # R3 (sentence level), R4 lobes, R5, R6 across all text
     for name, text in _text_fields(output):
@@ -526,6 +586,7 @@ def validate(
             m = _LOBE_RE.search(text or "")
             if m:
                 errs.append(f"R4 {name}: names a lobe ('{m.group(0)}'); FACTS has no lobes")
+        errs += _idiom_errors(name, text)
         errs += _label_errors(name, text, ctx)
         errs += _banned_errors(name, text, ctx)
         raw = [w for w in _RAW_ZONE_ID_RE.findall(text or "") if w in set(vocab.zone_ids()) | {"not_sure"}]
@@ -586,6 +647,7 @@ def validate_ask(
     if not (text or "").strip():
         errs.append("R8 answer: empty")
     errs += _sentence_laterality("answer", text, ctx)
+    errs += _idiom_errors("answer", text)
     sided, _ = zone_mentions(strip_image_relative(text or ""))
     for z in sided:
         if z not in ctx.zone_universe:

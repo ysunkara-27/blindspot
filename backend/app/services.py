@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import HTTPException
+from pydantic import BaseModel
 
 from backend.app import config, tutor_bridge
 from backend.app.adaptive.elo import apply_attempt
@@ -39,12 +40,15 @@ from shared.contracts import (
     AssessmentSummary,
     AttemptSubmit,
     Case,
+    ClientTiming,
     DebriefFacts,
     DebriefResponse,
     HintRequest,
     HintResponse,
+    Mark,
     NextCase,
     NextCaseCase,
+    PatternSelection,
     SessionCreate,
     SessionCreated,
     SubmitResult,
@@ -53,8 +57,32 @@ from shared.contracts import (
 log = logging.getLogger("blindspot.services")
 ASSESS_MODES = ("assess_A", "assess_B")
 MAX_ASKS = 3  # SPEC §8.9: up to 3 follow-up questions per case
+MISS_BUCKETS = ("search", "recognition", "decision", "interpretation", "overcall")  # summary row order
+FOUND_RESULTS = ("found", "mislabeled", "pattern_found")  # localized, as in the facts card
 DEMO_NAME, DEMO_CODE = "demo", "DEMO"  # learner created by `make demo` (backend/app/demo_seed.py)
 DEFAULT_MAX_MARKS = 50  # QA issue 7; overridable by config/scoring.yaml submit.max_marks
+SELECTIONS = ("adaptive", "weak_areas", "random")  # SessionCreate.settings.selection
+# SessionCreate.settings.case_count bounds; overridable by config/adaptive.yaml session.{case_count_min,case_count_max}
+CASE_COUNT_MIN, CASE_COUNT_MAX = 3, 50
+PREVALENCE_MIN, PREVALENCE_MAX = 0.3, 0.7  # SPEC §9.2: instructor-settable range
+
+
+class SubmittedRead(BaseModel):
+    """What the learner submitted (their own input, echoed back for the per-case review page)."""
+
+    marks: list[Mark]
+    patterns: list[PatternSelection]
+    declared_normal: bool
+    normal_confidence: int | None = None
+
+
+class AttemptResult(SubmitResult):
+    """GET /attempts/{aid}/result: the stored SubmitResult plus which film it was and what the learner did, so the
+    per-case review page can be opened from an attempt id alone (frontend CONTRACT CHANGE REQUEST, round 3).
+    A superset of SubmitResult: every SubmitResult field is present and unchanged."""
+
+    case: NextCaseCase
+    submitted: SubmittedRead
 
 
 def is_assessment(mode: str) -> bool:
@@ -66,9 +94,52 @@ def _404(what: str) -> HTTPException:
 
 
 # ------------------------------------------------------------------ sessions
+def _case_count_bounds() -> tuple[int, int]:
+    c = config.adaptive().get("session") or {}
+    return int(c.get("case_count_min", CASE_COUNT_MIN)), int(c.get("case_count_max", CASE_COUNT_MAX))
+
+
+def clean_settings(raw: dict[str, Any] | None) -> dict[str, Any]:
+    """Validate the session options the engine reads (round-3 contract); other keys pass through untouched.
+
+    case_count: int within bounds (else 422) · selection: one of SELECTIONS (else 422) · prevalence_abnormal (or the
+    legacy key `prevalence`): float clamped to 0.3–0.7, dropped if not a number. `level` is not an engine input."""
+    st = dict(raw or {})
+    errs: list[str] = []
+    cc = st.get("case_count")
+    if cc is None:
+        st.pop("case_count", None)
+    else:
+        lo, hi = _case_count_bounds()
+        if isinstance(cc, float) and cc.is_integer():
+            cc = int(cc)
+        if isinstance(cc, bool) or not isinstance(cc, int) or not lo <= cc <= hi:
+            errs.append(f"settings.case_count must be an integer from {lo} to {hi}")
+        else:
+            st["case_count"] = cc
+    sel = st.get("selection")
+    if sel is None:
+        st.pop("selection", None)
+    elif sel not in SELECTIONS:
+        errs.append(f"settings.selection must be one of {', '.join(SELECTIONS)}")
+    prev = st.pop("prevalence_abnormal", None)
+    legacy = st.pop("prevalence", None)
+    prev = legacy if prev is None else prev
+    try:
+        prev = None if prev is None or isinstance(prev, bool) else float(prev)
+    except (TypeError, ValueError):
+        prev = None
+    if prev is not None and math.isfinite(prev):
+        st["prevalence_abnormal"] = min(PREVALENCE_MAX, max(PREVALENCE_MIN, prev))
+    if errs:
+        raise HTTPException(status_code=422, detail=errs)
+    return st
+
+
 def create_session(body: SessionCreate) -> SessionCreated:
     now = now_iso()
-    with tx() as con:
+    settings = clean_settings(body.settings)
+    with tx(immediate=True) as con:
         lid = None
         want = body.settings.get("learner_id") if body.settings else None
         if want and row(con, "SELECT id FROM learners WHERE id=?", want):
@@ -83,7 +154,6 @@ def create_session(body: SessionCreate) -> SessionCreated:
         if lid is None and not body.participant_code and body.display_name.strip().casefold() == DEMO_NAME:
             r = row(con, "SELECT id FROM learners WHERE participant_code=? ORDER BY created_at LIMIT 1", DEMO_CODE)
             lid = r["id"] if r else None
-        settings = dict(body.settings or {})
         if lid is not None and body.mode == "practice" and "playlist" not in settings:
             settings.update(_demo_playlist_settings(con, lid))
         if lid is None:
@@ -193,13 +263,50 @@ def _done(index: int, total: int | None) -> NextCase:
     )
 
 
+def _playlist_ids(repo: CaseRepository, settings: dict) -> list[str]:
+    """Servable practice-split cases of settings.playlist, in order, de-duplicated (missing/flagged/other-split
+    entries are skipped)."""
+    pl = settings.get("playlist")
+    if not isinstance(pl, list):
+        return []
+    out: list[str] = []
+    for cid in pl:
+        if not isinstance(cid, str) or cid in out or not _servable(repo, cid):
+            continue
+        c = repo.get(cid)
+        if c is not None and c.split == "practice":
+            out.append(cid)
+    return out
+
+
+def session_total(repo: CaseRepository, s: dict[str, Any]) -> int | None:
+    """Planned number of cases: the assessment form length; else the playlist length (Demo learner; wins over
+    case_count); else settings.case_count; else None (open-ended)."""
+    if is_assessment(s["mode"]):
+        return len(_assessment_ids(repo, s["mode"]))
+    st = s.get("settings") or {}
+    pl = _playlist_ids(repo, st)
+    if pl:
+        return len(pl)
+    cc = st.get("case_count")
+    return int(cc) if isinstance(cc, int) and not isinstance(cc, bool) and cc > 0 else None
+
+
+def _n_submitted(con, sid: str) -> int:
+    return row(con, "SELECT COUNT(*) AS n FROM attempts WHERE session_id=? AND submitted_at IS NOT NULL", sid)["n"]
+
+
+def _end_session(con, sid: str) -> None:
+    con.execute("UPDATE sessions SET ended_at=COALESCE(ended_at, ?) WHERE id=?", (now_iso(), sid))
+
+
 def next_case(sid: str) -> NextCase:
     repo = get_repo()
-    with tx() as con:
+    with tx(immediate=True) as con:  # read-then-insert: one writer at a time, so two /next calls share one attempt
         s = _session(con, sid)
         mode = s["mode"]
         assess = is_assessment(mode)
-        total = len(_assessment_ids(repo, mode)) if assess else None
+        total = session_total(repo, s)
         open_a = row(
             con, "SELECT * FROM attempts WHERE session_id=? AND submitted_at IS NULL ORDER BY idx DESC LIMIT 1", sid
         )
@@ -208,16 +315,19 @@ def next_case(sid: str) -> NextCase:
             if c is not None:
                 return _next_case_payload(open_a["id"], c, open_a["idx"] + 1, total, not assess)
         n_done = row(con, "SELECT COUNT(*) AS n FROM attempts WHERE session_id=?", sid)["n"]
+        if total is not None and _n_submitted(con, sid) >= total:  # planned length reached: no new attempt
+            _end_session(con, sid)
+            return _done(n_done, total)
         if assess:
             ids = _assessment_ids(repo, mode)
             if n_done >= len(ids):
-                con.execute("UPDATE sessions SET ended_at=COALESCE(ended_at, ?) WHERE id=?", (now_iso(), sid))
+                _end_session(con, sid)
                 return _done(n_done, total)
             case = repo.get(ids[n_done])
         else:
             case = _select_practice(con, repo, s, n_done)
             if case is None:
-                return _done(n_done, None)
+                return _done(n_done, total)
         aid = new_id()
         con.execute(
             "INSERT INTO attempts(id, session_id, learner_id, case_id, mode, idx, shown_at) VALUES (?,?,?,?,?,?,?)",
@@ -263,14 +373,15 @@ def _select_practice(con, repo: CaseRepository, s: dict, n_done: int) -> Case | 
         cid = _review_pick(con, lid, state, rng)
         if cid and _servable(repo, cid) and (c := repo.get(cid)):
             return c
-    prevalence = st.get("prevalence")
+    prevalence = st.get("prevalence_abnormal", st.get("prevalence"))  # clean_settings clamps; old rows may not be
     try:
-        prevalence = None if prevalence is None else min(0.7, max(0.3, float(prevalence)))
+        prevalence = None if prevalence is None else min(PREVALENCE_MAX, max(PREVALENCE_MIN, float(prevalence)))
     except (TypeError, ValueError):
         prevalence = None
     drill = st.get("label") if mode == "drill" else None
     if drill is not None and drill not in config.labels():
         drill = None
+    strategy = st.get("selection") if st.get("selection") in SELECTIONS else "adaptive"
     pick = select_next(
         pool,
         state,
@@ -280,23 +391,19 @@ def _select_practice(con, repo: CaseRepository, s: dict, n_done: int) -> Case | 
         theta_init=config.adaptive()["elo"]["theta_init"],
         drill_label=drill,
         prevalence=prevalence,
+        strategy=strategy,
     )
     return repo.get(pick.case_id) if pick else None
 
 
 def _playlist_pick(repo: CaseRepository, settings: dict, sess: list[dict]) -> Case | None:
     """Session settings {"playlist": [case_id, ...]} (demo): serve those cases IN ORDER, skipping ones already
-    shown in this session and any that are missing, QA-flagged or not in the practice split; then adaptive."""
-    pl = settings.get("playlist")
-    if not isinstance(pl, list):
-        return None
+    shown in this session and any that are missing, QA-flagged or not in the practice split. The session's total is
+    the playlist length (session_total), so /next reports done once every playlist case is submitted."""
     shown = {r["case_id"] for r in sess}
-    for cid in pl:
-        if not isinstance(cid, str) or cid in shown or not _servable(repo, cid):
-            continue
-        c = repo.get(cid)
-        if c is not None and c.split == "practice":
-            return c
+    for cid in _playlist_ids(repo, settings):
+        if cid not in shown:
+            return repo.get(cid)
     return None
 
 
@@ -393,15 +500,27 @@ def validate_submit(body: AttemptSubmit, case: Case) -> None:
 def submit(aid: str, body: AttemptSubmit) -> tuple[SubmitResult | AssessmentRecorded, dict | None]:
     """Returns (response, debrief_job_kwargs or None)."""
     repo = get_repo()
-    with tx() as con:
+    with tx() as con:  # cheap pre-checks; the scoring below runs outside any write lock
         a = _attempt(con, aid)
-        if a["submitted_at"]:
+    if a["submitted_at"]:
+        raise HTTPException(status_code=409, detail="attempt already submitted")
+    case = repo.get(a["case_id"])
+    if case is None:
+        raise _404("case")
+    validate_submit(body, case)
+    ev = evaluate(case, body, repo, hints_used=a["hints_used"])
+    result = SubmitResult(
+        score=ev.score,
+        success=ev.success,
+        outcomes=ev.outcomes,
+        reveal=ev.reveal,
+        facts_card=ev.facts_card,
+        debrief_status="pending",
+    )
+    with tx(immediate=True) as con:
+        a = _attempt(con, aid)
+        if a["submitted_at"]:  # lost a double-submit race
             raise HTTPException(status_code=409, detail="attempt already submitted")
-        case = repo.get(a["case_id"])
-        if case is None:
-            raise _404("case")
-        validate_submit(body, case)
-        ev = evaluate(case, body, repo, hints_used=a["hints_used"])
         hints = max(body.hints_used, a["hints_used"])
         assess = is_assessment(a["mode"])
         elo_log = None
@@ -409,7 +528,7 @@ def submit(aid: str, body: AttemptSubmit) -> tuple[SubmitResult | AssessmentReco
             elo_log = _update_elo(con, a["learner_id"], case, ev)
         con.execute(
             "UPDATE attempts SET submitted_at=?, declared_normal=?, normal_confidence=?, marks_json=?, patterns_json=?,"
-            " hints_used=?, score=?, success=?, outcomes_json=?, search_json=?, elo_json=? WHERE id=?",
+            " hints_used=?, score=?, success=?, outcomes_json=?, search_json=?, elo_json=?, result_json=? WHERE id=?",
             (
                 now_iso(),
                 int(body.declared_normal),
@@ -422,6 +541,7 @@ def submit(aid: str, body: AttemptSubmit) -> tuple[SubmitResult | AssessmentReco
                 json.dumps([o.model_dump(exclude_none=True) for o in ev.outcomes]),
                 json.dumps(ev.search_json),
                 json.dumps(elo_log) if elo_log else None,
+                result.model_dump_json(),  # served again by GET /attempts/{id}/result (never before the reveal rules)
                 aid,
             ),
         )
@@ -429,41 +549,124 @@ def submit(aid: str, body: AttemptSubmit) -> tuple[SubmitResult | AssessmentReco
             "INSERT OR REPLACE INTO telemetry(attempt_id, events_json, n_events) VALUES (?,?,?)",
             (aid, json.dumps([e.model_dump() for e in body.telemetry]), len(body.telemetry)),
         )
+        sess = _session(con, a["session_id"])
+        total = session_total(repo, sess)
+        if total is not None and _n_submitted(con, a["session_id"]) >= total:
+            _end_session(con, a["session_id"])
         if assess:
-            ids = _assessment_ids(repo, a["mode"])
-            n_sub = row(
-                con,
-                "SELECT COUNT(*) AS n FROM attempts WHERE session_id=? AND submitted_at IS NOT NULL",
-                a["session_id"],
-            )["n"]
-            if n_sub >= len(ids):
-                con.execute(
-                    "UPDATE sessions SET ended_at=COALESCE(ended_at, ?) WHERE id=?", (now_iso(), a["session_id"])
-                )
-            return AssessmentRecorded(index=a["idx"] + 1, total=len(ids)), None
-        learner = row(con, "SELECT level FROM learners WHERE id=?", a["learner_id"]) or {}
-        history = history_for(con, a["learner_id"], sorted({f.label for f in case.findings}), aid)
-        con.execute(
-            "INSERT INTO debriefs(id, attempt_id, created_at, status) VALUES (?,?,?, 'pending')",
-            (new_id(), aid, now_iso()),
-        )
-    result = SubmitResult(
-        score=ev.score,
-        success=ev.success,
-        outcomes=ev.outcomes,
-        reveal=ev.reveal,
-        facts_card=ev.facts_card,
-        debrief_status="pending",
+            return AssessmentRecorded(index=a["idx"] + 1, total=total), None
+        job = _debrief_job(con, a, case, body, ev, sess)
+    return result, job
+
+
+def _debrief_job(con, a: dict, case: Case, body: AttemptSubmit, ev: Evaluation, sess: dict) -> dict[str, Any]:
+    """Insert the pending debriefs row and return the kwargs for run_debrief_job."""
+    aid = a["id"]
+    learner = row(con, "SELECT level FROM learners WHERE id=?", a["learner_id"]) or {}
+    history = history_for(con, a["learner_id"], sorted({f.label for f in case.findings}), aid)
+    con.execute(
+        "INSERT INTO debriefs(id, attempt_id, created_at, status) VALUES (?,?,?, 'pending')",
+        (new_id(), aid, now_iso()),
     )
-    job = {
+    focus = (sess.get("settings") or {}).get("label") if a["mode"] == "drill" else None
+    return {
         "aid": aid,
         "case": case,
         "submit": body,
         "ev": ev,
         "level": learner.get("level") or "other",
         "history": history,
+        "focus_label": focus if focus in config.labels() else None,
     }
-    return result, job
+
+
+def assessment_locked(con, repo: CaseRepository, a: dict) -> bool:
+    """True for an assessment attempt whose session is not complete yet: nothing about it may be revealed."""
+    if not is_assessment(a["mode"]):
+        return False
+    return _n_submitted(con, a["session_id"]) < len(_assessment_ids(repo, a["mode"]))
+
+
+def stored_submit(a: dict, events: list[dict] | None) -> AttemptSubmit:
+    """Rebuild the AttemptSubmit of a submitted attempt from its row (client timing ≈ server shown/submitted times)."""
+    return AttemptSubmit.model_validate(
+        {
+            "marks": jload(a["marks_json"], []),
+            "patterns": jload(a["patterns_json"], []),
+            "declared_normal": bool(a["declared_normal"]),
+            "normal_confidence": a["normal_confidence"],
+            "telemetry": events or [],
+            "hints_used": min(3, max(0, int(a["hints_used"] or 0))),
+            "client_timing": ClientTiming(shown_at=a["shown_at"], submitted_at=a["submitted_at"]).model_dump(),
+        }
+    )
+
+
+def _reevaluate(con, repo: CaseRepository, a: dict) -> tuple[Case, AttemptSubmit, Evaluation]:
+    case = repo.get(a["case_id"])
+    if case is None:
+        raise _404("case")
+    t = row(con, "SELECT events_json FROM telemetry WHERE attempt_id=?", a["id"])
+    body = stored_submit(a, jload(t["events_json"], []) if t else [])
+    return case, body, evaluate(case, body, repo, hints_used=a["hints_used"])
+
+
+def get_result(aid: str) -> AttemptResult:
+    """The SubmitResult of a submitted attempt (per-case review) plus `case` (film) and `submitted` (the learner's
+    own marks and selections). 404 unknown · 409 not submitted · 409 for an assessment attempt until that
+    assessment session is complete (ground-truth invariant)."""
+    repo = get_repo()
+    with tx() as con:
+        a = _attempt(con, aid)
+        if not a["submitted_at"]:
+            raise HTTPException(status_code=409, detail="attempt not submitted")
+        if assessment_locked(con, repo, a):
+            raise HTTPException(status_code=409, detail="available after the assessment summary")
+        case = repo.get(a["case_id"])
+        if case is None:
+            raise _404("case")
+        if a.get("result_json"):
+            res = SubmitResult.model_validate_json(a["result_json"])
+        else:  # submitted before results were stored (e.g. the seeded demo history): scoring is deterministic
+            _, _, ev = _reevaluate(con, repo, a)
+            res = SubmitResult(
+                score=ev.score,
+                success=ev.success,
+                outcomes=ev.outcomes,
+                reveal=ev.reveal,
+                facts_card=ev.facts_card,
+                debrief_status="pending",
+            )
+    body = stored_submit(a, None)
+    return AttemptResult(
+        **{**res.model_dump(), "debrief_status": "pending"},
+        case=NextCaseCase(
+            case_id=case.case_id, image_url=image_url(case.case_id), width=case.width, height=case.height
+        ),
+        submitted=SubmittedRead(
+            marks=body.marks,
+            patterns=body.patterns,
+            declared_normal=body.declared_normal,
+            normal_confidence=body.normal_confidence,
+        ),
+    )
+
+
+def ensure_debrief(aid: str) -> dict | None:
+    """Lazy debrief for an assessment attempt (no debrief is generated while the assessment runs): on the first
+    request after the session is complete, insert the pending row and return the run_debrief_job kwargs. None when
+    nothing has to start (unknown/unsubmitted/locked attempt, or a debrief row already exists)."""
+    repo = get_repo()
+    with tx(immediate=True) as con:
+        a = row(con, "SELECT * FROM attempts WHERE id=?", aid)
+        if a is None or not a["submitted_at"] or not is_assessment(a["mode"]) or assessment_locked(con, repo, a):
+            return None
+        if row(con, "SELECT id FROM debriefs WHERE attempt_id=? LIMIT 1", aid):
+            return None
+        if repo.get(a["case_id"]) is None:
+            return None
+        case, body, ev = _reevaluate(con, repo, a)
+        return _debrief_job(con, a, case, body, ev, _session(con, a["session_id"]))
 
 
 def _update_elo(con, lid: str, case: Case, ev: Evaluation) -> dict:
@@ -494,7 +697,15 @@ def _cache_get(key: str) -> dict | None:
         )
 
 
-def run_debrief_job(aid: str, case: Case, submit: AttemptSubmit, ev: Evaluation, level: str, history: dict) -> None:
+def run_debrief_job(
+    aid: str,
+    case: Case,
+    submit: AttemptSubmit,
+    ev: Evaluation,
+    level: str,
+    history: dict,
+    focus_label: str | None = None,
+) -> None:
     t0 = time.perf_counter()
     try:
         facts = tutor_bridge.build_facts(
@@ -513,7 +724,13 @@ def run_debrief_job(aid: str, case: Case, submit: AttemptSubmit, ev: Evaluation,
         facts_json = facts.model_dump_json(by_alias=True)
         _finish(aid, status="pending", facts_json=facts_json)
         out = tutor_bridge.generate_debrief(
-            facts, case, attempt_id=aid, submit=submit, offline=get_settings().offline, cache_get=_cache_get
+            facts,
+            case,
+            attempt_id=aid,
+            submit=submit,
+            offline=get_settings().offline,
+            cache_get=_cache_get,
+            focus_label=focus_label,
         )
         if out is None:
             _finish(aid, status="failed", error="The tutor is offline. Showing the built-in facts card instead.")
@@ -546,9 +763,12 @@ def _finish(aid: str, **fields: Any) -> None:
 
 
 def get_debrief(aid: str) -> DebriefResponse:
+    """Assessment attempts: "disabled" until the session is complete; afterwards like any other attempt (the route
+    starts the lazy generation via ensure_debrief before calling this)."""
+    repo = get_repo()
     with tx() as con:
         a = _attempt(con, aid)
-        if is_assessment(a["mode"]):
+        if assessment_locked(con, repo, a):
             return DebriefResponse(status="disabled")
         if not a["submitted_at"]:
             raise HTTPException(status_code=409, detail="attempt not submitted")
@@ -594,8 +814,8 @@ def ask(aid: str, question: str) -> AskResponse:
     repo = get_repo()
     with tx() as con:
         a = _attempt(con, aid)
-        if is_assessment(a["mode"]):
-            raise HTTPException(status_code=403, detail="the tutor is disabled in assessment mode")
+        if assessment_locked(con, repo, a):
+            raise HTTPException(status_code=403, detail="the tutor is disabled until the assessment is complete")
         if not a["submitted_at"]:
             raise HTTPException(status_code=409, detail="submit the read first")
         prev = rows(con, "SELECT question, answer FROM asks WHERE attempt_id=? ORDER BY created_at", aid)
@@ -616,28 +836,40 @@ def ask(aid: str, question: str) -> AskResponse:
 
 # ------------------------------------------------------------------ summary
 def summary(sid: str) -> AssessmentSummary:
-    from backend.app.analytics.learner import case_level_stats
+    """Session summary for every mode. Practice/drill/review: any time, over the attempts submitted so far.
+    Assessment: 409 until every case is submitted (nothing is revealed before that)."""
+    from backend.app.analytics.learner import case_level_stats, miss_counts
 
     repo = get_repo()
     with tx() as con:
         s = _session(con, sid)
         atts = rows(con, "SELECT * FROM attempts WHERE session_id=? AND submitted_at IS NOT NULL ORDER BY idx", sid)
-    if is_assessment(s["mode"]):
-        total = len(_assessment_ids(repo, s["mode"]))
-        if len(atts) < total:
-            raise HTTPException(status_code=409, detail=f"assessment in progress ({len(atts)}/{total})")
+    total = session_total(repo, s)
+    if is_assessment(s["mode"]) and len(atts) < (total or 0):
+        raise HTTPException(status_code=409, detail=f"assessment in progress ({len(atts)}/{total})")
     recs = [parse_attempt(a, repo) for a in atts]
     st = case_level_stats(recs)
     cases = []
-    for r in recs:
+    for a, r in zip(atts, recs, strict=True):
         c = repo.get(r["case_id"])
+        findings = c.findings if c else []
+        res = {o["target"]: o["result"] for o in r["outcomes"]}
+        mc = miss_counts(r)
+        labels = list(dict.fromkeys(f.label for f in findings))
         cases.append(
             {
                 "attempt_id": r["id"],
                 "case_id": r["case_id"],
+                "index": a["idx"] + 1,
                 "score": r["score"],
                 "success": r["success"],
                 "is_normal": c.is_normal if c else None,
+                "labels": labels,
+                "label_displays": [config.display(lab) for lab in labels],
+                "miss_types": [b for b in MISS_BUCKETS if mc.get(b)],
+                "n_findings": len(findings),
+                "n_found": sum(res.get(f.short_id) in FOUND_RESULTS for f in findings),
+                "n_false_positives": sum(o["result"] == "false_positive" for o in r["outcomes"]),
                 "outcomes": r["outcomes"],
                 "findings": [
                     {
@@ -650,7 +882,7 @@ def summary(sid: str) -> AssessmentSummary:
                         "relative_location": f.relative_location,
                         "bbox": list(f.geometry.bbox),
                     }
-                    for f in (c.findings if c else [])
+                    for f in findings
                 ],
             }
         )
@@ -667,6 +899,8 @@ def summary(sid: str) -> AssessmentSummary:
         false_positives_per_image=st["false_positives_per_image"],
         miss_type_mix=st["miss_type_mix"],
         score_mean=st["score_mean"],
+        total=total,
+        complete=total is not None and len(recs) >= total,
         cases=cases,
     )
 
@@ -722,15 +956,8 @@ def anatomy(aid: str) -> dict[str, Any]:
         a = _attempt(con, aid)
         if not a["submitted_at"]:
             raise HTTPException(status_code=409, detail="attempt not submitted")
-        if is_assessment(a["mode"]):
-            total = len(_assessment_ids(repo, a["mode"]))
-            n_sub = row(
-                con,
-                "SELECT COUNT(*) AS n FROM attempts WHERE session_id=? AND submitted_at IS NOT NULL",
-                a["session_id"],
-            )["n"]
-            if n_sub < total:
-                raise HTTPException(status_code=409, detail="available after the assessment summary")
+        if assessment_locked(con, repo, a):
+            raise HTTPException(status_code=409, detail="available after the assessment summary")
     if repo.get(a["case_id"]) is None:
         raise _404("case")
     return {"attempt_id": aid, "case_id": a["case_id"], **_outlines_cached(str(repo.root), a["case_id"])}

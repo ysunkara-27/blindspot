@@ -85,14 +85,31 @@ def build_facts(
 
 
 def generate_debrief(
-    facts: DebriefFacts, case: Case, *, attempt_id: str, submit: AttemptSubmit, offline: bool, cache_get: Any
+    facts: DebriefFacts,
+    case: Case,
+    *,
+    attempt_id: str,
+    submit: AttemptSubmit,
+    offline: bool,
+    cache_get: Any,
+    focus_label: str | None = None,
 ) -> dict[str, Any] | None:
+    """`focus_label`: the drill label of a drill session (FACTS still lists every finding; the tutor may lead with
+    the focus label)."""
     m = _mod("service")
     if m is None or not hasattr(m, "generate_debrief"):
         return None
+    extra = {"focus_label": focus_label} if focus_label else {}  # only drill sessions pass it
     try:
         out = m.generate_debrief(
-            facts, case, attempt_id=attempt_id, submit=submit, offline=offline, cache_get=cache_get, client=_client
+            facts,
+            case,
+            attempt_id=attempt_id,
+            submit=submit,
+            offline=offline,
+            cache_get=cache_get,
+            client=_client,
+            **extra,
         )
     except Exception:  # noqa: BLE001
         log.exception("tutor.service.generate_debrief failed")
@@ -153,6 +170,8 @@ def lowest_provenance(labels: list[str]) -> str | None:
 
 # ------------------------------------------------------------------ hints
 FALLBACK_ALL_VISITED = "Compare each region with the same region on the other side."
+FALLBACK_MAX_AREAS = 3
+FALLBACK_NAMES = {"retrocardiac": "area behind the heart"}
 
 
 def fallback_hint(
@@ -160,14 +179,21 @@ def fallback_hint(
 ) -> str:
     """Deterministic hint when the tutor module is unavailable: the H1 search cue at EVERY level. It depends only on
     the learner's search (unvisited review areas), never on findings, so it cannot reveal whether the film is normal
-    (QA #8; the tutor's symmetric H2/H3 templates live in backend/app/tutor/hints.py)."""
+    (QA #8; the tutor's symmetric H2/H3 templates live in backend/app/tutor/hints.py). Same wording as the tutor's
+    H1: at most FALLBACK_MAX_AREAS areas, the least-dwelt unvisited ones, in the fixed order of config review_areas."""
     sc = config.scoring()
     cov = review_coverage(
         dwell_samples(telemetry, sc["dwell"]), zones, config.review_area_ids(), sc["dwell"]["visit_ms"]
     )
-    if cov.unvisited:
-        return "You haven't looked at: " + ", ".join(config.zone_human(z) for z in cov.unvisited) + "."
-    return FALLBACK_ALL_VISITED
+    if not cov.unvisited:
+        return FALLBACK_ALL_VISITED
+    order = {z: i for i, z in enumerate(config.review_area_ids())}
+    dwell = cov.dwell_by_zone
+    pick = sorted(cov.unvisited, key=lambda z: (float(dwell.get(z, 0.0)), order.get(z, len(order))))
+    pick = sorted(pick[:FALLBACK_MAX_AREAS], key=lambda z: order.get(z, len(order)))
+    names = ["the " + FALLBACK_NAMES.get(z, config.zone_human(z)) for z in pick]
+    listed = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " or " + names[-1]
+    return f"You haven't looked at {listed} yet."
 
 
 def hint(

@@ -90,7 +90,11 @@ def test_hints_ladder_and_limits(api_env):
     assert levels == [1, 2, 3]
     assert c.post(f"/api/attempts/{n['attempt_id']}/hint", json=body).status_code == 409
     r = c.post(f"/api/attempts/{n['attempt_id']}/submit", json=_submit_body(declared_normal=True, normal_confidence=2))
-    assert r.json()["score"] <= 100 - 15  # server-side hint count applies even if the client says 0
+    assert r.status_code == 200
+    from backend.app.db import row, tx
+
+    with tx() as con:  # the server-side hint count is recorded even if the client says 0 (hints themselves are free)
+        assert row(con, "SELECT hints_used FROM attempts WHERE id=?", n["attempt_id"])["hints_used"] == 3
 
 
 def test_first_hint_lists_unvisited_review_areas(api_env):
@@ -98,7 +102,7 @@ def test_first_hint_lists_unvisited_review_areas(api_env):
     s = _session(c)
     n = c.get(f"/api/sessions/{s['session_id']}/next").json()
     r = c.post(f"/api/attempts/{n['attempt_id']}/hint", json={"marks": [], "telemetry": []}).json()
-    assert r["text"].startswith("You haven't looked at:") and "right apex" in r["text"]
+    assert r["text"] == "You haven't looked at the right apex, the left apex or the right hilum yet."
 
 
 # ---------------------------------------------------------------- tutor wiring (mocked)
@@ -257,8 +261,10 @@ def test_assessment_flow_hides_feedback_until_summary(api_env, assess_root):
         r = c.post(f"/api/attempts/{n['attempt_id']}/submit", json=_submit_body(marks=[mark("M1", 70, 150, "nodule")]))
         assert r.status_code == 200
         assert r.json() == {"recorded": True, "index": i + 1, "total": 3}
-        assert c.get(f"/api/attempts/{n['attempt_id']}/debrief").json()["status"] == "disabled"
-        assert c.post(f"/api/attempts/{n['attempt_id']}/ask", json={"question": "?"}).status_code == 403
+        if i < 2:  # nothing is revealed while the assessment runs (round 3: per-case review opens once it is complete)
+            assert c.get(f"/api/attempts/{n['attempt_id']}/debrief").json() == {"status": "disabled"}
+            assert c.post(f"/api/attempts/{n['attempt_id']}/ask", json={"question": "?"}).status_code == 403
+            assert c.get(f"/api/attempts/{n['attempt_id']}/result").status_code == 409
     assert c.get(f"/api/sessions/{sid}/next").json()["done"] is True
     summ = c.get(f"/api/sessions/{sid}/summary").json()
     assert summ["n_cases"] == 3 and summ["cases"] and "sensitivity" in summ

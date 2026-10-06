@@ -53,7 +53,19 @@ def _data_root() -> Path:
         return get_settings().processed_dir
 
 
-def user_text(facts: DebriefFacts, case: Case, has_images: bool) -> str:
+def focus_line(facts: DebriefFacts, focus_label: str | None) -> str | None:
+    """Drill sessions: one line naming the drill label, only when this film has a finding with that label.
+    FACTS is unchanged (it still lists every finding); the line only tells the tutor what to lead with."""
+    if not focus_label or not any(f.label == focus_label for f in facts.case.findings):
+        return None
+    ids = ", ".join(f.id for f in facts.case.findings if f.label == focus_label)
+    return (
+        f"DRILL FOCUS: {focus_label} ({ids}). The learner is drilling this finding type: lead the headline with how "
+        "they did on it. FACTS still lists every finding; include every one of them as usual."
+    )
+
+
+def user_text(facts: DebriefFacts, case: Case, has_images: bool, focus_label: str | None = None) -> str:
     parts = []
     if has_images:
         _, _, target = primary_target(case, facts, [])
@@ -62,18 +74,24 @@ def user_text(facts: DebriefFacts, case: Case, has_images: bool) -> str:
             "IMAGES: 1 = the whole film (cyan outlines = radiologist findings F#, amber circles = learner marks M#); "
             f"2 = close-up {around} without outlines; 3 = the same close-up with thin cyan outlines."
         )
+    focus = focus_line(facts, focus_label)
+    if focus:
+        parts.append(focus)
     parts.append("FACTS:\n" + facts_json(facts))
     return "\n".join(parts)
 
 
-def build_request(facts: DebriefFacts, case: Case, images: dict[str, bytes] | None) -> tuple[list, list]:
+def build_request(
+    facts: DebriefFacts, case: Case, images: dict[str, bytes] | None, focus_label: str | None = None
+) -> tuple[list, list]:
     system = system_blocks(load_prompt("debrief_system").text, cards_mod.all_cards_text())
     imgs = ordered(images)
-    messages = [{"role": "user", "content": user_content(imgs, user_text(facts, case, bool(imgs)))}]
+    messages = [{"role": "user", "content": user_content(imgs, user_text(facts, case, bool(imgs), focus_label))}]
     return system, messages
 
 
-LENGTH_TARGET_WORDS = 110  # what the v2 prompt asks for; the validator cap stays total_max_words (160)
+LENGTH_TARGET_WORDS = 110  # what the prompt asks for; the validator cap stays total_max_words (160)
+_R9 = re.compile(r"^R9 ")
 _R7_TOTAL = re.compile(r"R7: all text fields together have (\d+) words; maximum (\d+)")
 _R7_HEADLINE = re.compile(r"R7: headline has (\d+) words; maximum (\d+)")
 
@@ -93,6 +111,16 @@ def fix_messages(messages: list[dict], previous_text: str, errors: list[str]) ->
     head = next((m for m in map(_R7_HEADLINE.search, errors) if m), None)
     if head:
         parts.append(f"The headline has {head[1]} words; use at most 10.")
+    if any(e.startswith("R3") for e in errors):
+        parts.append(
+            'Use "right" and "left" only for the patient\'s side, exactly as FACTS gives it; if you meant "correct", '
+            'write "correct" (not "right spot" or "got it right").'
+        )
+    if any(_R9.match(e) for e in errors):
+        parts.append(
+            "Every finding, including the ones the learner found, needs at least one what_it_looks_like item (a key "
+            "sign from its teaching card) and a why that is a full sentence of at least 6 words."
+        )
     parts.append("Keep every finding_id, result, mark_id and fact_id unchanged. Return the full corrected JSON.")
     fix = " ".join(parts)
     return [*messages, {"role": "assistant", "content": previous_text}, {"role": "user", "content": fix}]
@@ -111,9 +139,8 @@ def trim_to_fit(
 ) -> DebriefOutput | None:
     """Length-only failure: delete whole optional list items (never edit a word) until R7 holds, then re-validate.
 
-    Order: extra possible_mimics -> extra what_it_looks_like items -> signs of findings the learner found ->
-    calibration_note. Returns None if it still does not fit or does not validate."""
-    found = {f.finding_id for f in out.findings if f.result in ("found", "pattern_found")}
+    Order: extra possible_mimics -> extra what_it_looks_like items (one sign per finding always stays: validator
+    R9) -> calibration_note. Returns None if it still does not fit or does not validate."""
     steps = (
         lambda o: o.model_copy(
             update={"overcalls": [x.model_copy(update={"possible_mimics": x.possible_mimics[:1]}) for x in o.overcalls]}
@@ -121,13 +148,6 @@ def trim_to_fit(
         lambda o: o.model_copy(
             update={
                 "findings": [x.model_copy(update={"what_it_looks_like": x.what_it_looks_like[:1]}) for x in o.findings]
-            }
-        ),
-        lambda o: o.model_copy(
-            update={
-                "findings": [
-                    x.model_copy(update={"what_it_looks_like": []}) if x.finding_id in found else x for x in o.findings
-                ]
             }
         ),
         lambda o: o.model_copy(update={"calibration_note": ""}),
@@ -192,9 +212,13 @@ def generate_debrief(
     client: Any | None = None,
     data_root: Path | str | None = None,
     images: dict[str, bytes] | None = None,
+    focus_label: str | None = None,
 ) -> dict[str, Any]:
     """Return {"debrief", "source", "provenance", "validator", "latency_ms", "model", "prompt_version",
     "cache_key", "input_tokens", "output_tokens", "error"}. The caller persists it (debriefs table).
+
+    `focus_label`: the drill label of a drill session. FACTS still lists every finding (truth); the prompt and the
+    template headline may lead with the focus label. It is part of the cache key only when the film has that label.
 
     `error` is None for live/cache results; for source == "template" it is the short code from
     client.fallback_error(validator["fallback_reason"]): offline | rate_limited | timeout | unavailable |
@@ -207,7 +231,9 @@ def generate_debrief(
     zm = cards_mod.load_zone_mimics()
     cfg = vocab.validator_cfg()
     pv = prompt_version()
-    key = cache_key_for_facts(facts, model, pv)
+    if not focus_line(facts, focus_label):
+        focus_label = None  # a drill film without the drill label (e.g. a normal) is an ordinary debrief
+    key = cache_key_for_facts(facts, model, pv, focus_label=focus_label)
     provenance = cards_mod.lowest_provenance(
         facts.teaching_cards, cards, include_zone_mimics=any(o.result == "false_positive" for o in facts.outcomes)
     )
@@ -217,7 +243,7 @@ def generate_debrief(
 
     def template(reason: str) -> dict[str, Any]:
         try:
-            out = template_debrief(facts, cards, zm, cfg)
+            out = template_debrief(facts, cards, zm, cfg, focus_label=focus_label)
         except Exception as e:  # noqa: BLE001 — a template bug must not crash the request
             log.exception("template_debrief failed")
             return _result(
@@ -286,7 +312,7 @@ def generate_debrief(
             except Exception as e:  # noqa: BLE001 — text-only debrief is still grounded in FACTS
                 log.warning("render_images failed for %s: %s", case.case_id, e)
                 images = None
-        system, messages = build_request(facts, case, images)
+        system, messages = build_request(facts, case, images, focus_label)
         schema = debrief_schema()
         max_tokens = debrief_max_tokens(len(facts.case.findings))
         for attempt in (1, 2):

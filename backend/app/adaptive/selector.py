@@ -74,7 +74,12 @@ def select_next(
     theta_init: float = 0.0,
     drill_label: str | None = None,
     prevalence: float | None = None,
+    strategy: str = "adaptive",
 ) -> CaseInfo | None:
+    """`strategy` (SessionCreate.settings.selection): "adaptive" = SPEC §9.2 as written; "weak_areas" = every
+    abnormal draw targets the learner's weakest core label (weakest_label_prob 1.0); "random" = uniform over the
+    eligible pool at the configured prevalence (no Elo objective, no label targeting). The eligibility rules
+    (practice split only, no QA flags, not seen this session, not recent) are the same for all three."""
     prev = cfg["prevalence_abnormal"] if prevalence is None else prevalence
     base = [c for c in pool if eligible(c, core if drill_label is None else (*core, drill_label))]
     if drill_label:
@@ -90,13 +95,15 @@ def select_next(
 
     want_abnormal = draw_abnormal(state, prev, rng)
     cls = [c for c in cands if (not c.is_normal) == want_abnormal] or cands
+    if strategy == "random":
+        return rng.choice(cls)
 
     target_label = None
     abnormal = [c for c in cls if not c.is_normal]
     if abnormal:
         if drill_label:
             target_label = drill_label
-        elif rng.random() < cfg["weakest_label_prob"]:
+        elif rng.random() < (1.0 if strategy == "weak_areas" else cfg["weakest_label_prob"]):
             target_label = weakest_label(state.abilities, list(core), theta_init)
         else:
             target_label = rng.choice(list(core))

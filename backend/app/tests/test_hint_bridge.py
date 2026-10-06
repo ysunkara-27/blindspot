@@ -19,6 +19,8 @@ def test_fallback_hint_is_identical_for_normal_and_abnormal_films(repo, monkeypa
             texts.append(tutor_bridge.fallback_hint(level, case, [], tel, zones))
         assert texts[0] == texts[1], (level, texts)
         assert "normal" not in texts[0].lower() and "asymmetry" not in texts[0].lower()
+        assert texts[0].startswith("You haven't looked at the ") and texts[0].endswith(" yet.")
+        assert texts[0].count(" the ") <= 3 + texts[0].count("behind the heart") + texts[0].count("below the diaphragm")
     # the fallback is what /hint serves when the tutor module is missing
     monkeypatch.setattr(tutor_bridge, "_mod", lambda name: None)
     zones, _ = repo.zones("syn_008")

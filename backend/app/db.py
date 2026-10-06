@@ -1,14 +1,21 @@
 """SQLite storage (SPEC §13.1). stdlib sqlite3, WAL mode, uuid4 string ids.
 
 `python -m backend.app.db --reset` drops and recreates every table (idempotent).
-Extensions to §13.1 (logged in PROGRESS.md): attempts.idx / attempts.hint_log_json; debriefs.status/error/provenance;
-a `flags` table for "This seems wrong" reports.
+Extensions to §13.1 (logged in PROGRESS.md): attempts.idx / attempts.hint_log_json / attempts.result_json (the stored
+SubmitResult, served by GET /attempts/{id}/result); debriefs.status/error/provenance; a `flags` table for "This seems
+wrong" reports.
+
+First-run safety: the schema is created ONCE per database file by `init_db` (called from the app lifespan and lazily by
+`connect`), under a cross-process file lock and inside one `BEGIN IMMEDIATE` transaction, so several first requests (or
+several processes) hitting a fresh database never see "database is locked" or a half-created schema. Every connection
+sets `busy_timeout`; write paths that read before they write use `tx(immediate=True)`.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import sqlite3
 import threading
 import uuid
@@ -31,7 +38,7 @@ CREATE TABLE IF NOT EXISTS attempts (
   case_id TEXT NOT NULL, mode TEXT NOT NULL, idx INTEGER NOT NULL DEFAULT 0, shown_at TEXT NOT NULL,
   submitted_at TEXT, declared_normal INTEGER, normal_confidence INTEGER, marks_json TEXT, patterns_json TEXT,
   hints_used INTEGER NOT NULL DEFAULT 0, hint_log_json TEXT NOT NULL DEFAULT '[]', score REAL, success INTEGER,
-  outcomes_json TEXT, search_json TEXT, elo_json TEXT);
+  outcomes_json TEXT, search_json TEXT, elo_json TEXT, result_json TEXT);
 CREATE INDEX IF NOT EXISTS attempts_session ON attempts(session_id);
 CREATE INDEX IF NOT EXISTS attempts_learner ON attempts(learner_id);
 CREATE TABLE IF NOT EXISTS telemetry (attempt_id TEXT PRIMARY KEY, events_json TEXT NOT NULL, n_events INTEGER);
@@ -69,6 +76,10 @@ TABLES = (
     "flags",
 )
 
+# Columns added after the first release: (table, column, DDL type). Applied by init_db to databases created earlier.
+MIGRATIONS = (("attempts", "result_json", "TEXT"),)
+BUSY_TIMEOUT_MS = 30_000
+
 _lock = threading.Lock()
 _initialised: set[str] = set()
 
@@ -85,25 +96,85 @@ def db_path() -> Path:
     return get_settings().db_path
 
 
-def connect(path: Path | None = None) -> sqlite3.Connection:
+def _statements(script: str) -> list[str]:
+    return [st.strip() for st in script.split(";") if st.strip()]
+
+
+@contextmanager
+def _file_lock(path: Path) -> Iterator[None]:
+    """Exclusive advisory lock on `path` (cross-process). No-op where fcntl is unavailable; BEGIN IMMEDIATE and the
+    busy timeout still serialise schema creation there."""
+    try:
+        import fcntl
+    except ImportError:  # pragma: no cover — non-POSIX
+        yield
+        return
+    fd = os.open(path, os.O_CREAT | os.O_RDWR, 0o644)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        finally:
+            os.close(fd)
+
+
+def _create_schema(con: sqlite3.Connection) -> None:
+    """All CREATEs and column migrations in ONE write transaction (con must be in autocommit mode)."""
+    con.execute("BEGIN IMMEDIATE")
+    try:
+        for st in _statements(SCHEMA):
+            con.execute(st)
+        for table, col, ddl in MIGRATIONS:
+            have = {r[1] for r in con.execute(f"PRAGMA table_info({table})").fetchall()}
+            if col not in have:
+                con.execute(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}")
+        con.execute("COMMIT")
+    except Exception:
+        con.execute("ROLLBACK")
+        raise
+
+
+def init_db(path: Path | None = None, *, force: bool = False) -> Path:
+    """Create the schema once per database file. Safe to call from many threads and many processes at once."""
     p = Path(path or db_path())
-    p.parent.mkdir(parents=True, exist_ok=True)
-    con = sqlite3.connect(p, timeout=30, check_same_thread=False)
-    con.row_factory = sqlite3.Row
-    con.execute("PRAGMA journal_mode=WAL")
-    con.execute("PRAGMA foreign_keys=ON")
     key = str(p.resolve())
-    if key not in _initialised:
-        with _lock:
-            con.executescript(SCHEMA)
-            _initialised.add(key)
+    if not force and key in _initialised and p.exists():
+        return p
+    with _lock:
+        if not force and key in _initialised and p.exists():
+            return p
+        p.parent.mkdir(parents=True, exist_ok=True)
+        with _file_lock(p.with_name(p.name + ".init.lock")):
+            con = sqlite3.connect(p, timeout=BUSY_TIMEOUT_MS / 1000, isolation_level=None)
+            try:
+                con.execute(f"PRAGMA busy_timeout={BUSY_TIMEOUT_MS}")
+                con.execute("PRAGMA journal_mode=WAL")  # persistent in the file; set once, under the lock
+                _create_schema(con)
+            finally:
+                con.close()
+        _initialised.add(key)
+    return p
+
+
+def connect(path: Path | None = None) -> sqlite3.Connection:
+    p = init_db(path)
+    con = sqlite3.connect(p, timeout=BUSY_TIMEOUT_MS / 1000, check_same_thread=False)
+    con.row_factory = sqlite3.Row
+    con.execute(f"PRAGMA busy_timeout={BUSY_TIMEOUT_MS}")
+    con.execute("PRAGMA foreign_keys=ON")
     return con
 
 
 @contextmanager
-def tx(path: Path | None = None) -> Iterator[sqlite3.Connection]:
+def tx(path: Path | None = None, *, immediate: bool = False) -> Iterator[sqlite3.Connection]:
+    """One connection, one transaction. `immediate=True` takes the write lock up front (BEGIN IMMEDIATE) so a
+    read-then-write sequence (next case, submit, lazy debrief row) cannot interleave with another writer."""
     con = connect(path)
     try:
+        if immediate:
+            con.execute("BEGIN IMMEDIATE")
         yield con
         con.commit()
     except Exception:
@@ -116,15 +187,17 @@ def tx(path: Path | None = None) -> Iterator[sqlite3.Connection]:
 def reset(path: Path | None = None) -> None:
     p = Path(path or db_path())
     p.parent.mkdir(parents=True, exist_ok=True)
-    con = sqlite3.connect(p)
-    try:
-        for t in TABLES:
-            con.execute(f"DROP TABLE IF EXISTS {t}")
-        con.executescript(SCHEMA)
-        con.commit()
-    finally:
-        con.close()
-    _initialised.add(str(p.resolve()))
+    with _lock, _file_lock(p.with_name(p.name + ".init.lock")):
+        con = sqlite3.connect(p, timeout=BUSY_TIMEOUT_MS / 1000, isolation_level=None)
+        try:
+            con.execute(f"PRAGMA busy_timeout={BUSY_TIMEOUT_MS}")
+            con.execute("PRAGMA journal_mode=WAL")
+            for t in TABLES:
+                con.execute(f"DROP TABLE IF EXISTS {t}")
+            _create_schema(con)
+        finally:
+            con.close()
+        _initialised.add(str(p.resolve()))
 
 
 def row(con: sqlite3.Connection, sql: str, *args: Any) -> dict[str, Any] | None:
@@ -150,7 +223,7 @@ def main() -> None:
         reset(p)
         print(f"reset {p}")
     else:
-        connect(p).close()
+        init_db(p, force=True)
         print(f"schema ensured at {p}")
 
 

@@ -37,8 +37,10 @@ def cache_key(
     outcomes: Iterable[Any],
     fp_zones: Iterable[str | None],
     unvisited: Iterable[str],
+    focus_label: str | None = None,
 ) -> str:
-    payload = [
+    """`focus_label` (drill sessions) is appended only when set, so keys of ordinary debriefs are unchanged."""
+    payload: list[Any] = [
         case_id,
         model or "",
         prompt_version,
@@ -47,10 +49,14 @@ def cache_key(
         sorted(z or "" for z in fp_zones),
         sorted(unvisited),
     ]
+    if focus_label:
+        payload.append({"focus": focus_label})
     return hashlib.sha256(json.dumps(payload, separators=(",", ":")).encode()).hexdigest()
 
 
-def cache_key_for_facts(facts: DebriefFacts, model: str | None, prompt_version: str) -> str:
+def cache_key_for_facts(
+    facts: DebriefFacts, model: str | None, prompt_version: str, *, focus_label: str | None = None
+) -> str:
     fp_zones = [o.zone for o in facts.outcomes if o.result == "false_positive"]
     return cache_key(
         facts.case.case_id,
@@ -60,6 +66,7 @@ def cache_key_for_facts(facts: DebriefFacts, model: str | None, prompt_version: 
         facts.outcomes,
         fp_zones,
         facts.search.unvisited_review_areas,
+        focus_label,
     )
 
 

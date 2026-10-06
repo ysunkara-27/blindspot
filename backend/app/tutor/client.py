@@ -25,12 +25,14 @@ from backend.app.settings import get_settings
 from backend.app.tutor import vocab
 
 TIMEOUT_S = 12.0
-# Debrief output cap. v2 prompt targets ~110 words (~350 output tokens incl. JSON keys and low-effort adaptive
-# thinking, which counts against max_tokens). Base 700 per the 2026-10-05 smoke review, +50 per finding beyond 2 so
-# crowded films are not truncated (a max_tokens stop falls back to the template). eval/adapters reads the base.
+# Debrief output cap. The prompt targets ~110 words (~350 output tokens incl. JSON keys and low-effort adaptive
+# thinking, which counts against max_tokens). Base 700 per the 2026-10-05 smoke review. Prompt v3 requires a sign and
+# a full `why` sentence for EVERY finding (~25 words ≈ 90 tokens with JSON keys per row), so each finding beyond 2
+# adds 90 tokens and the ceiling covers the validator's crowded-film word limit (a max_tokens stop falls back to the
+# template). eval/adapters reads the base.
 DEBRIEF_MAX_TOKENS = 700
-DEBRIEF_MAX_TOKENS_PER_EXTRA_FINDING = 50
-DEBRIEF_MAX_TOKENS_CEILING = 1200
+DEBRIEF_MAX_TOKENS_PER_EXTRA_FINDING = 90
+DEBRIEF_MAX_TOKENS_CEILING = 4000
 
 
 def debrief_max_tokens(n_findings: int) -> int:

@@ -36,6 +36,8 @@ COPY --chown=user shared/ shared/
 COPY --chown=user config/ config/
 COPY --chown=user content/ content/
 COPY --chown=user deploy/entrypoint.py deploy/entrypoint.py
+# curated expert-review queue (case ids + debrief text only; no images)
+COPY --chown=user eval/samples/review_queue.jsonl eval/samples/review_queue.jsonl
 COPY --from=web --chown=user /web/dist frontend/dist
 
 ENV PATH=$APP/.venv/bin:$PATH \

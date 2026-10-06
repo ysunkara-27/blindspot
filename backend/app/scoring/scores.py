@@ -1,7 +1,12 @@
-"""SPEC §6.3 case score (0–100) and binary success. Weights from config/scoring.yaml."""
+"""SPEC §6.3 case score (0–100) and binary success. Weights from config/scoring.yaml.
+
+Scores are WHOLE numbers, rounded half up once, here (`round_score`). Everything that shows a score (SubmitResult.score,
+the facts card, the summary rows, the UI) therefore shows the same integer: a raw 22.5 is 23 everywhere, never "22" in
+one place (Python's round-half-even formatting) and "23" in another (JavaScript's Math.round)."""
 
 from __future__ import annotations
 
+import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 
@@ -21,6 +26,16 @@ class ScoreParts:
     false_positives: int
     pattern_false: int
     hints: int
+
+
+def round_score(x: float) -> float:
+    """Clamp to 0–100 and round half up to a whole number (returned as float for the contract's `number`)."""
+    return float(math.floor(min(100.0, max(0.0, float(x))) + 0.5))
+
+
+def score_text(score: float) -> str:
+    """The one way a score is printed in backend text (facts card): the same half-up integer as `round_score`."""
+    return str(int(round_score(score)))
 
 
 def parts(outcomes: Sequence[Outcome], label_credit: float, hints: int) -> ScoreParts:
@@ -55,7 +70,7 @@ def case_score(p: ScoreParts, is_normal: bool, cfg: dict) -> float:
     if is_normal:
         n = w["normal"]
         s = n["base"] + n["false_positive"] * (p.false_positives + p.pattern_false) + n["hint"] * p.hints
-        return float(min(100.0, max(0.0, s)))
+        return round_score(s)
     a = w["abnormal"]
     if p.n_patterns_involved:
         pat_acc = p.patterns_correct / p.n_patterns_involved
@@ -72,7 +87,7 @@ def case_score(p: ScoreParts, is_normal: bool, cfg: dict) -> float:
     else:  # pattern-only case: patterns carry the full positive weight
         s = (a["localization"] + a["label"] + a["pattern"]) * pat_acc
     s += a["false_positive"] * p.false_positives + a["hint"] * p.hints
-    return float(round(min(100.0, max(0.0, s)), 1))
+    return round_score(s)
 
 
 def case_success(p: ScoreParts, is_normal: bool, cfg: dict) -> bool:

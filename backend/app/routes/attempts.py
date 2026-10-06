@@ -1,4 +1,4 @@
-"""Attempts: hint, submit (scoring + reveal or assessment receipt), debrief polling, ask the tutor."""
+"""Attempts: hint, submit (scoring + reveal or assessment receipt), stored result, debrief polling, ask the tutor."""
 
 from __future__ import annotations
 
@@ -34,8 +34,19 @@ def submit(aid: str, body: AttemptSubmit, background: BackgroundTasks) -> Submit
     return result
 
 
+@router.get("/attempts/{aid}/result", response_model=services.AttemptResult)
+def result(aid: str) -> services.AttemptResult:
+    """The stored SubmitResult of a submitted attempt plus `case` {case_id, image_url, width, height} and
+    `submitted` {marks, patterns, declared_normal, normal_confidence} (per-case review from the session summary).
+    404 unknown, 409 before submit, 409 for an assessment attempt until that assessment is complete."""
+    return services.get_result(aid)
+
+
 @router.get("/attempts/{aid}/debrief", response_model=DebriefResponse, response_model_exclude_none=True)
-def debrief(aid: str) -> DebriefResponse:
+def debrief(aid: str, background: BackgroundTasks) -> DebriefResponse:
+    job = services.ensure_debrief(aid)  # assessment attempts: generated lazily once the session is complete
+    if job is not None:
+        background.add_task(services.run_debrief_job, **job)
     return services.get_debrief(aid)
 
 

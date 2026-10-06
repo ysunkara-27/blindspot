@@ -84,9 +84,12 @@ def test_headline_counts_localized_findings_like_the_facts_card():
     assert template_debrief(f2).headline.startswith("You found 1 of 2 findings")
 
 
-def test_very_crowded_film_uses_tiny_level_within_scaled_limit():
-    """30 findings (real ChestX-Det films reach 36): every finding listed, R7 allowance applies above 8."""
-    from backend.app.tutor.validator import total_word_limit
+def test_very_crowded_film_lists_every_finding_within_the_scaled_limit():
+    """30 findings (real ChestX-Det films reach 36): every finding listed with a sign and a full sentence (R9); the
+    R7 limit grows with the mandatory content (50 + 28 per finding + 14 per false-positive mark)."""
+    from backend.app.tutor.cards import load_cards, load_zone_mimics
+    from backend.app.tutor.templates import _build
+    from backend.app.tutor.validator import total_word_limit, words
 
     f, case, _ = facts_for("multi")
     src: Finding = cases()["syn_005"].findings[1]
@@ -99,14 +102,21 @@ def test_very_crowded_film_uses_tiny_level_within_scaled_limit():
     out = template_debrief(f)
     v = validate(out, f)
     assert v.ok, v.errors
-    assert len(out.findings) == 30 and total_word_limit(f) == 160 + 6 * 22
-    assert {x.why for x in out.findings} <= {
-        "Found it.",
-        "Found it, named it wrong.",
-        "Never looked there.",
-        "Looked past it.",
-        "Looked, judged it normal.",
+    assert len(out.findings) == 30 and total_word_limit(f) == 50 + 28 * 30
+    assert _total_words(out) <= total_word_limit(f)
+    assert all(len(x.what_it_looks_like) >= 1 and words(x.why) >= 6 for x in out.findings)
+    # the most compact level ("tiny") is still made of full sentences, never chips
+    tiny = _build(f, load_cards(), load_zone_mimics(), "tiny")
+    assert validate(tiny, f).ok, validate(tiny, f).errors
+    assert {x.why for x in tiny.findings} <= {
+        "You marked it and named it correctly.",
+        "You marked the correct spot but called it mass.",
+        "Your search never paused on this area.",
+        "Your cursor crossed this area only briefly.",
+        "You looked here a while and judged it normal.",
     }
+    assert all(len(x.what_it_looks_like) == 1 and x.what_it_looks_like[0] for x in tiny.findings)
+    assert _total_words(tiny) < _total_words(out)
 
 
 # --------------------------------------------------------------------------- pattern locations (syn_007)

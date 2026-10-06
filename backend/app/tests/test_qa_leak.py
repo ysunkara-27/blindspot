@@ -135,13 +135,19 @@ def test_assessment_nothing_but_receipts_until_all_submitted(api_env, assess_roo
         assert r.status_code == 200
         assert r.json() == {"recorded": True, "index": i + 1, "total": total}, r.json()
         scan("assess submit", r.json())
-        # post-submit, still no feedback surface
-        d = c.get(f"/api/attempts/{aid}/debrief").json()
-        assert d == {"status": "disabled"}
-        assert c.post(f"/api/attempts/{aid}/ask", json={"question": "what did I miss?"}).status_code == 403
-        # the summary is refused until every case is submitted, and the refusal itself is leak-free
+        # post-submit, still no feedback surface until the LAST case is in (round 3: review opens at completion)
         sm = c.get(f"/api/sessions/{sid}/summary")
         if i < total - 1:
+            d = c.get(f"/api/attempts/{aid}/debrief").json()
+            assert d == {"status": "disabled"}
+            assert c.post(f"/api/attempts/{aid}/ask", json={"question": "what did I miss?"}).status_code == 403
+            res = c.get(f"/api/attempts/{aid}/result")
+            assert res.status_code == 409, f"result served after {i + 1}/{total}"
+            scan("result 409", res.json())
+            an = c.get(f"/api/attempts/{aid}/anatomy")
+            assert an.status_code == 409
+            scan("anatomy 409", an.json())
+            # the summary is refused until every case is submitted, and the refusal itself is leak-free
             assert sm.status_code == 409, f"summary served after {i + 1}/{total}"
             scan("summary 409", sm.json())
         # learner dashboard must not expose per-case feedback for assessment attempts before the summary

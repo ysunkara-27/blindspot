@@ -53,7 +53,7 @@ def test_live_ok_and_request_shape():
     r = run("missed_search", mc)
     assert r["source"] == "live" and r["validator"]["ok"] and r["validator"]["first_try_ok"]
     assert r["model"] == "mock-model" and r["input_tokens"] == 100 and r["output_tokens"] == 50
-    assert r["provenance"] == "ai_draft" and len(r["cache_key"]) == 64 and r["prompt_version"].startswith("v2+")
+    assert r["provenance"] == "ai_draft" and len(r["cache_key"]) == 64 and r["prompt_version"].startswith("v3+")
     call = mc.calls[0]
     assert len(call["system"]) == 2
     assert call["system"][0]["text"].startswith("You write the debrief for Blindspot")
@@ -75,7 +75,7 @@ def test_cached_system_prefix_is_identical_across_cases():
 
 def test_invalid_then_valid_regenerates_once():
     bad = valid_json("found")
-    bad["findings"][0]["why"] = "This might be pneumonia."
+    bad["findings"][0]["why"] = "This spot here might be a small pneumonia."
     mc = MockClient([bad, valid_json("found")])
     r = run("found", mc)
     assert r["source"] == "live" and r["validator"]["regenerated"] and not r["validator"]["first_try_ok"]
@@ -282,15 +282,15 @@ def _inflate(d: dict, field: str, n: int) -> dict:
     return d
 
 
-def test_prompt_v2_states_an_explicit_budget_below_the_cap():
+def test_prompt_v3_states_an_explicit_budget_below_the_cap():
     p = load_prompt("debrief_system")
-    assert p.version == "v2" and "LENGTH BUDGET" in p.text and "110 words" in p.text and "160" in p.text
-    assert service.prompt_version().startswith("v2+")
+    assert p.version == "v3" and "LENGTH BUDGET" in p.text and "110 words" in p.text and "160" in p.text
+    assert service.prompt_version().startswith("v3+")
 
 
 def test_debrief_max_tokens_scale_with_findings():
     assert debrief_max_tokens(0) == debrief_max_tokens(2) == 700
-    assert debrief_max_tokens(4) == 800 and debrief_max_tokens(40) == 1200
+    assert debrief_max_tokens(4) == 880 and debrief_max_tokens(12) == 1600 and debrief_max_tokens(60) == 4000
     mc = MockClient([valid_json("multi")])
     run("multi", mc)
     assert mc.calls[0]["max_tokens"] == 700  # 2 findings

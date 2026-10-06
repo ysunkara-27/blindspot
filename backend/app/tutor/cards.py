@@ -87,7 +87,10 @@ FIELD_GUIDE = """OUTPUT FIELD GUIDE (applies to every debrief)
   with underscores). For a pattern finding, start from its relative_location when FACTS gives one (e.g. "cardiac
   silhouette", "left lung, mainly the lower zone") and say what to compare (for cardiomegaly: heart width against
   inner chest width, using ctr if given).
-- what_it_looks_like: one or two short signs from that label's card.
+- what_it_looks_like: one or two short signs from that label's card. NEVER an empty list: every finding, found or
+  missed, focal or pattern, gets at least one sign.
+- why: one full sentence of at least 6 words about what the learner did at that finding (searched, passed over,
+  judged normal, mislabeled, found). Never a stub such as "Never examined." or "Pattern missed."
 - overcalls: exactly one entry per FACTS outcome whose result is false_positive (use its mark id). possible_mimics:
   normal structures from ZONE MIMICS for that mark's zone, or the mimics on the card of the label the learner chose.
 - verdict: all_found = every finding found; partly_found = some found or mislabeled, some missed; missed = no
@@ -96,7 +99,9 @@ FIELD_GUIDE = """OUTPUT FIELD GUIDE (applies to every debrief)
 - search_coaching: use search.unvisited_review_areas and first_visits.
 - calibration_note: only when a confident (4-5) mark or normal call was wrong; otherwise "".
 - next_step: one concrete thing to do on the next film.
-- Crowded films (more than 8 findings): keep each finding entry to a few words."""
+- Crowded films (5 or more findings): keep each entry short (zone name, one sign, one short sentence), but still
+  one sign and a why of at least 6 words for every finding.
+- If the user message has a DRILL FOCUS line, lead the headline with that finding type; still list every finding."""
 
 
 def _card_text(c: TeachingCard) -> str:

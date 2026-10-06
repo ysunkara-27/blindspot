@@ -159,7 +159,11 @@ def test_normal_case_with_a_mark_is_overcall_and_penalized(api_env):
     assert any(o.result == "false_positive" for o in res.outcomes)
 
 
-def test_hints_cost_points_on_normal_case(api_env):
+def test_hint_weight_on_normal_case_comes_from_config(api_env):
+    """Hints cost whatever config/scoring.yaml says (0 since Oct 6: hints are free)."""
+    from backend.app import config
+
     c = api_env()
     res = _play(c, "syn_009", declared_normal=True, normal_confidence=3, hints=2)
-    assert res.score == 100 - 2 * 5
+    n = config.scoring()["score_weights"]["normal"]
+    assert res.score == max(0, n["base"] + 2 * n["hint"])

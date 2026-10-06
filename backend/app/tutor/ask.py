@@ -251,7 +251,7 @@ def _mark_parts(facts: DebriefFacts, question: str) -> list[str]:
     res = _outcomes(facts).get(f.id)
     if res is not None and res.result == "mislabeled" and o.learner_label:
         lab = vocab.display(o.learner_label).lower()
-        return [f"{o.target} was on {_tag(f)}, the right spot, but you labelled it {lab}."]
+        return [f"{o.target} was on {_tag(f)}, the correct spot, but you labelled it {lab}."]
     return [f"{o.target} was on {_tag(f)}: radiologists marked that spot too, so your mark was correct."]
 
 

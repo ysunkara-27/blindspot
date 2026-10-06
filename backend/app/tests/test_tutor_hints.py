@@ -11,7 +11,10 @@ from backend.app.tutor.hints import (
     COMPARE_MIDLINE,
     COMPARE_SIDES,
     H1_ALL_VISITED,
+    H1_MAX_AREAS,
     dwell_ms,
+    h1_areas,
+    h1_text,
     h2_text,
     hint,
     hint_zones,
@@ -21,13 +24,60 @@ from backend.app.tutor.hints import (
 from backend.app.tutor.validator import label_mentions
 
 
-def test_h1_lists_every_unvisited_review_area_without_telemetry():
+def test_h1_names_at_most_three_areas_in_anatomical_order_without_telemetry():
     c = cases()["syn_001"]
     text = hint(1, c, [], [], zones(c.case_id))
-    assert text.startswith("You haven't looked at: ")
-    for z in vocab.review_area_ids():
-        if z in zones(c.case_id):
-            assert vocab.zone_human(z) in text
+    # nothing visited, every dwell is 0: the first three review areas in the fixed order
+    assert text == "You haven't looked at the right apex, the left apex or the right hilum yet."
+    assert H1_MAX_AREAS == 3
+
+
+def test_h1_picks_the_least_dwelt_unvisited_areas():
+    c = cases()["syn_001"]
+    z = zones(c.case_id)
+    events, t = [], 0.0
+    # brief looks (below the 300 ms visit threshold) at the three areas H1 would otherwise name
+    for area, ms in (("right_apex", 200), ("left_apex", 150), ("right_hilum", 100)):
+        x, y = zone_center(c.case_id, area)
+        events += jitter_events(x, y, t, ms)
+        t += ms + 20  # move straight on: a long gap would be credited to the area just left
+    un = unvisited_review_areas(events, z)
+    assert {"right_apex", "left_apex", "right_hilum"} <= set(un)  # still unvisited, but no longer the least dwelt
+    dwell = zone_dwell(events, z)
+    picked = h1_areas(un, dwell)
+    assert len(picked) == 3 and not {"right_apex", "left_apex", "right_hilum"} & set(picked)
+    order = vocab.review_area_ids()
+    assert picked == sorted(picked, key=order.index)  # fixed anatomical order, not dwell order
+    assert max(dwell.get(a, 0.0) for a in picked) <= min(dwell[a] for a in ("right_apex", "left_apex", "right_hilum"))
+    assert hint(1, c, [], events, z) == h1_text(picked)
+
+
+def test_h1_wording_for_one_two_and_three_areas():
+    assert h1_text(["left_apex"]) == "You haven't looked at the left apex yet."
+    assert h1_text(["right_apex", "retrocardiac"]) == (
+        "You haven't looked at the right apex or the area behind the heart yet."
+    )
+    assert h1_text(["right_apex", "left_hilum", "retrocardiac"]) == (
+        "You haven't looked at the right apex, the left hilum or the area behind the heart yet."
+    )
+    assert h1_text(["subdiaphragmatic"]) == "You haven't looked at the area just below the diaphragm yet."
+    assert h1_text([]) == H1_ALL_VISITED
+    # anatomical order and the cap hold whatever order the caller passes
+    assert h1_areas(["mediastinum", "retrocardiac", "left_apex", "right_apex"], {}) == [
+        "right_apex",
+        "left_apex",
+        "retrocardiac",
+    ]
+    assert h1_areas(["mediastinum", "left_apex"], {"left_apex": 250.0}) == ["left_apex", "mediastinum"]
+
+
+def test_h1_is_identical_for_normal_and_abnormal_films_given_the_same_search():
+    """Symmetry: H1 depends on telemetry only, so a normal and an abnormal film get the same sentence."""
+    normal, abnormal = cases()["syn_008"], cases()["syn_002"]
+    x, y = zone_center(abnormal.case_id, "left_apex")
+    for events in ([], jitter_events(x, y, 0, 900)):
+        texts = {hint(1, c, [], events, zones(abnormal.case_id)) for c in (normal, abnormal)}
+        assert len(texts) == 1, texts
 
 
 def test_h1_drops_areas_the_learner_dwelt_on():
@@ -54,7 +104,8 @@ def test_h1_all_visited_message():
 
 # One template per level, for every film (normal or abnormal).
 H1_RE = re.compile(
-    r"^(?:You haven't looked at: [a-z ,()]+\.|Compare each region with the same region on the other side\.)$"
+    r"^(?:You haven't looked at the [a-z ]+(?:, the [a-z ]+)?(?: or the [a-z ]+)? yet\."
+    r"|Compare each region with the same region on the other side\.)$"
 )
 H2_RE = re.compile(r"^Look again at the (?:patient's (?:right|left) side, in the )?[a-z ()]+\.$")
 H3_RE = re.compile(

@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import importlib
 import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -19,7 +21,7 @@ from shared.contracts import Health
 log = logging.getLogger("blindspot")
 APP_VERSION = "0.1.0"
 DEV_ORIGINS = ["http://127.0.0.1:5173", "http://localhost:5173"]
-ROUTE_MODULES = ("access", "sessions", "attempts", "cases", "dashboard", "review", "pilot", "dev", "about")
+ROUTE_MODULES = ("access", "sessions", "attempts", "cases", "dashboard", "review", "pilot", "dev", "about", "reference")
 
 
 def _case_count() -> int:
@@ -37,9 +39,27 @@ def health() -> Health:
     return Health(ok=True, offline=s.offline, cases=_case_count(), version=APP_VERSION)
 
 
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    """Create the SQLite schema once, before the first request (first-run safety; see backend/app/db.py)."""
+    try:
+        from backend.app.db import init_db
+
+        init_db()
+    except Exception:  # noqa: BLE001 — connect() retries lazily; startup must not die on a read-only volume
+        log.exception("database initialisation at startup failed")
+    yield
+
+
 def create_app() -> FastAPI:
     s = get_settings()
-    app = FastAPI(title="Blindspot API", version=APP_VERSION, docs_url="/api/docs", openapi_url="/api/openapi.json")
+    app = FastAPI(
+        title="Blindspot API",
+        version=APP_VERSION,
+        docs_url="/api/docs",
+        openapi_url="/api/openapi.json",
+        lifespan=lifespan,
+    )
     # add_middleware prepends: last added runs first. Order outer → inner: base path, CORS, gate/no-store.
     app.add_middleware(GateMiddleware)
     app.add_middleware(

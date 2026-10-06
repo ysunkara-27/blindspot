@@ -3,7 +3,10 @@
 Wording is symmetric for normal and abnormal films (QA gate W1 issue 8): each level has ONE template, so the text
 alone cannot tell a learner whether the film is normal.
 
-H1: "You haven't looked at: {unvisited review areas}."  /  "Compare each region with the same region on the other side."
+H1: "You haven't looked at the {a}, the {b} or the {c} yet."  /  "Compare each region with the same region on the other
+    side."  At most H1_MAX_AREAS (3) areas: the unvisited review areas with the LEAST dwell so far, named in the fixed
+    anatomical order of config review_areas (apices, hila, behind the heart, costophrenic angles, below the diaphragm,
+    mediastinum). A search cue only: it depends on the learner's telemetry, never on the findings.
 H2: "Look again at the patient's {side} side, in the {zone}."  /  "Look again at the {zone}."  (midline zones)
 H3: "In the {zone}, check for this sign: {sign}. {Mimic} can look similar; {compare}."
 
@@ -33,7 +36,11 @@ from backend.app.tutor.cards import load_cards, load_zone_mimics
 from shared.contracts import Case, Finding, Mark, TeachingCard, TelemetryEvent
 
 H1_ALL_VISITED = "Compare each region with the same region on the other side."
-H1_PREFIX = "You haven't looked at: "
+H1_PREFIX = "You haven't looked at "
+H1_SUFFIX = " yet."
+H1_MAX_AREAS = 3
+# Spoken names for H1 where the config name is a mouthful ("retrocardiac region (behind the heart)").
+H1_NAMES = {"retrocardiac": "area behind the heart"}
 H2_PREFIX = "Look again at the "
 H3_PREFIX = "In the "
 GENERIC_SIGN = "an edge or shadow that normal anatomy does not explain"
@@ -113,8 +120,25 @@ def zone_dwell(
         return {z: dwell_ms(list(telemetry), m, dcfg) for z, m in zones.items() if z not in _LUNG_UNIONS}
 
 
-def _join(names: list[str]) -> str:
-    return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
+def _join(names: list[str], last: str = "and") -> str:
+    return names[0] if len(names) == 1 else ", ".join(names[:-1]) + f" {last} " + names[-1]
+
+
+def h1_areas(unvisited: Sequence[str], dwell: Mapping[str, float], limit: int = H1_MAX_AREAS) -> list[str]:
+    """At most `limit` unvisited review areas: those with the least dwell (ties: anatomical order), then listed in
+    the fixed anatomical order (the order of config review_areas)."""
+    order = {z: i for i, z in enumerate(vocab.review_area_ids())}
+    known = [z for z in dict.fromkeys(unvisited) if z in order]
+    pick = sorted(known, key=lambda z: (float(dwell.get(z, 0.0)), order[z]))[: max(1, int(limit))]
+    return sorted(pick, key=order.__getitem__)
+
+
+def h1_text(areas: Sequence[str]) -> str:
+    """ "You haven't looked at the right apex, the left hilum or the area behind the heart yet." """
+    if not areas:
+        return H1_ALL_VISITED
+    names = ["the " + H1_NAMES.get(z, vocab.zone_human(z)) for z in areas]
+    return H1_PREFIX + _join(names, "or") + H1_SUFFIX
 
 
 def _marked(f: Finding, marks: Sequence[Mark], tau: float) -> bool:
@@ -255,7 +279,7 @@ def hint(
         un = unvisited_review_areas(telemetry, zones, sc)
         if not un:
             return H1_ALL_VISITED
-        return H1_PREFIX + _join([vocab.zone_human(z) for z in un]) + "."
+        return h1_text(h1_areas(un, zone_dwell(telemetry, zones, sc)))
     cards = cards if cards is not None else load_cards()
     zone, card = _focus(level, case, marks, telemetry, zones, sc, cards, previous)
     if zone is None:

@@ -18,8 +18,8 @@ matching_costs:
   other: 0.6
   no_hit: 1000000
 score_weights:
-  abnormal: {localization: 70, label: 20, pattern: 10, false_positive: -10, hint: -5}
-  normal:   {base: 100, false_positive: -25, hint: -5}
+  abnormal: {localization: 70, label: 20, pattern: 10, false_positive: -10, hint: 0}   # hints are free (user feedback Oct 6): UI says "3 hints left"
+  normal:   {base: 100, false_positive: -25, hint: 0}
 success:
   abnormal_max_false_positives: 1
 hints:

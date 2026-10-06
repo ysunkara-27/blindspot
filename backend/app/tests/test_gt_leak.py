@@ -81,13 +81,12 @@ def test_assessment_submit_returns_only_receipt(api_env, assess_root):
             f"/api/attempts/{n['attempt_id']}/submit", json=_body(marks=[mark("M1", 70, 150, "nodule")], patterns=[])
         )
         assert r.json() == {"recorded": True, "index": i + 1, "total": 3}
-        for path in (f"/api/attempts/{n['attempt_id']}/debrief",):
-            body = c.get(path).json()
-            assert body == {"status": "disabled"}
-        if i < 2:
-            r = c.get(f"/api/sessions/{sid}/summary")
-            assert r.status_code == 409
-            assert_no_ground_truth(r.json())
+        if i < 2:  # until the LAST case is submitted: no debrief, no stored result, no summary
+            assert c.get(f"/api/attempts/{n['attempt_id']}/debrief").json() == {"status": "disabled"}
+            for path in (f"/api/attempts/{n['attempt_id']}/result", f"/api/sessions/{sid}/summary"):
+                r = c.get(path)
+                assert r.status_code == 409, path
+                assert_no_ground_truth(r.json())
     assert_no_ground_truth(c.get(f"/api/sessions/{sid}/next").json())
     assert "cases" in c.get(f"/api/sessions/{sid}/summary").json()  # revealed only at the end
 
