@@ -11,6 +11,12 @@ Special entries:
 
 ---
 
+2026-10-05 23:18 — orchestrator — live tutor verified in the UI — green
+- Tutor v2 committed 4729ac9 (smoke re-run: 10/10 first-try, p50 4.4 s, $0.24). API restarted online.
+- Browser walk on a real practice case: live debrief rendered in the rail (debriefs row: source=live, 6.4 s cold, prompt v2+587c0865, 420 output tokens); arrow labels short ("other lung: left lower zone"); provenance badge + Ask the tutor visible. Screenshot tests/e2e/__screenshots__/live-06-claude-debrief.png (gitignored).
+- Deployment decision: Hugging Face Space (Docker, free) behind BLINDSPOT_ACCESS_CODE, data from a private HF dataset repo pulled at container start, Vercel rewrite /blindspot/* → the Space. Needs `hf auth login` from Yash.
+
+
 2026-10-05 23:16 — tutor-prompt-engineer — M5 live smoke v2 (debrief length fixed at the source) — green
 - Cause (v1 smoke, kept at eval/samples/debriefs_smoke.v1.jsonl): 9/10 first tries failed ONLY R7 (161-224 words vs 160); regeneration passed; p50 9.5 s.
 - Fix: backend/app/prompts/debrief_system.md v2 (explicit LENGTH BUDGET: aim ≤ 110 words; per-field caps scaled by finding count so even the caps' maximum stays < 160; rule 6 now points to it; cache keys change via prompt_version "v2+..."). client.debrief_max_tokens(n) = 700 (+50 per finding beyond 2, ceiling 1200; base DEBRIEF_MAX_TOKENS=700, which eval/adapters reads); effort stays "low" (lowest level for claude-sonnet-5-5 per current docs). Regeneration message now states the exact count, the cap and a target ("total 224 words; the hard limit is 160. Rewrite to at most 110 words..."). Validator cap unchanged (160).
