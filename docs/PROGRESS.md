@@ -11,11 +11,11 @@ Special entries:
 
 ---
 
-2026-10-07 13:49 — orchestrator — MOVED to readblindspot.com (interim https://readblindspot.vercel.app) — green
-- Space serves at root (BLINDSPOT_BASE_PATH removed; Dockerfile base arg default /). Vercel project `readblindspot` (deploy/readblindspot/vercel.json: /(.*) → hf.space/$1); GitHub auto-connect disconnected (deploy via `vercel --prod` from that dir).
-- Worker e8e1ee53: CORS for readblindspot.com, www, *.vercel.app on /analytics and /feedback only; site id stays `blindspot`; stats stay at ysunkara.com/stats.
-- In-app /feedback page (Blindspot design) posts to the worker; landing band links to it; titles/canonical → readblindspot.com.
-- ysunkara.com: 308 redirects /blindspot, /blindspot/, /blindspot/:path*, /feedback → readblindspot.vercel.app (/blindspots chains). TODO when the domain is attached: retarget to https://readblindspot.com (one sed in reyash vercel.json) and set og:url already points there.
+2026-10-07 13:49 — orchestrator — MOVED to scanblindspot.com (interim https://scanblindspot.vercel.app) — green
+- Space serves at root (BLINDSPOT_BASE_PATH removed; Dockerfile base arg default /). Vercel project `scanblindspot` (deploy/scanblindspot/vercel.json: /(.*) → hf.space/$1); GitHub auto-connect disconnected (deploy via `vercel --prod` from that dir).
+- Worker e8e1ee53: CORS for scanblindspot.com, www, *.vercel.app on /analytics and /feedback only; site id stays `blindspot`; stats stay at ysunkara.com/stats.
+- In-app /feedback page (Blindspot design) posts to the worker; landing band links to it; titles/canonical → scanblindspot.com.
+- ysunkara.com: 308 redirects /blindspot, /blindspot/, /blindspot/:path*, /feedback → scanblindspot.vercel.app (/blindspots chains). TODO when the domain is attached: retarget to https://scanblindspot.com (one sed in reyash vercel.json) and set og:url already points there.
 
 
 2026-10-07 13:40 — backend-engineer + tutor (branch `signs`) — ROUND 5 backend: sign annotations, free-draw marks, sign schematics, Radiopaedia links, drawn signs in the tutor — green (not committed)
