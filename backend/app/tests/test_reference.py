@@ -30,6 +30,7 @@ LABEL_KEYS = {
     "radiopaedia_url",
     "review_status",
     "modality",  # the label's modality (volumetric expansion)
+    "signs",  # sign schematic ids for the label (GET /api/signs/{id})
     "examples",
     "volume_examples",  # CT/MR bench examples (volumetric expansion)
 }

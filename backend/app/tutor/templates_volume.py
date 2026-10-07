@@ -116,6 +116,9 @@ def what(f: FactsFinding, result: str, card: TeachingCard | None, level: str, n_
         signs = [s if level == "full" else _strip_paren(s) for s in card.key_signs[:n]]
     if level == "full" and f.components:
         signs.append("Reference components: " + ", ".join(f.components))
+    if level in ("full", "short") and f.signs_drawn:
+        name = f.signs_drawn[0]
+        signs = [f"Look at the {name[:1].lower()}{name[1:]} drawn on the slice", *signs[:2]]
     return signs
 
 

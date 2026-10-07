@@ -27,6 +27,7 @@ from backend.app import config, tutor_bridge
 from backend.app.adaptive.selector import qa_ok
 from backend.app.cases import CaseRepository, get_repo, processed_root
 from backend.app.settings import get_settings
+from backend.app.signs import schematics_for_label
 from backend.app.volumes import provenance_badge, volume_url
 from shared.contracts import VOLUME_LABELS, Case, Component, Measure, TeachingCard, Window
 
@@ -97,6 +98,7 @@ class ReferenceLabel(BaseModel):
     radiopaedia_url: str | None
     review_status: str
     modality: str = "cxr"  # the label's modality (taxonomy): cxr | ct | mr
+    signs: list[str] = []  # sign schematic ids for this label (GET /api/signs/{id})
     examples: list[ReferenceExample]
     volume_examples: list[ReferenceVolumeExample] = []
 
@@ -213,6 +215,7 @@ def _label_entry(
         "radiopaedia_url": card.radiopaedia_url if card else None,
         "review_status": card.review.status if card else "ai_draft",
         "modality": config.label_modality(label),
+        "signs": schematics_for_label(label),
         "examples": examples,
         "volume_examples": volume_examples(repo, label),
     }

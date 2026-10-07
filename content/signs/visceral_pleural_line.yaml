@@ -1,0 +1,10 @@
+# Sign schematic (generic line art, not a real case). Reviewer: edit the description freely; keep the id.
+id: visceral_pleural_line
+name: Visceral pleural line
+description: 'A thin white line parallel to the chest wall with no lung markings beyond it: the lung edge has pulled away and air fills the space.'
+labels:
+- pneumothorax
+modality: cxr
+svg: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M30 190 C20 120 40 40 110 20" stroke="#8C99A6" stroke-width="4"/><path d="M110 20 C150 30 180 100 175 190" stroke="#8C99A6" stroke-width="4" stroke-dasharray="6 6"/><path d="M62 185 C50 130 70 70 118 48" stroke="#35C9DD" stroke-width="3"/><path d="M118 48 C150 60 165 120 162 185" stroke="#35C9DD" stroke-width="1.5"/><path d="M100 185 L108 120 M108 120 L95 90 M108 120 L125 95 M108 120 L112 150 M120 160 L140 140 M90 160 L85 130" stroke="#8C99A6" stroke-width="2"/><path d="M40 90 L58 100" stroke="#F0A92E" stroke-width="3"/><path d="M52 93 L58 100 L50 105" stroke="#F0A92E" stroke-width="3"/></svg>
+radiopaedia_url: https://radiopaedia.org/articles/pneumothorax
+review_status: ai_draft

@@ -17,5 +17,5 @@ mimics:
   - Motion blur from breathing at the lung bases
 commonly_confused_with: []
 search_tip: Scroll through every slice at the lung window from the top of the lungs to the diaphragm, then switch to the soft-tissue window and scroll again, following each round shadow onto the neighbouring slices.
-radiopaedia_url: null
-review: {status: ai_draft, reviewer: null, date: null, notes: "CT (MSD Task06 Lung). No radiopaedia_url: the site returns the same 200 page for any slug, so no article could be confirmed."}
+radiopaedia_url: https://radiopaedia.org/articles/lung-cancer-3
+review: {date: null, notes: 'CT (MSD Task06 Lung). radiopaedia_url checked 2026-10-07: HEAD 200, final path /articles/lung-cancer-3 (no redirect). Not machine-verifiable: radiopaedia.org returns the same 200 shell page (title ''Radiopaedia.org'') for a bogus control slug. Reviewer: click to confirm. Radiopaedia''s lung cancer article carries the -3 suffix.', reviewer: null, status: ai_draft}

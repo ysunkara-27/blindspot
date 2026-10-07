@@ -1,0 +1,11 @@
+# Sign schematic (generic line art, not a real case). Reviewer: edit the description freely; keep the id.
+id: ct_hypoenhancing_mass
+name: Hypoenhancing mass on CT
+description: On a contrast-enhanced axial slice the tumour enhances less than the organ around it, so it looks darker, with a bulge or lost contour at its edge.
+labels:
+- pancreatic_tumour
+- liver_tumour
+modality: ct
+svg: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="100" cy="100" rx="90" ry="78" stroke="#8C99A6" stroke-width="4"/><path d="M40 95 C60 80 95 85 120 95 C145 105 165 100 175 90" stroke="#8C99A6" stroke-width="3"/><path d="M40 115 C60 125 95 125 120 118 C145 112 165 120 175 112" stroke="#8C99A6" stroke-width="3"/><path d="M78 92 C95 84 112 96 112 110 C112 122 96 128 84 124 C72 120 68 100 78 92 Z" stroke="#35C9DD" stroke-width="3" fill="#35C9DD" fill-opacity="0.12"/><circle cx="100" cy="60" r="7" stroke="#8C99A6" stroke-width="2"/><path d="M60 150 L82 122" stroke="#F0A92E" stroke-width="3"/><path d="M71 125 L82 122 L80 133" stroke="#F0A92E" stroke-width="3"/></svg>
+radiopaedia_url: https://radiopaedia.org/articles/pancreatic-ductal-adenocarcinoma
+review_status: ai_draft

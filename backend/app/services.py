@@ -32,6 +32,7 @@ from backend.app.adaptive.selector import (
 from backend.app.cases import CaseRepository, get_repo
 from backend.app.db import jload, new_id, now_iso, row, rows, tx
 from backend.app.engine import Evaluation, evaluate
+from backend.app.scoring.outline import outline_cfg, polygon_problems
 from backend.app.search.misstype import BUCKET
 from backend.app.settings import get_settings
 from backend.app.volumes import maskvol_url, next_case_volume, provenance_badge, submit_problems_volume
@@ -503,12 +504,19 @@ def history_for(con, lid: str, labels: list[str], exclude_aid: str) -> dict[str,
     return out
 
 
+def outline_max_points() -> int:
+    return int(outline_cfg(config.scoring()).get("max_points", 400))
+
+
 def submit_problems(body: AttemptSubmit, width: float, height: float, max_marks: int) -> list[str]:
-    """Pure check of a submit against the image (REVIEW_NOTES issue 7). Empty list = valid."""
+    """Pure check of a submit against the image (REVIEW_NOTES issue 7). Empty list = valid. A free-drawn mark
+    (polygon / tool draw) needs 3..max_points finite vertices inside the image; its (x, y) is recomputed as the
+    polygon centroid by the engine."""
     errs: list[str] = []
     if len(body.marks) > max_marks:
         errs.append(f"too many marks ({len(body.marks)} > {max_marks})")
     seen: set[str] = set()
+    max_pts = outline_max_points()
     for m in body.marks:
         if m.mark_id in seen:
             errs.append(f"duplicate mark_id {m.mark_id!r}")
@@ -517,6 +525,9 @@ def submit_problems(body: AttemptSubmit, width: float, height: float, max_marks:
             errs.append(f"mark {m.mark_id!r} has non-finite coordinates")
         elif not (0.0 <= m.x <= width and 0.0 <= m.y <= height):
             errs.append(f"mark {m.mark_id!r} is outside the image ({m.x:g}, {m.y:g}) not in [0,{width}]x[0,{height}]")
+        if m.tool == "draw" and not m.polygon:
+            errs.append(f"mark {m.mark_id!r} has tool 'draw' but no polygon")
+        errs += polygon_problems(m.polygon, width, height, max_pts, m.mark_id)
     for i, e in enumerate(body.telemetry):
         vals = [e.t, e.zoom, e.x, e.y, *(e.vp or ())]
         if any(v is not None and not math.isfinite(v) for v in vals):
@@ -530,7 +541,7 @@ def submit_problems(body: AttemptSubmit, width: float, height: float, max_marks:
 def validate_submit(body: AttemptSubmit, case: Case) -> None:
     max_marks = int(config.scoring().get("submit", {}).get("max_marks", DEFAULT_MAX_MARKS))
     if case.volume is not None:
-        errs = submit_problems_volume(body, case, max_marks)
+        errs = submit_problems_volume(body, case, max_marks, outline_max_points())
     else:
         errs = submit_problems(body, case.width, case.height, max_marks)
     if errs:
@@ -762,6 +773,7 @@ def run_debrief_job(
             mark_zones=ev.mark_zones,
             level=level,
             history=history,
+            signs_drawn=ev.signs_drawn,
         )
         if facts is None:
             _finish(aid, status="failed", error="The tutor is offline. Showing the built-in facts card instead.")

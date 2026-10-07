@@ -1,0 +1,10 @@
+# Sign schematic (generic line art, not a real case). Reviewer: edit the description freely; keep the id.
+id: mr_ring_enhancement
+name: Ring enhancement on MR
+description: 'On T1 after contrast a bright rim surrounds a dark centre: the rim takes up contrast while the core does not, as in a high-grade tumour.'
+labels:
+- brain_tumour
+modality: mr
+svg: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M100 18 C150 18 185 55 185 105 C185 150 150 185 100 185 C50 185 15 150 15 105 C15 55 50 18 100 18 Z" stroke="#8C99A6" stroke-width="4"/><path d="M100 22 L100 182" stroke="#8C99A6" stroke-width="2" stroke-dasharray="5 5"/><path d="M85 85 C85 75 95 72 100 85 M100 85 C105 72 115 75 115 85" stroke="#8C99A6" stroke-width="2"/><circle cx="138" cy="112" r="24" stroke="#35C9DD" stroke-width="7"/><circle cx="138" cy="112" r="24" stroke="#35C9DD" stroke-width="1" stroke-dasharray="2 3"/><path d="M172 160 L156 130" stroke="#F0A92E" stroke-width="3"/><path d="M156 142 L156 130 L166 134" stroke="#F0A92E" stroke-width="3"/></svg>
+radiopaedia_url: https://radiopaedia.org/articles/cerebral-ring-enhancing-lesions
+review_status: ai_draft

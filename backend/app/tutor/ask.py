@@ -271,6 +271,15 @@ def _signs(label: str, card: TeachingCard | None) -> list[str]:
     return [f"Signs of {with_article(label)}: " + "; ".join(_clause(s) for s in card.key_signs[:2]) + "."]
 
 
+def _drawn_parts(f: FactsFinding | None, vol: bool = False) -> list[str]:
+    """'Look at the visceral pleural line drawn beside F1 on the film' when FACTS lists drawn signs (first one)."""
+    if f is None or not f.signs_drawn:
+        return []
+    name = f.signs_drawn[0]
+    where = "on its slice" if vol else "on the film"
+    return [f"Look at the {name[:1].lower()}{name[1:]} drawn beside {f.id} {where}; start there."]
+
+
 def _overcall_parts(
     facts: DebriefFacts, cards: dict[str, TeachingCard], zm: dict[str, Any], question: str
 ) -> list[str]:
@@ -401,11 +410,12 @@ def template_answer(
     elif intent == "looks":
         lab = next((x for x in asked if x in gt | learner and x in cards), None)
         if lab is not None:
-            body = _signs(lab, cards[lab])
+            same_lab = f if f and f.label == lab else next((x for x in facts.case.findings if x.label == lab), None)
+            body = _drawn_parts(same_lab, vol) + _signs(lab, cards[lab])
             if f and f.label == lab and f.kind == "focal":
                 body += _where_parts(f, facts)[:1]
         elif f:
-            body = _signs(f.label, card) + _where_parts(f, facts)[:1]
+            body = _drawn_parts(f, vol) + _signs(f.label, card) + _where_parts(f, facts)[:1]
         elif vol:
             body = [
                 f"{nothing}. On a lesion-free volume each slice matches the same level on the other side, "

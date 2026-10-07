@@ -1,0 +1,10 @@
+# Sign schematic (generic line art, not a real case). Reviewer: edit the description freely; keep the id.
+id: rib_fracture_cortex
+name: 'Rib fracture: cortical break'
+description: Follow the white outline (cortex) of each rib around the chest; a fracture is a step, gap or thin dark line that interrupts it.
+labels:
+- fracture
+modality: cxr
+svg: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M15 60 C60 45 120 50 185 75" stroke="#8C99A6" stroke-width="3"/><path d="M15 85 C60 70 120 75 185 100" stroke="#8C99A6" stroke-width="3"/><path d="M15 125 C50 110 85 112 110 118" stroke="#8C99A6" stroke-width="3"/><path d="M15 150 C50 135 85 137 108 142" stroke="#8C99A6" stroke-width="3"/><path d="M118 123 C140 130 165 145 185 165" stroke="#8C99A6" stroke-width="3"/><path d="M116 148 C140 155 165 170 185 190" stroke="#8C99A6" stroke-width="3"/><path d="M110 118 L118 123 M108 142 L116 148" stroke="#35C9DD" stroke-width="3"/><path d="M112 110 L113 155" stroke="#35C9DD" stroke-width="2" stroke-dasharray="3 3"/><path d="M140 40 L118 112" stroke="#F0A92E" stroke-width="3"/><path d="M114 101 L118 112 L126 105" stroke="#F0A92E" stroke-width="3"/></svg>
+radiopaedia_url: https://radiopaedia.org/articles/rib-fractures
+review_status: ai_draft

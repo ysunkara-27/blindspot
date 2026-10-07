@@ -14,5 +14,5 @@ mimics:
   - The edge of the scapula or a soft tissue line crossing a rib
 commonly_confused_with: []
 search_tip: Trace the outline of each rib from the spine around to the side, one rib at a time, with the magnifier.
-radiopaedia_url: https://radiopaedia.org/articles/rib-fracture
-review: {status: ai_draft, reviewer: null, date: null, notes: "radiopaedia_url not machine-verifiable on 2026-10-05: radiopaedia.org returned the same 200 page for every slug, including a bogus control. Reviewer: click to confirm."}
+radiopaedia_url: https://radiopaedia.org/articles/rib-fractures
+review: {date: null, notes: 'radiopaedia_url checked 2026-10-07: HEAD 200, final path /articles/rib-fractures (no redirect). Not machine-verifiable: radiopaedia.org returns the same 200 shell page (title ''Radiopaedia.org'') for a bogus control slug. Reviewer: click to confirm.', reviewer: null, status: ai_draft}

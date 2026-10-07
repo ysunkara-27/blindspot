@@ -64,7 +64,10 @@ def build_facts(
     mark_zones: dict[str, str | None],
     level: str,
     history: dict[str, Any],
+    signs_drawn: dict[str, list[str]] | None = None,
 ) -> DebriefFacts | None:
+    """`signs_drawn`: {finding short id: [sign names drawn on the reveal]} (backend/app/signs.py), so the tutor can
+    say "look at the visceral pleural line drawn on the film"."""
     m = _mod("facts")
     if m is None or not hasattr(m, "build_facts"):
         return None
@@ -78,15 +81,16 @@ def build_facts(
         "level": level,
         "history": history,
     }
+    if signs_drawn:
+        kw["signs_drawn"] = signs_drawn
     if case.volume is not None:
         kw["volume"] = volume_facts(case, submit, outcomes, search)
     try:
         try:
             return m.build_facts(**kw)
         except TypeError:
-            if "volume" not in kw:
-                raise
-            kw.pop("volume")  # tutor facts builder without the volumetric kwarg yet
+            for k in ("signs_drawn", "volume"):  # older tutor facts builders without these kwargs
+                kw.pop(k, None)
             return m.build_facts(**kw)
     except Exception:  # noqa: BLE001
         log.exception("tutor.facts.build_facts failed")

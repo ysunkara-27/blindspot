@@ -1,0 +1,10 @@
+# Sign schematic (generic line art, not a real case). Reviewer: edit the description freely; keep the id.
+id: air_bronchogram
+name: Air bronchogram
+description: Dark branching airways stay visible inside a white area because the lung around them is filled with fluid or pus while the bronchi still hold air.
+labels:
+- consolidation
+modality: cxr
+svg: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M60 40 C110 20 170 50 175 100 C180 150 140 185 90 180 C45 175 20 140 30 95 C35 70 45 48 60 40 Z" stroke="#35C9DD" stroke-width="3" fill="#35C9DD" fill-opacity="0.18"/><path d="M40 110 L90 105 L135 70 M90 105 L120 120 L150 118 M120 120 L140 150 M90 105 L95 150 L80 170 M95 150 L115 165" stroke="#8C99A6" stroke-width="4"/><path d="M160 160 L140 150" stroke="#F0A92E" stroke-width="3"/><path d="M150 147 L140 150 L148 157" stroke="#F0A92E" stroke-width="3"/></svg>
+radiopaedia_url: https://radiopaedia.org/articles/air-bronchogram
+review_status: ai_draft

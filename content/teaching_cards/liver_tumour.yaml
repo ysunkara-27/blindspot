@@ -17,5 +17,5 @@ mimics:
   - Beam-hardening streaks from the ribs across the top of the liver
 commonly_confused_with: [pancreatic_tumour]
 search_tip: Scroll through every slice at the liver window and follow each vessel across neighbouring slices, because a true focal area stays round from slice to slice while a vessel lengthens into a tube.
-radiopaedia_url: null
-review: {status: ai_draft, reviewer: null, date: null, notes: "CT (MSD Task08 Hepatic Vessel, Task03 Liver). No radiopaedia_url: the site returns the same 200 page for any slug, so no article could be confirmed."}
+radiopaedia_url: https://radiopaedia.org/articles/hepatocellular-carcinoma
+review: {date: null, notes: 'CT (MSD Task08 Hepatic Vessel, Task03 Liver). radiopaedia_url checked 2026-10-07: HEAD 200, final path /articles/hepatocellular-carcinoma (no redirect). Not machine-verifiable: radiopaedia.org returns the same 200 shell page (title ''Radiopaedia.org'') for a bogus control slug. Reviewer: click to confirm. The dataset (MSD Task08) mixes primary and metastatic liver tumours; HCC is the linked article.', reviewer: null, status: ai_draft}

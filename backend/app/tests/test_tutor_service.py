@@ -53,7 +53,7 @@ def test_live_ok_and_request_shape():
     r = run("missed_search", mc)
     assert r["source"] == "live" and r["validator"]["ok"] and r["validator"]["first_try_ok"]
     assert r["model"] == "mock-model" and r["input_tokens"] == 100 and r["output_tokens"] == 50
-    assert r["provenance"] == "ai_draft" and len(r["cache_key"]) == 64 and r["prompt_version"].startswith("v4+")
+    assert r["provenance"] == "ai_draft" and len(r["cache_key"]) == 64 and r["prompt_version"].startswith("v5+")
     call = mc.calls[0]
     assert len(call["system"]) == 2
     assert call["system"][0]["text"].startswith("You write the debrief for Blindspot")
@@ -284,8 +284,8 @@ def _inflate(d: dict, field: str, n: int) -> dict:
 
 def test_prompt_v3_states_an_explicit_budget_below_the_cap():
     p = load_prompt("debrief_system")
-    assert p.version == "v4" and "LENGTH BUDGET" in p.text and "110 words" in p.text and "160" in p.text
-    assert service.prompt_version().startswith("v4+")
+    assert p.version == "v5" and "LENGTH BUDGET" in p.text and "110 words" in p.text and "160" in p.text
+    assert service.prompt_version().startswith("v5+")
 
 
 def test_debrief_max_tokens_scale_with_findings():

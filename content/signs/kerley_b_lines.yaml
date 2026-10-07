@@ -1,0 +1,9 @@
+# Sign schematic (generic line art, not a real case). Reviewer: edit the description freely; keep the id.
+id: kerley_b_lines
+name: Kerley B lines
+description: 'Short horizontal lines at the lung edge above the costophrenic angle, reaching the pleura: thickened septa, usually oedema. Not graded here; for comparison only.'
+labels: []
+modality: cxr
+svg: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M160 20 C185 60 185 130 180 185" stroke="#8C99A6" stroke-width="4"/><path d="M20 170 C60 140 120 150 180 185" stroke="#8C99A6" stroke-width="3"/><path d="M30 40 C40 90 50 120 90 150" stroke="#8C99A6" stroke-width="2"/><path d="M160 100 L181 102 M158 115 L182 117 M156 130 L182 132 M152 145 L181 147 M150 160 L181 162" stroke="#35C9DD" stroke-width="3"/><path d="M120 60 L155 110" stroke="#F0A92E" stroke-width="3"/><path d="M144 104 L155 110 L153 98" stroke="#F0A92E" stroke-width="3"/></svg>
+radiopaedia_url: https://radiopaedia.org/articles/kerley-lines
+review_status: ai_draft

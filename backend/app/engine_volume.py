@@ -17,6 +17,14 @@ from backend.app.config import zone_human
 from backend.app.facts_card import build_facts_card
 from backend.app.scoring.matching import match
 from backend.app.scoring.outcomes import normal_outcome, pattern_outcomes
+from backend.app.scoring.outline import (
+    normalize_mark,
+    outline_cfg,
+    outline_hits,
+    outline_verdict_for,
+    overlap_stats,
+    rasterize,
+)
 from backend.app.scoring.scores import case_score, case_success, label_credit_for, parts
 from backend.app.scoring.volume import (
     hits_volume,
@@ -40,6 +48,7 @@ from backend.app.search.volume import (
     slices_viewed_pct,
     zone_of_voxel,
 )
+from backend.app.signs import signs_for_case
 from backend.app.volumes import provenance_badge
 from shared.contracts import (
     Arrow,
@@ -118,17 +127,24 @@ def evaluate_volume(case: Case, submit: AttemptSubmit, repo: CaseRepository, hin
         mv = np.zeros(shape, np.uint8)
     zones = repo.volume_zones(case.case_id)
     priority = mark_zone_priority(zones)
-    marks = [] if submit.declared_normal else list(submit.marks)
+    marks = [] if submit.declared_normal else [normalize_mark(mk) for mk in submit.marks]
     focal = [f for f in case.findings if f.kind == "focal"]
     pats = [f for f in case.findings if f.kind == "pattern"]
     hints_n = max(submit.hints_used, hints_used or 0)
     slice_window, tau_y, tau_x = tolerance_voxels(shape, spacing, vc)
     rescue = bool(vc["hit"].get("cross_label_rescue", False))
+    ocfg = outline_cfg(sc)
 
-    # ---- hit matrix + matching (same Hungarian + label costs as X-ray)
+    # ---- hit matrix + matching (same Hungarian + label costs as X-ray). A drawn outline (axial slice only) also
+    # hits by IoU / area fraction against the finding's mask on the mark's slice.
     voxels = {mk.mark_id: mark_voxel(mk) for mk in marks}
     fmasks = {f.short_id: repo.finding_volmask(case.case_id, f.finding_id) for f in focal}
     hit = np.zeros((len(marks), len(focal)), dtype=bool)
+    rasters: dict[str, tuple[int, np.ndarray]] = {}
+    for mk in marks:
+        if mk.polygon and (mk.plane or "axial") == "axial" and mk.slice is not None and 0 <= int(mk.slice) < nz:
+            rasters[mk.mark_id] = (int(mk.slice), rasterize(mk.polygon, ny, nx))
+    stats: dict[tuple[str, str], dict[str, float]] = {}
     for j, f in enumerate(focal):
         fm = fmasks[f.short_id]
         if fm is None:
@@ -136,6 +152,11 @@ def evaluate_volume(case: Case, submit: AttemptSubmit, repo: CaseRepository, hin
         for i, mk in enumerate(marks):
             v = voxels[mk.mark_id]
             hit[i, j] = v is not None and hits_volume(v, fm, mv, slice_window, tau_y, tau_x, rescue)
+            if mk.mark_id in rasters:
+                z, pm = rasters[mk.mark_id]
+                st = overlap_stats(pm, fm[z])
+                stats[(mk.mark_id, f.short_id)] = st
+                hit[i, j] = hit[i, j] or outline_hits(st, ocfg)
     costs = sc["matching_costs"]
     m = match(
         [mk.mark_id for mk in marks],
@@ -292,6 +313,13 @@ def evaluate_volume(case: Case, submit: AttemptSubmit, repo: CaseRepository, hin
             continue
         mk = by_mark[o.target]
         v = voxels[mk.mark_id]
+        verdict = None
+        if mk.mark_id in rasters:
+            i = next(k for k, m_ in enumerate(marks) if m_.mark_id == o.target)
+            row = {f.short_id: bool(hit[i, j]) for j, f in enumerate(focal)}
+            verdict = outline_verdict_for(o.target, o.matched, stats, row, ocfg)
+        elif mk.polygon:
+            verdict = "off"  # an outline on a non-axial plane is scored by its centroid only
         reveal_marks.append(
             RevealMark(
                 mark_id=o.target,
@@ -301,6 +329,8 @@ def evaluate_volume(case: Case, submit: AttemptSubmit, repo: CaseRepository, hin
                 voxel=[round(c, 2) for c in v] if v else None,
                 plane=mk.plane or ("axial" if v else None),
                 slice=mk.slice if mk.slice is not None else (int(round(v[2])) if v else None),
+                polygon=mk.polygon,
+                outline_verdict=verdict,  # type: ignore[arg-type]
             )
         )
     wrong = [mk for mk in marks if by_target[mk.mark_id].result == "unmatched" and voxels[mk.mark_id] is not None]
@@ -360,6 +390,9 @@ def evaluate_volume(case: Case, submit: AttemptSubmit, repo: CaseRepository, hin
         )
         relations.append(SpatialRelation(**{"from": mk.mark_id, "to": f.short_id, "text": text}))
 
+    signs = signs_for_case(case, repo)  # after submit only
+    for rf in reveal_findings:
+        rf.signs = signs.get(rf.finding_id) or None
     reveal = Reveal(
         findings=reveal_findings,
         marks=reveal_marks,
@@ -373,7 +406,7 @@ def evaluate_volume(case: Case, submit: AttemptSubmit, repo: CaseRepository, hin
         provenance=provenance_badge(case),
     )
     card = build_facts_card(
-        case, outs, score, success, facts_search, submit.declared_normal, seen_slices=seen_n, near_ms=near
+        case, outs, score, success, facts_search, submit.declared_normal, seen_slices=seen_n, near_ms=near, signs=signs
     )
     finding_results = [
         (f.label, 1.0 if by_target[f.short_id].result in ("found", "mislabeled") else 0.0) for f in focal
@@ -390,7 +423,7 @@ def evaluate_volume(case: Case, submit: AttemptSubmit, repo: CaseRepository, hin
         "size_verdicts": {k: v.model_dump() for k, v in verdicts.items()},
     }
     return Evaluation(
-        score, success, outs, reveal, card, relations, facts_search, mark_zones, finding_results, search_json
+        score, success, outs, reveal, card, relations, facts_search, mark_zones, finding_results, search_json, signs
     )
 
 

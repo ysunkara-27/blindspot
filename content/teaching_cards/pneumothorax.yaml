@@ -15,4 +15,4 @@ mimics:
 commonly_confused_with: []
 search_tip: Trace the lung edge at both apices with the magnifier, looking for a fine white line with no vessels beyond it.
 radiopaedia_url: https://radiopaedia.org/articles/pneumothorax
-review: {status: ai_draft, reviewer: null, date: null, notes: "radiopaedia_url not machine-verifiable on 2026-10-05: radiopaedia.org returned the same 200 page for every slug, including a bogus control. Reviewer: click to confirm."}
+review: {date: null, notes: 'radiopaedia_url checked 2026-10-07: HEAD 200, final path /articles/pneumothorax (no redirect). Not machine-verifiable: radiopaedia.org returns the same 200 shell page (title ''Radiopaedia.org'') for a bogus control slug. Reviewer: click to confirm.', reviewer: null, status: ai_draft}

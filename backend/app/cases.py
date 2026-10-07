@@ -79,6 +79,7 @@ class CaseRepository:
         self.maskvol = lru_cache(maxsize=VOLUME_CACHE)(self._maskvol)  # type: ignore[method-assign]
         self.finding_volmask = lru_cache(maxsize=64)(self._finding_volmask)  # type: ignore[method-assign]
         self.volume_zones = lru_cache(maxsize=VOLUME_CACHE)(self._volume_zones)  # type: ignore[method-assign]
+        self.anatomy = lru_cache(maxsize=16)(self._anatomy)  # type: ignore[method-assign]
 
     # ------------------------------------------------------------------ cases
     def case_files(self) -> list[Path]:
@@ -199,6 +200,21 @@ class CaseRepository:
             return None
         return dilate(m, radius_px)
 
+    # ------------------------------------------------------------------ anatomy (torchxrayvision masks)
+    def _anatomy(self, case_id: str) -> dict[str, np.ndarray] | None:
+        """{target name: bool (H, W)} from `anatomy/<case_id>.npz` (shared/rle.py docstring: packbits masks +
+        `targets`, patient-side names such as "Right Lung", "Heart", "Facies Diaphragmatica"); None when the case has
+        no anatomy file (synthetic fixtures, deploy bundles without anatomy)."""
+        case = self.get(case_id)
+        p = self.root / case.anatomy_path if case and case.anatomy_path else None
+        if p is None or not p.exists():
+            return None
+        try:
+            return read_anatomy(p, case.height, case.width)  # type: ignore[union-attr]
+        except (OSError, ValueError, KeyError) as e:
+            log.warning("anatomy for %s unreadable: %s", case_id, e)
+            return None
+
     # ------------------------------------------------------------------ zones
     def _zones(self, case_id: str) -> tuple[dict[str, np.ndarray], dict[str, Any]]:
         case = self.get(case_id)
@@ -242,6 +258,23 @@ def stamp_provenance(case: Case) -> Case:
     except ValueError:
         return case
     return case.model_copy(update={"provenance": prov})
+
+
+def read_anatomy(path: Path, height: int, width: int) -> dict[str, np.ndarray]:
+    """Unpack an anatomy npz into {target: bool (height, width)}; masks of another size are nearest-resized."""
+    with np.load(path, allow_pickle=False) as d:
+        packed = d["masks"]
+        targets = [str(t) for t in d["targets"]]
+        shape = tuple(int(n) for n in d["shape"])
+    n, h, w = shape
+    masks = np.unpackbits(packed, axis=-1)[..., :w].astype(bool)
+    out: dict[str, np.ndarray] = {}
+    for i, name in enumerate(targets[:n]):
+        m = masks[i]
+        if m.shape != (height, width):
+            m = cv2.resize(m.astype(np.uint8), (width, height), interpolation=cv2.INTER_NEAREST) > 0
+        out[name] = m
+    return out
 
 
 def read_gz_array(path: Path, dtype: Any, shape: tuple[int, ...]) -> np.ndarray:

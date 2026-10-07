@@ -17,5 +17,5 @@ mimics:
   - Partial-volume blur at the top or bottom slice of the gland
 commonly_confused_with: [liver_tumour, colon_tumour]
 search_tip: Scroll through every slice of the volume at the soft-tissue window and follow the pancreas from tail to head on each one, comparing the brightness of the gland with its neighbours as you go.
-radiopaedia_url: null
-review: {status: ai_draft, reviewer: null, date: null, notes: "CT (MSD Task07). No radiopaedia_url: the site returns the same 200 page for any slug, so no article could be confirmed. Reviewer: add a link if you know the right article."}
+radiopaedia_url: https://radiopaedia.org/articles/pancreatic-ductal-adenocarcinoma
+review: {date: null, notes: 'CT (MSD Task07). radiopaedia_url checked 2026-10-07: HEAD 200, final path /articles/pancreatic-ductal-adenocarcinoma (no redirect). Not machine-verifiable: radiopaedia.org returns the same 200 shell page (title ''Radiopaedia.org'') for a bogus control slug. Reviewer: click to confirm.', reviewer: null, status: ai_draft}

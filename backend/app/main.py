@@ -33,6 +33,7 @@ ROUTE_MODULES = (
     "sessions",
     "attempts",
     "cases",
+    "signs",
     "dashboard",
     "review",
     "pilot",

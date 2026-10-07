@@ -18,6 +18,14 @@ from backend.app.facts_card import build_facts_card
 from backend.app.scoring.hit import hits, tolerance_px
 from backend.app.scoring.matching import match
 from backend.app.scoring.outcomes import focal_outcomes, mark_outcomes, normal_outcome, pattern_outcomes
+from backend.app.scoring.outline import (
+    normalize_mark,
+    outline_cfg,
+    outline_hits,
+    outline_verdict_for,
+    overlap_stats,
+    rasterize,
+)
 from backend.app.scoring.scores import case_score, case_success, label_credit_for, parts
 from backend.app.search.coverage import (
     MARK_ZONE_PRIORITY,
@@ -30,6 +38,7 @@ from backend.app.search.coverage import (
 from backend.app.search.dwell import dwell_in, dwell_samples, first_time_reaching
 from backend.app.search.heatmap import heatmap_png_b64
 from backend.app.search.spatial import no_mark_text, relation_label, relation_text
+from backend.app.signs import sign_names, signs_for_case
 from shared.contracts import (
     Arrow,
     AttemptSubmit,
@@ -41,6 +50,7 @@ from shared.contracts import (
     RevealFinding,
     RevealMark,
     SearchSummary,
+    Sign,
     SpatialRelation,
 )
 
@@ -59,6 +69,11 @@ class Evaluation:
     mark_zones: dict[str, str | None]
     finding_results: list[tuple[str, float]]  # (label, 1 = localized) for Elo
     search_json: dict[str, Any] = field(default_factory=dict)
+    signs: dict[str, list[Sign]] = field(default_factory=dict)  # finding short id → drawn signs (reveal + facts)
+
+    @property
+    def signs_drawn(self) -> dict[str, list[str]]:
+        return {fid: sign_names(v) for fid, v in self.signs.items() if v}
 
 
 def _client_seconds(submit: AttemptSubmit) -> float | None:
@@ -81,17 +96,26 @@ def evaluate(case: Case, submit: AttemptSubmit, repo: CaseRepository, hints_used
     tau = tolerance_px(W, sc)
     rho = float(sc["roi"]["roi_frac"]) * W
     zones, zmeta = repo.zones(case.case_id)
-    marks = [] if submit.declared_normal else list(submit.marks)
+    marks = [] if submit.declared_normal else [normalize_mark(mk) for mk in submit.marks]
     focal = [f for f in case.findings if f.kind == "focal"]
     pats = [f for f in case.findings if f.kind == "pattern"]
     hints_n = max(submit.hints_used, hints_used or 0)
+    ocfg = outline_cfg(sc)
 
-    # ---- hit matrix + matching
+    # ---- hit matrix + matching (drawn outlines: centroid rule OR IoU / area-fraction rules on the finding mask)
     hit = np.zeros((len(marks), len(focal)), dtype=bool)
+    rasters = {mk.mark_id: rasterize(mk.polygon, case.height, W) for mk in marks if mk.polygon}
+    stats: dict[tuple[str, str], dict[str, float]] = {}
     for j, f in enumerate(focal):
         dm = repo.dilated_mask(case.case_id, f.finding_id, int(round(tau)))
+        fm = repo.mask(case.case_id, f.finding_id) if rasters else None
         for i, mk in enumerate(marks):
             hit[i, j] = hits(mk.x, mk.y, f, tau, dm)
+            if mk.mark_id in rasters:
+                fmask = fm if fm is not None else _bbox_mask(f, case.height, W)
+                st = overlap_stats(rasters[mk.mark_id], fmask)
+                stats[(mk.mark_id, f.short_id)] = st
+                hit[i, j] = hit[i, j] or outline_hits(st, ocfg)
     costs = sc["matching_costs"]
     m = match(
         [mk.mark_id for mk in marks],
@@ -173,11 +197,28 @@ def evaluate(case: Case, submit: AttemptSubmit, repo: CaseRepository, hints_used
         )
         for f in case.findings
     ]
-    reveal_marks = [
-        RevealMark(mark_id=o.target, result=o.result, matched_finding=o.matched, zone=o.zone)  # type: ignore[arg-type]
-        for o in outs
-        if o.result in ("true_positive", "duplicate", "false_positive")
-    ]
+    by_mark = {mk.mark_id: mk for mk in marks}
+    row_of = {mk.mark_id: i for i, mk in enumerate(marks)}
+    reveal_marks = []
+    for o in outs:
+        if o.result not in ("true_positive", "duplicate", "false_positive"):
+            continue
+        mk = by_mark[o.target]
+        i = row_of[o.target]
+        verdict = None
+        if mk.polygon:
+            row = {f.short_id: bool(hit[i, j]) for j, f in enumerate(focal)}
+            verdict = outline_verdict_for(o.target, o.matched, stats, row, ocfg)
+        reveal_marks.append(
+            RevealMark(
+                mark_id=o.target,
+                result=o.result,  # type: ignore[arg-type]
+                matched_finding=o.matched,
+                zone=o.zone,
+                polygon=mk.polygon,
+                outline_verdict=verdict,  # type: ignore[arg-type]
+            )
+        )
     wrong = [mk for mk in marks if by_target.get(mk.mark_id) and by_target[mk.mark_id].result == "false_positive"]
     arrows: list[Arrow] = []
     relations: list[SpatialRelation] = []
@@ -229,6 +270,9 @@ def evaluate(case: Case, submit: AttemptSubmit, repo: CaseRepository, hints_used
             )
         )
 
+    signs = signs_for_case(case, repo)  # drawn after submit only: this function never runs before it
+    for rf in reveal_findings:
+        rf.signs = signs.get(rf.finding_id) or None
     approx = bool(case.zones_approximate or zmeta.get("approximate", False))
     reveal = Reveal(
         findings=reveal_findings,
@@ -239,7 +283,7 @@ def evaluate(case: Case, submit: AttemptSubmit, repo: CaseRepository, hints_used
         is_normal=case.is_normal,
         zones_approximate=approx,
     )
-    card = build_facts_card(case, outs, score, success, facts_search, submit.declared_normal)
+    card = build_facts_card(case, outs, score, success, facts_search, submit.declared_normal, signs=signs)
     finding_results = [
         (f.label, 1.0 if by_target[f.short_id].result in ("found", "mislabeled") else 0.0) for f in focal
     ]
@@ -256,8 +300,15 @@ def evaluate(case: Case, submit: AttemptSubmit, repo: CaseRepository, hints_used
         "lungs_bbox": _bbox(lungs),
     }
     return Evaluation(
-        score, success, outs, reveal, card, relations, facts_search, mark_zones, finding_results, search_json
+        score, success, outs, reveal, card, relations, facts_search, mark_zones, finding_results, search_json, signs
     )
+
+
+def _bbox_mask(f: Any, height: int, width: int) -> np.ndarray:
+    m = np.zeros((height, width), bool)
+    x0, y0, x1, y1 = f.geometry.bbox
+    m[max(0, int(y0)) : int(y1) + 1, max(0, int(x0)) : int(x1) + 1] = True
+    return m
 
 
 def _bbox(m: np.ndarray | None) -> list[float] | None:

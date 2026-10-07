@@ -1,0 +1,10 @@
+# Sign schematic (generic line art, not a real case). Reviewer: edit the description freely; keep the id.
+id: meniscus_sign
+name: Meniscus sign
+description: Fluid in the pleural space forms a concave upper edge that climbs higher along the outer chest wall and fills in the costophrenic angle.
+labels:
+- effusion
+modality: cxr
+svg: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20 L20 180 L180 180 L180 20" stroke="#8C99A6" stroke-width="4"/><path d="M20 135 C70 150 120 150 180 95" stroke="#35C9DD" stroke-width="3"/><path d="M30 150 L170 150 M30 165 L170 165" stroke="#35C9DD" stroke-width="1.5" stroke-dasharray="4 4"/><path d="M20 110 C50 100 70 100 90 120" stroke="#8C99A6" stroke-width="2" stroke-dasharray="5 5"/><path d="M150 70 L166 102" stroke="#F0A92E" stroke-width="3"/><path d="M156 96 L166 102 L167 90" stroke="#F0A92E" stroke-width="3"/></svg>
+radiopaedia_url: https://radiopaedia.org/articles/meniscus-sign-pleural-effusion
+review_status: ai_draft

@@ -1,0 +1,10 @@
+# Sign schematic (generic line art, not a real case). Reviewer: edit the description freely; keep the id.
+id: deep_sulcus
+name: Deep sulcus sign
+description: 'On a film taken lying down, air collects in front of the lung: the costophrenic angle looks unusually deep, dark and sharp.'
+labels:
+- pneumothorax
+modality: cxr
+svg: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20 L20 170 M180 20 L180 170" stroke="#8C99A6" stroke-width="4"/><path d="M20 150 C60 110 120 110 150 125" stroke="#8C99A6" stroke-width="3"/><path d="M180 150 C170 125 160 125 150 125" stroke="#8C99A6" stroke-width="3" stroke-dasharray="5 5"/><path d="M150 125 C165 140 175 160 178 190" stroke="#35C9DD" stroke-width="3"/><path d="M30 20 C60 30 90 60 100 120" stroke="#8C99A6" stroke-width="2"/><path d="M150 170 L170 180" stroke="#F0A92E" stroke-width="3"/><path d="M162 172 L170 180 L160 182" stroke="#F0A92E" stroke-width="3"/></svg>
+radiopaedia_url: https://radiopaedia.org/articles/deep-sulcus-sign
+review_status: ai_draft

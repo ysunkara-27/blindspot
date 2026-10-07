@@ -1,0 +1,10 @@
+# Sign schematic (generic line art, not a real case). Reviewer: edit the description freely; keep the id.
+id: mr_vasogenic_oedema
+name: Vasogenic oedema on MR
+description: Bright finger-like swelling on FLAIR spreading along the white matter around a tumour, with the nearby sulci flattened and the ventricle squashed.
+labels:
+- brain_tumour
+modality: mr
+svg: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M100 18 C150 18 185 55 185 105 C185 150 150 185 100 185 C50 185 15 150 15 105 C15 55 50 18 100 18 Z" stroke="#8C99A6" stroke-width="4"/><path d="M100 22 L100 182" stroke="#8C99A6" stroke-width="2" stroke-dasharray="5 5"/><path d="M80 90 C78 80 88 76 92 88 M108 88 C112 76 122 80 120 90" stroke="#8C99A6" stroke-width="2"/><path d="M118 70 C150 60 175 90 170 120 C168 140 150 150 140 160 C130 170 120 150 118 140 C110 130 108 110 118 95 Z" stroke="#35C9DD" stroke-width="2" fill="#35C9DD" fill-opacity="0.18"/><path d="M140 80 L160 70 M150 95 L172 88 M152 115 L170 118 M146 135 L160 148 M132 150 L136 168" stroke="#35C9DD" stroke-width="2"/><circle cx="140" cy="110" r="12" stroke="#35C9DD" stroke-width="4"/><path d="M50 150 L112 132" stroke="#F0A92E" stroke-width="3"/><path d="M101 128 L112 132 L104 140" stroke="#F0A92E" stroke-width="3"/></svg>
+radiopaedia_url: https://radiopaedia.org/articles/vasogenic-cerebral-oedema
+review_status: ai_draft

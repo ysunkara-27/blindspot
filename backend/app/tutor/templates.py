@@ -167,12 +167,24 @@ def why_sentence(
     return _why(f, result, card, learner_label, "full", cards)
 
 
+def drawn_sign_item(f: FactsFinding) -> str | None:
+    """'Look at the visceral pleural line drawn on the film' for the first sign FACTS says is drawn (clinician
+    feedback: tell the viewer to look for the sign drawn on the image)."""
+    if not f.signs_drawn:
+        return None
+    return f"Look at the {f.signs_drawn[0][:1].lower()}{f.signs_drawn[0][1:]} drawn on the film"
+
+
 def _what(f: FactsFinding, result: str, card: TeachingCard | None, level: str) -> list[str]:
-    """1-2 key signs from the label's card, at every level and for every result (never empty)."""
+    """1-2 key signs from the label's card, at every level and for every result (never empty). At the full and
+    short levels the first item points at the sign drawn on the film when there is one."""
     if not card or not card.key_signs:
-        return [GENERIC_SIGN]
-    n = 2 if level == "full" and result not in ("found", "pattern_found") else 1
-    return [_strip_paren(s) if level != "full" else s for s in card.key_signs[:n]]
+        items = [GENERIC_SIGN]
+    else:
+        n = 2 if level == "full" and result not in ("found", "pattern_found") else 1
+        items = [_strip_paren(s) if level != "full" else s for s in card.key_signs[:n]]
+    drawn = drawn_sign_item(f) if level in ("full", "short") else None
+    return [drawn, *items[: (1 if level == "short" else 2)]] if drawn else items
 
 
 def _focus_headline(facts: DebriefFacts, verdict: str, focus_label: str | None) -> str | None:

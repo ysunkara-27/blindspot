@@ -17,5 +17,5 @@ mimics:
   - Small bowel loops lying against the colon on one slice
 commonly_confused_with: [pancreatic_tumour]
 search_tip: Scroll through every slice at the soft-tissue window and follow the colon segment by segment, watching the wall thickness and the lumen on each slice rather than judging one slice alone.
-radiopaedia_url: null
-review: {status: ai_draft, reviewer: null, date: null, notes: "CT (MSD Task10 Colon). No radiopaedia_url: the site returns the same 200 page for any slug, so no article could be confirmed."}
+radiopaedia_url: https://radiopaedia.org/articles/colorectal-carcinoma-1
+review: {date: null, notes: 'CT (MSD Task10 Colon). radiopaedia_url checked 2026-10-07: HEAD 200, final path /articles/colorectal-carcinoma-1 (no redirect). Not machine-verifiable: radiopaedia.org returns the same 200 shell page (title ''Radiopaedia.org'') for a bogus control slug. Reviewer: click to confirm.', reviewer: null, status: ai_draft}

@@ -17,5 +17,5 @@ mimics:
   - Normal asymmetry of the sulci between the two hemispheres
 commonly_confused_with: []
 search_tip: Scroll through every slice on the T1 post-contrast sequence and then again on FLAIR, comparing each hemisphere with the matching slice on the other side for anything that enhances or swells.
-radiopaedia_url: null
-review: {status: ai_draft, reviewer: null, date: null, notes: "MR (MSD Task01 BraTS; components oedema / tumour core / enhancing tumour). No radiopaedia_url: the site returns the same 200 page for any slug, so no article could be confirmed."}
+radiopaedia_url: https://radiopaedia.org/articles/glioma
+review: {date: null, notes: 'MR (MSD Task01 BraTS; components oedema / tumour core / enhancing tumour). radiopaedia_url checked 2026-10-07: HEAD 200, final path /articles/glioma (no redirect). Not machine-verifiable: radiopaedia.org returns the same 200 shell page (title ''Radiopaedia.org'') for a bogus control slug. Reviewer: click to confirm. BraTS tumours are gliomas.', reviewer: null, status: ai_draft}

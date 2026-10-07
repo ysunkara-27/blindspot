@@ -162,9 +162,10 @@ def size_mm_text(size_mm: float | None, measure_slice: int | None = None) -> str
     return f"{s} on slice {human_slice(measure_slice)}" if measure_slice is not None else s
 
 
-def _volume_facts_finding(f: Finding, case: Case) -> FactsFinding:
+def _volume_facts_finding(f: Finding, case: Case, signs_drawn: list[str] | None = None) -> FactsFinding:
     size_mm = round(float(f.measure.long_mm), 1) if f.measure is not None else None
     return FactsFinding(
+        signs_drawn=signs_drawn or None,
         id=f.short_id,
         label=f.label,
         display=vocab.display(f.label),
@@ -183,12 +184,15 @@ def _volume_facts_finding(f: Finding, case: Case) -> FactsFinding:
     )
 
 
-def facts_finding(f: Finding, case: Case) -> FactsFinding:
+def facts_finding(f: Finding, case: Case, signs_drawn: list[str] | None = None) -> FactsFinding:
+    """`signs_drawn`: names of the sign annotations drawn for this finding on the reveal (code-built, see
+    backend/app/signs.py); the debrief may tell the reader to look at them by name."""
     if vocab.is_volumetric(case.modality):
-        return _volume_facts_finding(f, case)
+        return _volume_facts_finding(f, case, signs_drawn)
     focal = f.kind == "focal"
     ctr = case.cardiothoracic_ratio if f.label == "cardiomegaly" else None
     return FactsFinding(
+        signs_drawn=signs_drawn or None,
         id=f.short_id,
         label=f.label,
         display=vocab.display(f.label),
@@ -281,13 +285,16 @@ def build_facts(
     level: str = "MS2",
     history: Mapping[str, Any] | None = None,
     volume: Mapping[str, Any] | None = None,
+    signs_drawn: Mapping[str, Sequence[str]] | None = None,
 ) -> DebriefFacts:
     """Assemble DebriefFacts (shared/schemas/debrief_facts.json) for one submitted attempt.
 
     `volume`: tutor_bridge.volume_facts(...) for CT / MR cases (BACKEND→TUTOR). Everything in it is also on the
     contract objects, which this builder reads directly; it is used only to fill a provenance badge or a size the
-    case object lacks, so the two never disagree."""
+    case object lacks, so the two never disagree.
+    `signs_drawn`: {finding id: [sign names]} drawn on the reveal (backend/app/signs.py) → FactsFinding.signs_drawn."""
     outs = [_norm_outcome(o) for o in outcomes]
+    drawn = {short_id(str(k)): [str(x) for x in v] for k, v in (signs_drawn or {}).items()}
     vol = dict(volume or {})
     mark_zones = {short_id(k): v for k, v in (mark_zones or {}).items()}
     outcome_zone = {o.target: o.zone for o in outs if o.target.startswith("M")}
@@ -316,7 +323,7 @@ def build_facts(
             is_normal=case.is_normal,
             projection=projection_text(case),
             pixel_spacing_mm=case.pixel_spacing_mm,
-            findings=[facts_finding(f, case) for f in case.findings],
+            findings=[facts_finding(f, case, drawn.get(f.short_id)) for f in case.findings],
             modality=case.modality,
             body_region=case.body_region,
             provenance=provenance_text(case) or _badge_sentence(vol.get("provenance")),

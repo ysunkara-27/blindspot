@@ -1,0 +1,10 @@
+# Sign schematic (generic line art, not a real case). Reviewer: edit the description freely; keep the id.
+id: cardiothoracic_ratio
+name: Cardiothoracic ratio
+description: Widest heart width divided by the widest inner chest width. Above about 0.5 on a PA film suggests an enlarged heart; AP films exaggerate it.
+labels:
+- cardiomegaly
+modality: cxr
+svg: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M100 15 C40 15 20 70 20 120 C20 170 60 190 100 190 C140 190 180 170 180 120 C180 70 160 15 100 15 Z" stroke="#8C99A6" stroke-width="4"/><path d="M100 20 L100 185" stroke="#8C99A6" stroke-width="2" stroke-dasharray="5 5"/><path d="M95 70 C75 70 62 90 62 115 C62 150 85 170 110 172 C140 172 150 150 148 125 C146 95 125 70 95 70 Z" stroke="#35C9DD" stroke-width="3"/><path d="M62 128 L148 128" stroke="#F0A92E" stroke-width="3"/><path d="M62 122 L62 134 M148 122 L148 134" stroke="#F0A92E" stroke-width="3"/><path d="M22 110 L178 110" stroke="#F0A92E" stroke-width="3" stroke-dasharray="7 4"/><path d="M22 104 L22 116 M178 104 L178 116" stroke="#F0A92E" stroke-width="3"/></svg>
+radiopaedia_url: https://radiopaedia.org/articles/cardiothoracic-ratio
+review_status: ai_draft

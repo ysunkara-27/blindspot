@@ -1,0 +1,9 @@
+# Sign schematic (generic line art, not a real case). Reviewer: edit the description freely; keep the id.
+id: bat_wing
+name: Bat-wing opacities
+description: Symmetrical haziness around both hila that spares the outer lung, classically pulmonary oedema. Not a finding this trainer grades; shown for comparison only.
+labels: []
+modality: cxr
+svg: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M95 20 L95 180 M105 20 L105 180" stroke="#8C99A6" stroke-width="3"/><path d="M85 30 C45 40 25 90 25 140 C25 170 50 185 85 180 Z M115 30 C155 40 175 90 175 140 C175 170 150 185 115 180 Z" stroke="#8C99A6" stroke-width="3"/><path d="M90 70 C70 65 55 85 55 110 C55 140 70 160 90 160 Z M110 70 C130 65 145 85 145 110 C145 140 130 160 110 160 Z" stroke="#35C9DD" stroke-width="3" fill="#35C9DD" fill-opacity="0.2"/><path d="M60 90 L85 150 M62 120 L80 160 M140 90 L115 150 M138 120 L120 160" stroke="#35C9DD" stroke-width="1.5"/></svg>
+radiopaedia_url: https://radiopaedia.org/articles/bat-wing-pulmonary-opacities
+review_status: ai_draft

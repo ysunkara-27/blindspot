@@ -391,11 +391,11 @@ def test_prompt_v4_is_modality_aware():
     from backend.app.tutor.prompts import load_prompt
 
     p = load_prompt("debrief_system")
-    assert p.version == "v4"
+    assert p.version == "v5"
     for needle in ("unmatched", "ALWAYS in mm, never cm", "never scrolled to slices", "slice_range", "FLAIR"):
         assert needle in p.text, needle
     a = load_prompt("ask_system")
-    assert a.version == "v2" and "unmatched" in a.text and "never cm" in a.text
+    assert a.version == "v3" and "unmatched" in a.text and "never cm" in a.text
 
 
 # --------------------------------------------------------------------------- service (mock client only)
@@ -408,7 +408,7 @@ def test_service_live_and_offline_paths_on_a_volume(monkeypatch):
     good = template_debrief(f).model_dump()
     mc = MockClient([good])
     r = service.generate_debrief(f, c, attempt_id="v1", submit=sub, client=mc, data_root=FIXTURES, offline=False)
-    assert r["source"] == "live" and r["validator"]["ok"] and r["prompt_version"].startswith("v4+")
+    assert r["source"] == "live" and r["validator"]["ok"] and r["prompt_version"].startswith("v5+")
     assert r["cache_key"] == cache_key_for_facts(f, "mock-model", service.prompt_version())
     user_text = json.dumps(mc.calls[0]["messages"][0]["content"])
     assert '"modality": "ct"' in user_text.replace('\\"', '"') or "modality" in user_text

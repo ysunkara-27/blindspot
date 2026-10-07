@@ -242,6 +242,8 @@ def test_submit_reveal_has_size_verdict_slice_dwell_and_validates_against_the_sc
         "voxel": [50.0, 10.0, 3.0],
         "plane": "axial",
         "slice": 3,
+        "polygon": None,
+        "outline_verdict": None,
     }
     sd = rv["search"]["slice_dwell"]
     assert [d["slice"] for d in sd] == [4, 5, 6, 7, 8] and [d["has_finding"] for d in sd] == [

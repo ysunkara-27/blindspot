@@ -138,3 +138,11 @@ def cards_dir() -> Path:
 
     env = os.environ.get("BLINDSPOT_CARDS_DIR")
     return Path(env) if env else REPO_ROOT / "content" / "teaching_cards"
+
+
+def signs_dir() -> Path:
+    """content/signs/<id>.yaml: generic sign schematics (SignSchematic contract)."""
+    import os
+
+    env = os.environ.get("BLINDSPOT_SIGNS_DIR")
+    return Path(env) if env else REPO_ROOT / "content" / "signs"

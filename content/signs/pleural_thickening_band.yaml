@@ -1,0 +1,10 @@
+# Sign schematic (generic line art, not a real case). Reviewer: edit the description freely; keep the id.
+id: pleural_thickening_band
+name: Pleural thickening band
+description: A smooth white band or cap along the inside of the chest wall or over the apex, without the curved fluid edge of an effusion.
+labels:
+- pleural_thickening
+modality: cxr
+svg: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M150 15 C185 70 185 130 175 190" stroke="#8C99A6" stroke-width="4"/><path d="M30 40 C45 100 60 140 100 175" stroke="#8C99A6" stroke-width="2"/><path d="M145 30 C172 75 172 130 163 185" stroke="#35C9DD" stroke-width="10" stroke-opacity="0.6"/><path d="M140 30 C165 75 165 130 158 185" stroke="#35C9DD" stroke-width="2"/><path d="M100 100 L150 108" stroke="#F0A92E" stroke-width="3"/><path d="M140 102 L150 108 L140 114" stroke="#F0A92E" stroke-width="3"/></svg>
+radiopaedia_url: https://radiopaedia.org/articles/pleural-thickening
+review_status: ai_draft

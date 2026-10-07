@@ -14,5 +14,5 @@ mimics:
   - Spots where two ribs cross
 commonly_confused_with: [nodule, mass]
 search_tip: When a spot is as white as bone, check whether it is a rib end or cartilage before calling it a lesion.
-radiopaedia_url: null
-review: {status: ai_draft, reviewer: null, date: null, notes: "No radiopaedia_url: no article slug could be confirmed (site returns the same 200 page for any slug). Reviewer: add a link if you know the right article."}
+radiopaedia_url: https://radiopaedia.org/articles/pulmonary-calcification
+review: {date: null, notes: 'radiopaedia_url checked 2026-10-07: HEAD 200, final path /articles/pulmonary-calcification (no redirect). Not machine-verifiable: radiopaedia.org returns the same 200 shell page (title ''Radiopaedia.org'') for a bogus control slug. Reviewer: click to confirm.', reviewer: null, status: ai_draft}

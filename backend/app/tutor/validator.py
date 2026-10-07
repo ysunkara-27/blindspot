@@ -15,6 +15,8 @@ Rules (error strings are prefixed with the rule tag so the faithfulness eval can
   R8 structure: verdict consistent with outcomes, fact_ids known, required text present, no raw zone ids
   R9 completeness (round 3, UX audit): every finding row has at least one what_it_looks_like item and a `why` of at
      least 6 words (no empty sign lists, no stubs such as "Never examined." or "Pattern missed.")
+  R10 drawn signs: a named sign (the engine's sign vocabulary + the schematic names) may appear only when FACTS lists
+     it in some finding's signs_drawn or the teaching cards already use those words
 validate_ask applies R3 (sentence-level + sided zone phrases), R5, R6 and a 90-word limit.
 
 Volumetric (CT / MR) cases (facts.case.modality ct|mr):
@@ -328,6 +330,41 @@ def label_mentions(text: str) -> list[tuple[str, str | None]]:
     return out
 
 
+# --------------------------------------------------------------------------- drawn signs (R10)
+def known_sign_names() -> list[str]:
+    """Sign names the tutor could name: the engine's vocabulary (backend/app/signs.py) + schematic names."""
+    try:
+        from backend.app.signs import SIGN_NAMES, load_schematics
+
+        names = set(SIGN_NAMES.values()) | {s.name for s in load_schematics().values()}
+    except Exception:  # noqa: BLE001
+        return []
+    # generic words that are not signs on their own
+    return sorted((n for n in names if n.lower() not in _NOT_A_SIGN), key=len, reverse=True)
+
+
+_NOT_A_SIGN = {"lesion", "pointer", "pattern extent", "heart width", "chest width", "round opacity", "dense spot"}
+
+
+def sign_mentions(text: str, names: Iterable[str]) -> list[str]:
+    out = []
+    t = text or ""
+    for n in names:
+        if re.search(rf"\b{re.escape(n)}\b", t, re.I):
+            out.append(n)
+            t = re.sub(rf"\b{re.escape(n)}\b", " ", t, flags=re.I)
+    return out
+
+
+def _sign_errors(field_name: str, text: str, ctx: _Ctx) -> list[str]:
+    errs = []
+    for n in sign_mentions(text, ctx.sign_names):
+        if n.lower() in ctx.drawn_signs or n.lower() in ctx.allowed_text:
+            continue
+        errs.append(f"R10 {field_name}: names the sign '{n}', which is not drawn on this film (FACTS signs_drawn)")
+    return errs
+
+
 # --------------------------------------------------------------------------- banned content
 # Tutor-side safety additions to config/scoring.yaml validator.banned_patterns (management, prognosis, patients).
 TUTOR_SAFETY_PATTERNS: list[str] = [
@@ -446,6 +483,8 @@ class _Ctx:
         for z in ref_zones:
             texts += list((self.zone_mimics.get("entries") or {}).get(z, []))
         self.allowed_text = " \n ".join(texts).lower()
+        self.drawn_signs = {n.lower() for x in f.case.findings for n in (x.signs_drawn or [])}
+        self.sign_names = known_sign_names()
         # slice numbers a debrief may write (1-based, as the viewer shows them; FACTS indices are 0-based): per
         # finding its slice_range ± 1, plus the learner's marks ± 1
         self.mark_slices: set[int] = set()
@@ -760,6 +799,7 @@ def validate(
                 errs.append(f"R4 {name}: names a lobe ('{m.group(0)}'); FACTS has no lobes")
         errs += _idiom_errors(name, text)
         errs += _label_errors(name, text, ctx)
+        errs += _sign_errors(name, text, ctx)
         errs += _banned_errors(name, text, ctx)
         if not re.match(r"F\d+\.", name):
             errs += _slice_errors(name, text, ctx)
@@ -830,6 +870,7 @@ def validate_ask(
     if m:
         errs.append(f"R4 answer: names a location FACTS does not have ('{m.group(0)}')")
     errs += _label_errors("answer", text, ctx)
+    errs += _sign_errors("answer", text, ctx)
     errs += _banned_errors("answer", text, ctx)
     errs += _slice_errors("answer", text, ctx)
     if words(text) > max_words:

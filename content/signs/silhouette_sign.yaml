@@ -1,0 +1,11 @@
+# Sign schematic (generic line art, not a real case). Reviewer: edit the description freely; keep the id.
+id: silhouette_sign
+name: Silhouette sign
+description: 'An opacity that touches the heart or diaphragm erases that border: two things of the same density side by side have no edge between them.'
+labels:
+- consolidation
+- atelectasis
+modality: cxr
+svg: <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M100 40 C140 40 165 80 165 120 C165 150 140 175 110 180" stroke="#8C99A6" stroke-width="4"/><path d="M100 40 C70 40 50 60 45 90" stroke="#8C99A6" stroke-width="4"/><path d="M45 90 C40 120 50 150 70 170 C85 180 100 182 110 180" stroke="#8C99A6" stroke-width="4" stroke-dasharray="4 7"/><path d="M22 100 C35 85 60 95 68 120 C78 150 60 175 35 178 C15 178 10 150 14 125 C16 112 18 108 22 100 Z" stroke="#35C9DD" stroke-width="3"/><path d="M24 118 L58 150 M22 135 L45 162 M30 108 L62 134" stroke="#35C9DD" stroke-width="1.5"/><path d="M110 120 L75 130" stroke="#F0A92E" stroke-width="3"/><path d="M85 124 L75 130 L85 136" stroke="#F0A92E" stroke-width="3"/></svg>
+radiopaedia_url: https://radiopaedia.org/articles/silhouette-sign
+review_status: ai_draft

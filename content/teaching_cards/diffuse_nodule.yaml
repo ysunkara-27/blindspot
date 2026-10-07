@@ -14,4 +14,4 @@ mimics:
 commonly_confused_with: [fibrosis]
 search_tip: Put the magnifier on a clear patch of lung between vessels and look for tiny dots.
 radiopaedia_url: https://radiopaedia.org/articles/miliary-opacities
-review: {status: ai_draft, reviewer: null, date: null, notes: "radiopaedia_url not machine-verifiable on 2026-10-05: radiopaedia.org returned the same 200 page for every slug, including a bogus control. Reviewer: click to confirm."}
+review: {date: null, notes: 'radiopaedia_url checked 2026-10-07: HEAD 200, final path /articles/miliary-opacities (no redirect). Not machine-verifiable: radiopaedia.org returns the same 200 shell page (title ''Radiopaedia.org'') for a bogus control slug. Reviewer: click to confirm.', reviewer: null, status: ai_draft}

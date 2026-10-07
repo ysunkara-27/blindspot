@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import math
 
+from backend.app.scoring.outline import polygon_problems
 from backend.app.settings import get_settings
 from shared.contracts import AttemptSubmit, Case, NextCaseVolume, VolumePreset
 
@@ -76,9 +77,10 @@ def _slice_count(plane: str | None, shape: tuple[int, int, int]) -> int:
     return ny if plane == "coronal" else nx if plane == "sagittal" else nz
 
 
-def submit_problems_volume(body: AttemptSubmit, case: Case, max_marks: int) -> list[str]:
+def submit_problems_volume(body: AttemptSubmit, case: Case, max_marks: int, max_points: int = 400) -> list[str]:
     """Pure check of a volumetric submit. Marks need a voxel or a (plane, slice); coordinates must be finite and
-    inside the volume; measurements must reference a mark. Empty list = valid."""
+    inside the volume; measurements must reference a mark; a drawn polygon needs 3..max_points in-plane vertices and
+    a slice. Empty list = valid."""
     assert case.volume is not None
     shape = tuple(int(n) for n in case.volume.shape)
     errs: list[str] = []
@@ -108,6 +110,13 @@ def submit_problems_volume(body: AttemptSubmit, case: Case, max_marks: int) -> l
                 errs.append(f"mark {m.mark_id!r} is outside the {m.plane or 'axial'} plane ({m.x:g}, {m.y:g})")
             if not (0 <= int(m.slice) < n):  # type: ignore[arg-type]
                 errs.append(f"mark {m.mark_id!r} slice {m.slice} is outside the {m.plane or 'axial'} range 0..{n - 1}")
+        if m.tool == "draw" and not m.polygon:
+            errs.append(f"mark {m.mark_id!r} has tool 'draw' but no polygon")
+        if m.polygon:
+            if m.slice is None:
+                errs.append(f"mark {m.mark_id!r} polygon needs a slice on a volumetric case")
+            pw, ph = _plane_extent(m.plane, shape)
+            errs += polygon_problems(m.polygon, pw, ph, max_points, m.mark_id)
     for ms in body.measurements:
         if ms.mark_id not in seen:
             errs.append(f"measurement for unknown mark {ms.mark_id!r}")

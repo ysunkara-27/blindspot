@@ -17,7 +17,7 @@ from collections.abc import Sequence
 from backend.app.config import display, zone_human
 from backend.app.scoring.scores import score_text
 from backend.app.search.misstype import MISS_COPY
-from shared.contracts import Case, FactsCard, FactsSearch, Finding, Outcome
+from shared.contracts import Case, FactsCard, FactsSearch, Finding, Outcome, Sign
 
 NO_TIME_MS = 100.0  # below this the card says "no time spent there"
 FP_LINE = "radiologists marked nothing here"
@@ -121,6 +121,14 @@ def slice_search_line(fid: str, result: str, dwell_ms: float | None, near_ms: fl
     return None
 
 
+def look_for_line(result: str, signs: Sequence[Sign] | None) -> str | None:
+    """'Look for: Visceral pleural line — A thin white line…' after a MISSED finding (first drawn sign only)."""
+    if not signs or not (result.startswith("missed_") or result == "pattern_missed"):
+        return None
+    s = signs[0]
+    return f"Look for: {s.name} — {s.text.rstrip('.')}."
+
+
 def build_facts_card(
     case: Case,
     outcomes: Sequence[Outcome],
@@ -130,7 +138,10 @@ def build_facts_card(
     declared_normal: bool,
     seen_slices: dict[str, int] | None = None,
     near_ms: dict[str, float] | None = None,
+    signs: dict[str, list[Sign]] | None = None,
 ) -> FactsCard:
+    """`signs`: the sign annotations drawn on the reveal per finding (backend/app/signs.py); a missed finding gets
+    one "Look for: <sign> — <text>" line naming the first drawn sign."""
     by_f = {f.short_id: f for f in case.findings}
     finding_outs = sorted((o for o in outcomes if o.target in by_f), key=lambda o: _id_order(o.target))
     fps = sorted((o for o in outcomes if o.result == "false_positive"), key=lambda o: _id_order(o.target))
@@ -181,6 +192,9 @@ def build_facts_card(
             sl = slice_search_line(o.target, o.result, o.dwell_ms, (near_ms or {}).get(o.target))
             if sl:
                 lines.append(sl)
+        look = look_for_line(o.result, (signs or {}).get(o.target))
+        if look:
+            lines.append(look)
     for o in fps:
         lines.append(f"{o.target} ({zone_human(o.zone) if o.zone else 'outside the lungs'}): {FP_LINE}.")
     for o in unmatched:

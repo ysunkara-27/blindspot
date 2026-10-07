@@ -298,7 +298,8 @@ def test_result_returns_the_stored_submit_result(api_env):
     assert res.debrief_status == "pending" and res.facts_card.lines and res.reveal.search.heatmap_png_b64
     # plus which film it was and what the learner did, so the review page needs only the attempt id
     assert body["case"] == n["case"]
-    vol = {"plane": None, "slice": None, "voxel": None}  # volumetric mark fields (contract), unset on an X-ray
+    # volumetric + free-draw mark fields (contract), unset on an X-ray point mark
+    vol = {"plane": None, "slice": None, "voxel": None, "polygon": None, "tool": None}
     assert body["submitted"] == {
         "marks": [
             {"mark_id": "M1", "x": 70.0, "y": 150.0, "label": "nodule", "confidence": 4, **vol},
