@@ -11,6 +11,12 @@ Special entries:
 
 ---
 
+2026-10-07 01:12 — orchestrator — VOLUMETRIC DEPLOYED to ysunkara.com/blindspot — green
+- Bundle (+volumes/masks/zones3d/cases_msd/reference picks, +58 MB) uploaded to the private dataset; entrypoint download filter extended (first rebuild served cxr only — fixed, second rebuild). Space RUNNING; live health 3559 cases (cxr 3427, ct 85, mr 47).
+- Browser check on ysunkara.com: Abdominal CT → grid → axial → slices → liver tumour mark → submit → reveal → Claude debrief (6.4 s). Downtime: two restarts of ~8 min each (00:55 and 01:04 local).
+- Branch `volumetric` merged into main (fast-forward). GitHub still not pushed (awaiting Yash).
+
+
 2026-10-07 00:50 — orchestrator — VOLUMETRIC (CT/MR) build integrated on branch `volumetric` — green, NOT deployed
 - Data: 132 MSD cases (Task07 pancreas 46, Task08 hepatic 39, Task01 brain 47; 32 % lesion-free slabs as normals; 5 bench/task), ~0.4 MB each, orientation checked anatomically (x flipped for Task07/08; brain L/R unverifiable). Raw 1.5 GB via ranged tar reads.
 - Backend 620 tests, pipeline 165, shared 26, tutor incl.; frontend vitest 255; e2e: mock 100 passed; real-API X-ray suite 96 passed (the 3 failures are round4_volume expecting fixture slice counts); real-API volume suite 4/4 on the fixture dir. /anatomy on volumes fixed (labels, no 2-D zones).
