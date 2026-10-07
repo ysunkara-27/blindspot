@@ -30,7 +30,7 @@ SCHEMAS = Path(__file__).resolve().parents[3] / "shared" / "schemas"
 
 MANAGEMENT = re.compile(
     r"\b(treat\w*|manage\w*|antibiotic\w*|chest tube|drain\w*|biopsy|admit\w*|urgent\w*|emergen\w*|follow[- ]?up|"
-    r"refer\w*|surg\w*|prognos\w*|medicat\w*|therap\w*|recommend\w*|you should (get|have|see)|call (a|your) doctor|"
+    r"refer(?!ence)\w*|surg\w*|prognos\w*|medicat\w*|therap\w*|recommend\w*|you should (get|have|see)|call (a|your) doctor|"
     r"this patient|the patient has|diagnos(e|ed|is))\b",
     re.I,
 )
@@ -71,7 +71,8 @@ def check_debrief(out: DebriefOutput, facts, label: str, allow_dx_words: set[str
     want = [
         o.target
         for o in facts.outcomes
-        if o.result not in ("true_positive", "duplicate", "false_positive", "true_negative", "pattern_false")
+        if o.result
+        not in ("true_positive", "duplicate", "false_positive", "unmatched", "true_negative", "pattern_false")
     ]
     got = [f.finding_id for f in out.findings]
     if sorted(got) != sorted(want):
@@ -80,8 +81,8 @@ def check_debrief(out: DebriefOutput, facts, label: str, allow_dx_words: set[str
     for f in out.findings:
         if res.get(f.finding_id) != f.result:
             errs.append(f"{label}: {f.finding_id} result {f.result} != facts {res.get(f.finding_id)}")
-    # overcall ids are false-positive marks
-    fp = {o.target for o in facts.outcomes if o.result == "false_positive"}
+    # overcall ids are false-positive marks (or, on a volume, unmatched marks the reference does not label)
+    fp = {o.target for o in facts.outcomes if o.result in ("false_positive", "unmatched")}
     if {o.mark_id for o in out.overcalls} - fp:
         errs.append(f"{label}: overcall mark ids {[o.mark_id for o in out.overcalls]} not in {sorted(fp)}")
     # patient-side wording: a finding on the patient's LEFT must not be described as 'right' only (and vice versa)

@@ -1,0 +1,17 @@
+# Anatomy explainer (hints and ask-the-tutor only; not a finding card). status ai_draft.
+anatomy: pancreas
+display_name: Pancreas
+zones: [pancreas]
+modality: ct
+body_region: abdomen
+one_liner: A soft, lobulated gland lying across the back of the upper abdomen in front of the spine, with its head tucked into the curve of the duodenum and its tail reaching the spleen.
+landmarks:
+  - The splenic vein runs along the back of the gland and is the easiest way to find it
+  - The head sits beside the duodenum; the tail ends near the spleen
+  - On the soft-tissue window the normal gland enhances evenly and has a feathery, lobulated edge
+  - "It is seen over several consecutive slices: trace it from tail to head on each"
+mimics:
+  - Unopacified bowel loops lying against the gland
+  - The splenic vein on early-phase slices
+  - Fatty lobulation in a normal gland
+review: {status: ai_draft, reviewer: null, date: null, notes: null}

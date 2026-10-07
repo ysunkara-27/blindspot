@@ -25,7 +25,15 @@ def test_health_counts_fixture_cases(api_env):
     c = api_env()
     body = c.get("/api/health").json()
     tutor = body.pop("tutor")
-    assert body == {"ok": True, "offline": True, "cases": 10, "version": body["version"]}
+    # 10 synthetic X-ray cases (cases.jsonl) + 4 synthetic CT/MR cases (cases_msd.jsonl)
+    assert body == {
+        "ok": True,
+        "offline": True,
+        "cases": 14,
+        "version": body["version"],
+        "modalities": ["cxr", "ct", "mr"],
+        "cases_by_modality": {"cxr": 10, "ct": 3, "mr": 1},
+    }
     assert tutor["mode"] == "offline" and tutor["reason"]
 
 

@@ -11,6 +11,166 @@ Special entries:
 
 ---
 
+## BACKEND→TUTOR (volumetric) — backend-engineer, 2026-10-07
+
+Everything the tutor needs for a CT/MR attempt is in the contract objects the bridge already passes (`case`, `submit`,
+`outcomes`, `search`), plus one additive kwarg:
+- `tutor_bridge.build_facts(...)` now also passes `volume=<dict>` for volumetric cases and retries WITHOUT it on
+  `TypeError`, so an older `facts.build_facts` keeps working. `volume` = `tutor_bridge.volume_facts(case, submit,
+  outcomes, search)`: `{modality, body_region, sequence, n_slices, provenance (badge sentence), provenance_grade,
+  findings: {F1: {slice_range [z0,z1] (0-based, inclusive), n_slices, size_mm (= measure.long_mm), measure_slice,
+  components [names] | null, side, zone}}, measurements: [Measurement dicts], size_verdicts: {F1: SizeVerdict dict},
+  slices_viewed: {F1: bool}, slices_viewed_pct, finding_slices_viewed}`.
+- Outcomes on volumes: finding outcomes carry `size_verdict` (dict, only when matched + measured + mass-like label) and
+  `slices_viewed` (bool); `dwell_ms` on a volume = ms the finding's slices were on screen (any plane). Mark outcomes use
+  `unmatched` (never `false_positive` on a volume); `zone` is the organ (raw mask label at the voxel) else the slab
+  third. `FactsSearch.slices_viewed_pct` / `finding_slices_viewed` are filled; `lung_coverage_pct` carries the same
+  number as `slices_viewed_pct` on a volume (volume analogue; no lungs).
+- Spatial relations on volumes (`SpatialRelation.text`, `Arrow.text/label`): slices above/below + patient-side in-plane
+  words ("5 slices lower, toward the patient's right, more posterior"); never mm. Slice numbers are 0-based raw
+  indices (as in `slice_range`, `Mark.slice`, `Measurement.slice`).
+- Hints: `services.hint` calls `tutor_bridge.hint_volume(level, case, marks, telemetry, repo, previous=...)` for
+  volumes, which calls `tutor.hints.hint_volume(level, case, marks, telemetry, data, previous=[...])` when it exists,
+  else the deterministic ladder in `backend/app/hints_volume.py`. `data` = `hints_volume.hint_data(...)`:
+  `{modality, body_region, review_areas (present for this case), unvisited_review_areas, dwell_by_zone,
+  slices_viewed_pct, n_unmarked, hardest_unmarked: {finding_id, label, side, zone, zones} | null}`.
+  Fallback wording: H1 "You haven't looked at the pancreas, the upper slices of the volume or … yet." /
+  "Scroll through every slice again, top to bottom."; H2 "Look again at the patient's right side, in the pancreas.";
+  H3 "In the pancreas, check for this sign: <first key sign of the card>." (same templates on normal scans).
+- `config.zone_human()` now resolves volumetric zone ids (review_areas.yaml `volumetric.zones`).
+
+## BACKEND CONTRACT (volumetric) — backend-engineer, 2026-10-07 (all additive; X-ray shapes unchanged)
+
+- `GET /api/health` → `modalities: ["cxr","ct","mr"]` (those with ≥ 1 case), `cases_by_modality: {cxr, ct, mr}`.
+- `POST /api/sessions` `settings.modality: cxr|ct|mr` (default cxr; 422 otherwise) filters the practice/drill/review
+  pool and the assessment form (`splits.json[mode]` for cxr, `splits.json["<mode>_<modality>"]` else the split's
+  cases of that modality); a CT/MR drill `label` without `modality` implies its modality. Playlists skip cases of
+  another modality (the Demo playlist stays cxr). Core-label pools, weak-areas and Elo targets use
+  `taxonomy.learner_focal_options_by_modality` ∩ core per modality.
+- `GET /api/sessions/{sid}/next` → `case.modality`, `case.body_region`, `case.volume {shape [nz,ny,nx], spacing
+  [sz,sy,sx] mm, window {wc,ww}, data_url, sequence, presets [{name,wc,ww}]}` (CT: Lung −600/1500, Mediastinum 50/400,
+  Abdomen 60/400, Liver 80/150, Bone 400/1800, Brain 40/80; MR: Default = the case window), `case.provenance` =
+  provenance dict + `badge` ("Segmented by ___ (___)"). Voxels only: no mask, labels, slice ranges, measures,
+  components or findings (tests/test_volumetric_api.py).
+- `GET /api/cases/{id}/volume` → the stored `volumes/<id>.i16.gz` bytes (gzip of int16 LE, z,y,x);
+  `Content-Type: application/octet-stream`, `Content-Encoding: identity` (the client inflates), long immutable cache,
+  access-gated like images. 404 for X-ray cases.
+- `POST /api/attempts/{aid}/submit` on a volume: marks need `voxel [x,y,z]` or `plane`+`slice` (axial (x,y)→(x,y,slice),
+  coronal (x,z)→(x,slice,y), sagittal (y,z)→(slice,x,y)); 422 when missing, outside the volume, or a `measurement`
+  names an unknown mark. Telemetry events carry `plane`, `slice`. `measurements: [{mark_id, long_mm, plane, slice}]`
+  are stored (`attempts.measurements_json`).
+- `SubmitResult` on a volume: `reveal.modality`, `reveal.provenance` (badge dict), `reveal.maskvol_url`
+  (`/api/attempts/{aid}/maskvol`), `reveal.findings[].{slice_range, centroid3, label_values, components, measure,
+  size_verdict}`, `reveal.marks[].{result incl. "unmatched", voxel, plane, slice}`, `reveal.arrows[]` with `label`
+  ("5 slices lower, toward the patient's right") and `from_xy/to_xy` in the axial plane (draw on the finding's measure
+  slice), `reveal.search.{slice_dwell [{plane, slice, ms, has_finding, finding_ids}], slices_viewed_pct,
+  finding_slices_viewed {F1: bool}, heatmap_png_b64: null, lung_coverage_pct = slices_viewed_pct}`;
+  `outcomes[].{size_verdict {your_mm, reference_mm, diff_mm, diff_pct, ok, plane}, slices_viewed}`. Scoring: hit =
+  mask lookup at round(voxel) with τ = 2 % of the larger in-plane FOV (mm → voxels per axis), ±2 slices; a mark inside
+  a DIFFERENT labelled structure is never rescued (organ → `unmatched`; other finding → hits that finding); findings
+  sharing a label value are separated by connected component; `unmatched` marks neither score nor penalise;
+  size ok = |diff| ≤ max(3 mm, 20 %); weights unchanged. Miss types: finding's slices on screen < 800 ms →
+  missed_search; < 2000 ms OR cursor never within 15 mm in-plane on a finding slice → missed_recognition; else
+  missed_decision. Facts card lines: "F1 Pancreatic tumour — middle slices of the volume, slices 6–10 of 16 (you
+  viewed 3 of them): Found it. Size: you measured 17 mm, reference 13.5 mm — larger than the reference." /
+  "M2 (upper slices of the volume): the reference does not label anything here (not counted against you)." /
+  "You viewed 31% of the 16 slices. Score 100."
+- `GET /api/attempts/{aid}/maskvol` → gzip uint8 label volume (same shape), `Cache-Control: no-store`,
+  `Content-Encoding: identity`. 409 before submit; assessment: 409 until the session summary is available; 404 for an
+  X-ray attempt. `GET /api/attempts/{aid}/result` returns the stored result (with `maskvol_url`) + `case` as in /next.
+- `GET /api/sessions/{sid}/summary` → `modality` on the summary; rows carry `modality` and `provenance` (badge dict;
+  null for X-ray cases without a provenance block).
+- `GET /api/learners/{lid}/dashboard?modality=cxr|ct|mr` (422 otherwise) filters every block and echoes `modality`
+  (null when absent); `n_by_modality {cxr, ct, mr}` always (unfiltered counts); for ct/mr `misses_by_zone:
+  [{zone, human, n, n_missed}]` over volumetric zones (config order; n = focal findings graded there).
+- `GET /api/about` → `provenance`: config/provenance.yaml `datasets` keyed as the YAML, each with `modality`
+  (chestx-det → cxr, Task01_BrainTumour → mr, other MSD tasks → ct).
+- `GET /api/reference` → every label carries `modality`; volumetric labels carry `volume_examples: [{case_id,
+  modality, body_region, volume_url, mask_url (/api/reference/{case_id}/maskvol — bench cases only, 404 otherwise),
+  shape, spacing, window, sequence, labels {value→id}, measure_slice, provenance (badge dict), finding {finding_id,
+  bbox, slice_range, centroid3, label_values, components, measure, relative_location, side}}]` (`examples` stays the
+  X-ray shape). Picks: `<processed>/reference_bank_volumetric.json` ({"labels": {label: [{case_id, finding_id}]}},
+  written by `uv run python -m backend.app.reference [--processed DIR]`; data/processed has 3 pancreatic_tumour picks
+  from the 5 bench cases), else bench cases auto-picked (sorted ids).
+- `GET /api/dev/cases/{id}/volume_preview?slice=&scale=` (BLINDSPOT_DEV=1 only) → PNG of the measure slice with
+  finding (cyan) and organ-zone (grey) outlines. `/api/dev/cases` rows carry `modality`.
+- Zones: `zones3d/<case_id>.json` (pipeline format: `zones: {id: [values] | "slab:…" | "half:…"}`, `rules:
+  {organ_dilation_mm, midline_frac}`) is read when present; otherwise organ zones = anatomy label values of the mask
+  (dilated 5 mm, holes filled), slab thirds with nz//3, halves/midline (0.1·nx), brain hemispheres = halves.
+  Review areas absent from a case (an organ the mask does not label) are dropped, not reported unvisited.
+
+(Schema gaps `measure.plane` / `unmatched` were fixed by the orchestrator; tests/test_volumetric_api.py validates the
+full SubmitResult against shared/schemas/submit_result.json with no tolerance.)
+
+DECISION (volumetric miss types): "missed_decision" only when the finding's slices were on screen ≥ 2000 ms AND the
+cursor came within 15 mm; brief-or-never-near → missed_recognition (the stronger claim needs both signals).
+RULE (docs/VOLUMETRIC_PLAN.md): contract fields (`slice_range`, `Mark.slice`, `Measurement.slice`, `slice_dwell[].slice`,
+`measure.slice`) are 0-based; every human-facing string the backend writes is 1-based (index + 1): facts card
+"slices 7–11 of 16", arrow/relation text "on slice 4", dev preview caption "slice 9/16 (index 8)". Tests assert both.
+- X-ray provenance: a case whose file has no `provenance` block gets it at read time from config/provenance.yaml by
+  `source` (chestx-det; `cases.stamp_provenance`, cases.jsonl is never rewritten), so /next, summary rows and the
+  reveal carry the badge for X-ray too; synthetic fixtures stay without one.
+DECISION: `lung_coverage_pct` on a volume = `slices_viewed_pct` (required field; no lungs on a volume).
+
+2026-10-07 — backend-engineer — volumetric (CT / MR) backend: case repo, routes, scoring, search, reveal, hints, reference, dashboard — green (not committed)
+- Files: backend/app/{cases.py (cases*.jsonl, gz volumes + LRU 8, per-finding components, zones3d), scoring/volume.py,
+  search/volume.py, engine_volume.py (engine.py dispatches on case.volume), volumes.py (presets, URLs, submit
+  validation), hints_volume.py, facts_card.py (volume lines; X-ray text byte-identical), services.py (modality
+  sessions, maskvol gating, measurements, summary rows), routes/{cases,attempts,dev,reference,dashboard,about}.py,
+  reference.py (volume examples + CLI), analytics/learner.py (misses_by_zone), main.py (health), db.py
+  (attempts.measurements_json migration), tutor_bridge.py (volume facts kwarg, hint_volume), config.py (volumetric
+  helpers, provenance). Tests: backend/app/tests/test_volumetric_{scoring,search,api}.py (61 tests).
+- Existing tests touched only for added contract fields: test_api (health counts 14 + modalities), test_gt_leak
+  (/next keys, /cases routes), test_round3 (done payload, mark fields, summary row keys), test_reference (18 labels,
+  label keys), test_w1_fixes (dev count), test_qa_tutor (`refer(?!ence)`, unmatched marks).
+- Verified: `uv run pytest backend -q` → 616 passed (baseline 487 + 19 contract failures before this work);
+  `uv run ruff check backend` clean; curl transcript on :8000 with the fixture dir in logs/volumetric_curl_transcript.txt
+  (health → ct session → /next with volume → /volume 200 gzip identity → /maskvol 409 → submit with voxel mark +
+  measurement → reveal with size_verdict + slice_dwell → /maskvol 200).
+- data/processed/reference_bank_volumetric.json written (3 pancreatic_tumour bench picks).
+- Follow-ups done: 1-based slice numbers in text, schema tolerance removed, read-time X-ray provenance stamp.
+
+---
+
+2026-10-07 — tutor-prompt-engineer — volumetric (CT / MR) tutor: cards, facts, prompt v4, validator, templates, hints, ask — green (offline; not committed)
+- Files: content/teaching_cards/{pancreatic,liver,brain,lung,colon}_tumour.yaml (ai_draft; radiopaedia_url null — the site serves the same 200 page for any slug) + `_anatomy_{pancreas,hepatic_vessels,cerebral_hemispheres}.yaml` (explainers for hints/ask only); backend/app/tutor/{vocab,cards,facts,validator,templates,hints,ask,cache,service}.py; new backend/app/tutor/{templates_volume,hints_volume}.py; backend/app/prompts/debrief_system.md v4, ask_system.md v2; tests backend/app/tests/{test_tutor_volumetric.py (42), _tutor_vol_helpers.py}; test_tutor_cards/service/round3 updated (18 cards, v4).
+- Verified: `uv run pytest -q` → 844 passed, 7 skipped; `-k "tutor or hint or card"` → 377; `ruff check backend/app/tutor` clean. Offline sweep on the 4 synthetic MSD fixtures (found, found + size off, missed_search / recognition / decision, mislabeled, unmatched, true_negative, unmatched on the lesion-free slab) × 4 template levels + 14 ask questions each = 162 outputs → 0 validator errors. No live call.
+- Follow-ups done: every human-facing slice number is 1-based (facts strings "slices 7-11 of 16" / "on slice 9", templates, ask; contract fields slice_range / Mark.slice stay 0-based; the validator checks 1-based numbers against slice_range + 1 ± 1 and marks + 1 ± 1; prompts v4 / ask v2 tell the model to copy slice numbers from the FACTS strings, never the raw indices; hints name slab thirds only). `modality` set on the five tumour cards (`cards_for_modality` prefers it). H3 uses the new slab-third zone_mimics. NOTE orchestrator: config `volumetric.zone_mimics.mid_slab` item "Vessels seen end-on (round, follow them across slices)" is split by the YAML flow list at the inner comma into two items; hints tidy it ("Vessels seen end-on"), but the config line wants quoting.
+- Matches tutor_bridge as of 2026-10-07: `build_facts(..., volume=tutor_bridge.volume_facts(...))` is accepted (used only to fill a provenance badge the case object lacks; everything else is read from the contract objects) and `hints.hint_volume(level, case, marks, telemetry, data, previous=...)` consumes `backend/app/hints_volume.hint_data(...)` (review_areas, unvisited_review_areas, dwell_by_zone, hardest_unmarked). Volume hints never contain "normal" / "tumour" (backend test_volumetric_search symmetry test passes through the tutor).
+
+## TUTOR INTERFACE (volumetric) — what the tutor reads from tutor_bridge (X-ray calls unchanged)
+- `facts.build_facts(case, submit, outcomes, spatial_relations, search, mark_zones, level, history)` — same signature. Volumetric fields are read from the contract objects: `case.modality / body_region / provenance / volume.shape`, `finding.slice_range / measure / components / side / zones / primary_zone / relative_location`, `submit.marks[].plane / slice`, `submit.measurements`, `Outcome.size_verdict / slices_viewed` (dicts pass through), outcomes with `result: unmatched` (target M#, zone, learner_label), `search.slices_viewed_pct` + `search.finding_slices_viewed` (FactsSearch or dict; keys may be full or short ids). Code-built strings: `case.provenance` = "Reference segmented by {segmented_by} ({dataset})"; `case.projection` = "axial CT of the abdomen; 16 axial slices"; `finding.relative_location` = "{backend relative_location or zone}, patient's {side}, slices {z0}-{z1} of {nz}" (slice indices verbatim from `slice_range` — please keep them equal to what the viewer displays; tell me if the viewer is 1-based); `finding.size` = "13.5 mm long axis on slice 8" (only when `measure` exists).
+- `service.generate_debrief(...)` unchanged; the cache key adds `{"modality", size_ok per finding}` for ct / mr (X-ray keys unchanged); `prompt_version()` is now `v4+<cards hash>` (cached live debriefs regenerate once). Provenance badge: `cards.lowest_provenance` unchanged (the new cards are ai_draft).
+- `hints.hint_volume(level, case, marks, telemetry, data, previous=...)` — the bridge's call; `data` = hints_volume.hint_data dict (None → derived from telemetry). Also `hints.hint(level, case, marks, telemetry, zones, previous=..., zone_dwell_ms=None)` routes ct / mr to `hints_volume.hint`. `zones` may be `{zone_id: np.ndarray (nz, ny, nx) bool}` for organ zones (pancreas, liver, hepatic_vessels, brain_left / brain_right / brain_midline); slab thirds come from `telemetry[].slice` and `case.volume.shape[0]`. Pass `zone_dwell_ms={zone_id: ms}` to use the backend's own dwell engine instead (then organ zones in config `volumetric.review_areas[body_region]` are named by H1 even without masks). 3D hit test: `volumetric.hit.tolerance_frac × case.width` in-plane and `± slice_window` slices; marks' `x, y` are expected in the same in-plane pixel grid as `finding.geometry.bbox`.
+- `ask.ask(question, facts, case, ...)` unchanged. New offline intents: size ("how big", "measure", "mm"), unmatched marks ("my mark M2"), anatomy explainers ("what is the pancreas").
+- Validator (ct / mr only): R2 overcall entries are also required for `unmatched` marks (wording must not say wrong / false / incorrect / mistake and must mention label / reference); R4 slice numbers must lie within that finding's `slice_range ± 1` or on a learner mark; R4 organ zones follow the label's card (+ matching side), slab thirds via config adjacency; R5 allows anatomy-card and volumetric zone-mimic words and bare "tumour / mass" when a `*_tumour` label is involved; R6 every "N mm" must equal a FACTS size ± 1 mm (size_mm, measurements, size_verdict), cm always banned; T1 / T2 / FLAIR are not read as vertebral levels. The word limit counts unmatched marks like overcalls.
+- `facts_card.py` seam: the templates say "The reference does not label the spot where you placed M2 (zone); public datasets are not exhaustive, so this mark is reported, not counted." — please keep the facts card consistent (reported, never penalised).
+
+CONTRACT CHANGE REQUEST (tutor): (1) `shared/contracts.py` `TelemetryKind` lacks `slice`, `plane`, `window` although shared/schemas/telemetry_event.json and frontend/src/types/contracts.ts have them — a submit with those kinds fails Pydantic validation. (2) `shared/schemas/teaching_card.json` has `additionalProperties: false` and no `modality`; the CT / MR cards carry the modality in their `where_it_hides` zone ids and the review note instead — suggest optional `modality` and `body_region` card fields. (3) `config/taxonomy.yaml related_groups` has no CT group; the cards use `commonly_confused_with: [liver_tumour, colon_tumour]` (pancreatic) and `[pancreatic_tumour]` (liver, colon) — suggest `related_groups: [[pancreatic_tumour, liver_tumour, colon_tumour]]` so partial label credit and the validator agree. (4) `volumetric.zone_mimics` has no entries for the slab thirds or right_half / left_half / midline_volume; H3 falls back to the anatomy explainer's mimic or "Normal vessels seen end-on".
+
+---
+
+2026-10-07 00:10 — frontend-engineer (pages: pages/app/dashboard/reference/tutorial) — ROUND 4 volumetric pages — green
+- Start (`pages/StartPage.tsx`): "Scan type" is the first question: chips Chest X-ray · Abdominal CT · Brain MRI, enabled from health `cases_by_modality` (older server → X-ray only, others muted "coming"); remembered in localStorage `bs_modality`; sent as `settings.modality` + `body_region` (abdomen/brain) only when ≠ cxr, so the X-ray body is byte-identical; "One finding type" lists `labelsFor(modality)`; "Test myself" disabled off X-ray ("Not yet available for this scan type."); films → studies; the half-normal line becomes "About half the studies show no lesion…". Weak spots counts reads of THAT scan type: dashboard `n_by_modality` when sent, else X-ray = `n_attempts`, else a LOCAL estimate (`bs_reads_by_modality`: studies of CT/MR sets started on this device; the note says "Counted on this device.").
+- `api/labels.ts`: `VOLUMETRIC_LABELS`, `FOCAL_LABELS_BY_MODALITY`, `labelsFor()`, `MODALITY_DISPLAY`, `modalityDisplay()`, `isModality()`, OUTCOME_COPY `unmatched` = "Not in the reference" (neutral). `api/sessionOptions.ts`: `caseNoun`, `testAvailable`, `availableModalities`, `libraryLine`, `loadModality/saveModality`, `readsFor`, AttemptReview gains `modality`, `provenance`, `film.volume`. `state/session.ts`: SessionInfo `modality?` (additive).
+- Provenance: `app/provenance.ts` (guard, `provenanceFor` — an X-ray without a block is ChestX-Det —, `provenanceText`, static copy of config/provenance.yaml, `MSD_CITATION`) + `app/ProvenanceBadge.tsx` (`<ProvenanceBadge provenance modality short />`, testid `provenance-badge`, title = full sentence). Rendered on: film review header (full), set-summary rows (short, only when the set holds a volume), reference examples (short), About.
+- Landing hero: one line "Chest X-ray, abdominal CT and brain MRI." when health lists them; ServerLine counts volumes. Summary/review: Study n, "Study by study", scan-type column, lesion-free wording; CaseReviewPage spreads `{modality, volume}` onto `<CaseReview/>` for a CT/MR read (see seams).
+- Reference: guard reads `modality`, `volume_url/mask_url/shape/spacing/window`, `measure.slice`, `slice_range`, `label_values`, `provenance`; `reference/VolumeExample.tsx` decodes gz voxels + mask in the browser (reuses viewer/volume: cachedGunzip, decodeVolume/Mask, extractSlice, windowLut/paintSlice, marchingSquares — no duplicate decoder) with a slice scrubber starting on `measure.slice`; library grouped by scan type (`ref-scan-group[data-modality]`); drawer shows volume examples too.
+- Reading log: switch All · Chest X-ray · CT · MRI (`?modality=`, `log-scope-*`), shown once the library or the log has CT/MR; CT/MR scope → "Where misses happened" zone list (`dashboard/charts/ZoneMissList.tsx`, from `misses_by_zone` or the map points' `zone`), chest map otherwise; an older server that ignores the filter is called out. About: Scan types, "Where the reference truth comes from" table (every dataset of provenance.yaml; from `/api/about.provenance` when present, else the static copy with a note), lesion-free-slab caveat, MSD CC BY-SA citation, two new limitations. Tutorial: steps `slices` + `measure` (targets `[data-tour="slices"]`, `[data-tour="measure"]`), only via `<Tutorial modality="ct|mr"/>`; the X-ray tour is unchanged (tested).
+- Verified: `tsc --noEmit -p tsconfig.app.json` clean; oxlint: 0 warnings in owned files (1 pre-existing in ReadPage.tsx); vitest 248 passed (23 files; new labels.test, provenance.test, guard/summaryModel/sessionOptions/steps cases); `vite build` + `VITE_BASE_PATH=/blindspot/` build ok; e2e throwaway stack :8012/:5182 — round4_pages 7 passed + 1 skipped (skip when the library really holds MRI), round3_pages/dashboard/review/general_use 39/39 (round3 "scan-type" and library assertions updated to the chips and the chest group). Fixture run (`E2E_API_ENV=BLINDSPOT_PROCESSED_DIR=…/pipeline/tests/fixtures/synthetic`) also green. Screenshots: round4-01-start-chips, -02-start-ct, -03-library-ct-card (decoded slice + outline), -04-log-ct, -05-about-provenance.
+- Open: chart-internal n-lines (SummaryStats, LearningCurve, MissTypeMix) still say "films" under the CT scope; CT/MR examples and normals in the reference depend on the backend's bench split; `n_by_modality` / `?modality=` / `misses_by_zone` / summary-row `modality` are read when present — see requests below.
+
+CONTRACT CHANGE REQUEST (round 4, frontend pages → backend-engineer): (1) `GET /learners/{lid}/dashboard?modality=cxr|ct|mr` filters every block and echoes `modality`; add `n_by_modality {cxr, ct, mr}` always, and for CT/MR `misses_by_zone: [{zone, human, n, n_missed}]` (or `zone` on each `blindspot_map.points[]`). (2) `GET /sessions/{sid}/summary`: `modality` on each row and on the summary (or `settings.modality`), `provenance` block on rows. (3) `GET /api/about`: `provenance` = config/provenance.yaml `datasets` (map keyed as the YAML, `modality` per entry welcome). (4) `/api/reference` CT/MR examples: `modality`, `volume_url`, `mask_url`, `shape`, `spacing`, `window`, `provenance`, `finding.measure.slice`, `finding.slice_range`, `finding.label_values`; labels carry `modality`. Until (1) lands, "My weak spots" for CT/MR is estimated locally and says so.
+
+FRONTEND SEAMS (volumetric) — pages side (frontend-engineer, pages/app/dashboard/reference/tutorial) — for the reading-room agent (viewer/read/rail/ReadPage)
+- `app/ProvenanceBadge.tsx`: `<ProvenanceBadge provenance={next.case.provenance} modality={next.case.modality} />` — please render it in the reading-room header area (you own ReadPage/read). `app/provenance.ts` has the pure helpers.
+- `state/session.ts`: `session.modality` ('cxr'|'ct'|'mr') is set by the start screen; read it for the reading room / tutorial.
+- Tutorial: `<Tutorial onClose modality={case.modality} />` adds the two volume steps; put `data-tour="slices"` on the slice control and `data-tour="measure"` on the measure button (steps are dropped when the targets are missing).
+- `pages/CaseReviewPage.tsx` spreads `{ modality, volume }` (the `/attempts/{aid}/result` `case.volume` block as sent: shape/spacing/window/data_url) onto `<CaseReview/>` for a CT/MR read; add those optional props to CaseReviewProps and draw the volume (maskvol_url is in `result.reveal`).
+- `api/labels.ts`: OUTCOME_COPY has `unmatched` ("Not in the reference", neutral) — rail/copy.ts `whyLine` must handle it (it did when tsc went clean). `labelsFor(modality)` gives the pick list per scan type; `labelDisplay` knows the five tumours.
+- `reference/VolumeExample.tsx` imports your `viewer/volume/{volume,window,marching,planes}.ts` — keep those exports stable (cachedGunzip, decodeVolume, decodeMask, extractSlice, windowLut, paintSlice, marchingSquares, planeGeom).
+- Shared files touched by this round: `state/session.ts` (additive), `tests/e2e/round3_pages.spec.ts` (scan-type chips, chest group in the library).
+
 2026-10-06 19:33 — orchestrator — analytics + tutor guard DEPLOYED — green
 - Site repo (reyash 5226ce8): worker accepts site blindspot + /analytics/track events; /stats shows a Blindspot card (views, sessions, films, debriefs, hints, reference, tutor spend). Worker version 2eb10b05.
 - Blindspot 072db68: frontend tracker (anonymous id, off on localhost/automation), tutor status banner + specific debrief error lines; backend guard (credits/rate/auth/unavailable pauses, persisted), budgets (hour 2 / day 8 / total 60 USD, env), /api/admin/spend + resume (review-gated), spend events to the worker.

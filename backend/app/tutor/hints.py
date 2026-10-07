@@ -21,6 +21,8 @@ Where the zone and sign come from:
 - mimic: the first config zone_mimics entry for that zone (normal structures only) on every film.
 A dwell-chosen zone is kept at H3 equal to the zone H2 named when the caller passes `previous` (the earlier hint texts),
 so H2 -> H3 never jumps to a new area on normal films only.
+
+Volumetric (CT / MR) cases are routed to hints_volume.hint (slab thirds, organ zones, slice-aware wording).
 """
 
 from __future__ import annotations
@@ -268,11 +270,19 @@ def hint(
     *,
     previous: Sequence[Any] | None = None,
     zone_mimics: Mapping[str, Any] | None = None,
+    zone_dwell_ms: Mapping[str, float] | None = None,
 ) -> str:
     """Hint text for ladder step `level` (1..3). `cfg` is config/scoring.yaml (loaded if None).
 
     `previous`: the texts of the hints already given on this attempt (or hint-log dicts with "level"/"text"), so H3
-    stays in the zone H2 named."""
+    stays in the zone H2 named. CT / MR cases (case.modality ct|mr) go to hints_volume.hint: `zones` may then hold
+    3D masks (z, y, x) per volumetric zone, and `zone_dwell_ms` precomputed dwell per zone."""
+    if vocab.is_volumetric(case.modality):
+        from backend.app.tutor import hints_volume
+
+        return hints_volume.hint(
+            level, case, marks, telemetry, zones, cfg, cards, previous=previous, zone_dwell_ms=zone_dwell_ms
+        )
     level = min(3, max(1, int(level)))
     sc = cfg if cfg is not None else vocab.scoring_cfg()
     if level == 1:
@@ -290,3 +300,21 @@ def hint(
     zm = zone_mimics if zone_mimics is not None else load_zone_mimics()
     mims = list((zm.get("entries") or {}).get(zone) or [])
     return h3_text(zone, sign, mims[0] if mims else GENERIC_MIMIC)
+
+
+def hint_volume(
+    level: int,
+    case: Case,
+    marks: Sequence[Mark],
+    telemetry: Sequence[TelemetryEvent],
+    data: Mapping[str, Any] | None = None,
+    *,
+    previous: Sequence[Any] | None = None,
+    cfg: Mapping[str, Any] | None = None,
+    cards: dict[str, TeachingCard] | None = None,
+) -> str:
+    """CT / MR hint from the backend's `hints_volume.hint_data(...)` dict (BACKEND→TUTOR): unvisited_review_areas,
+    dwell_by_zone, review_areas, hardest_unmarked. Without `data`, the dwell is derived from telemetry."""
+    from backend.app.tutor import hints_volume
+
+    return hints_volume.hint_from_data(level, case, marks, telemetry, data, previous=previous, cfg=cfg, cards=cards)

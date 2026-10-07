@@ -1,7 +1,8 @@
 """Debrief cache keys (SPEC §8.7) and small key-value stores.
 
 Key = sha256(case_id, model, prompt_version, learner level, sorted (target, result) pairs, sorted FP zones,
-sorted unvisited review areas). The backend persists debriefs in its `debriefs` table and passes `cache_get`;
+sorted unvisited review areas; CT / MR cases add {"modality", size verdicts}, so X-ray keys are unchanged).
+The backend persists debriefs in its `debriefs` table and passes `cache_get`;
 MemoryStore / SqliteStore are for eval scripts and tests.
 """
 
@@ -38,8 +39,12 @@ def cache_key(
     fp_zones: Iterable[str | None],
     unvisited: Iterable[str],
     focus_label: str | None = None,
+    *,
+    modality: str | None = None,
+    extra: Mapping[str, Any] | None = None,
 ) -> str:
-    """`focus_label` (drill sessions) is appended only when set, so keys of ordinary debriefs are unchanged."""
+    """`focus_label` (drill sessions) is appended only when set, so keys of ordinary debriefs are unchanged.
+    `modality` (ct / mr) and `extra` (e.g. size verdicts) are appended only for volumetric cases."""
     payload: list[Any] = [
         case_id,
         model or "",
@@ -51,13 +56,20 @@ def cache_key(
     ]
     if focus_label:
         payload.append({"focus": focus_label})
-    return hashlib.sha256(json.dumps(payload, separators=(",", ":")).encode()).hexdigest()
+    if modality and modality != "cxr":
+        payload.append({"modality": modality, **dict(sorted((extra or {}).items()))})
+    return hashlib.sha256(json.dumps(payload, separators=(",", ":"), sort_keys=True).encode()).hexdigest()
 
 
 def cache_key_for_facts(
     facts: DebriefFacts, model: str | None, prompt_version: str, *, focus_label: str | None = None
 ) -> str:
-    fp_zones = [o.zone for o in facts.outcomes if o.result == "false_positive"]
+    fp_zones = [o.zone for o in facts.outcomes if o.result in ("false_positive", "unmatched")]
+    extra: dict[str, Any] = {}
+    if facts.case.modality != "cxr":
+        verdicts = {o.target: bool(o.size_verdict.get("ok")) for o in facts.outcomes if o.size_verdict}
+        if verdicts:
+            extra["size_ok"] = dict(sorted(verdicts.items()))
     return cache_key(
         facts.case.case_id,
         model,
@@ -67,6 +79,8 @@ def cache_key_for_facts(
         fp_zones,
         facts.search.unvisited_review_areas,
         focus_label,
+        modality=facts.case.modality,
+        extra=extra,
     )
 
 

@@ -62,7 +62,10 @@ def test_case_count_sets_total_and_done_without_a_new_attempt(api_env):
     done = c.get(f"/api/sessions/{sid}/next").json()
     assert done == {
         "attempt_id": "",
-        "case": {"case_id": "", "image_url": "", "width": 0, "height": 0},
+        "case": {
+            "case_id": "", "image_url": "", "width": 0, "height": 0,
+            "modality": "cxr", "body_region": None, "volume": None, "provenance": None,
+        },
         "index": 5,
         "total": 5,
         "hints_enabled": False,
@@ -197,6 +200,8 @@ def test_random_selection_is_uniform_over_the_eligible_pool_at_the_prevalence():
 ROW_KEYS = {
     "attempt_id",
     "case_id",
+    "modality",  # cxr | ct | mr (volumetric expansion)
+    "provenance",  # dataset badge dict (volumetric expansion)
     "index",
     "score",
     "success",
@@ -293,10 +298,11 @@ def test_result_returns_the_stored_submit_result(api_env):
     assert res.debrief_status == "pending" and res.facts_card.lines and res.reveal.search.heatmap_png_b64
     # plus which film it was and what the learner did, so the review page needs only the attempt id
     assert body["case"] == n["case"]
+    vol = {"plane": None, "slice": None, "voxel": None}  # volumetric mark fields (contract), unset on an X-ray
     assert body["submitted"] == {
         "marks": [
-            {"mark_id": "M1", "x": 70.0, "y": 150.0, "label": "nodule", "confidence": 4},
-            {"mark_id": "M2", "x": 200.0, "y": 40.0, "label": "mass", "confidence": 4},
+            {"mark_id": "M1", "x": 70.0, "y": 150.0, "label": "nodule", "confidence": 4, **vol},
+            {"mark_id": "M2", "x": 200.0, "y": 40.0, "label": "mass", "confidence": 4, **vol},
         ],
         "patterns": [],
         "declared_normal": False,

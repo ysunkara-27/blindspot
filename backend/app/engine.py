@@ -72,6 +72,10 @@ def _client_seconds(submit: AttemptSubmit) -> float | None:
 
 
 def evaluate(case: Case, submit: AttemptSubmit, repo: CaseRepository, hints_used: int | None = None) -> Evaluation:
+    if case.volume is not None:  # CT / MR: backend/app/engine_volume.py (the X-ray path below is unchanged)
+        from backend.app.engine_volume import evaluate_volume
+
+        return evaluate_volume(case, submit, repo, hints_used=hints_used)
     sc = config.scoring()
     W = case.width
     tau = tolerance_px(W, sc)

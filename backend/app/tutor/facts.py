@@ -2,12 +2,18 @@
 
 Deterministic. Every human-readable string (zones, locations, sizes, relations) is produced by code here or by
 the backend engines; Claude only explains them. Never states centimetres (pixel spacing is unknown).
+
+Volumetric (CT / MR) cases add, all code-built: case.modality / body_region / provenance sentence; per finding the
+slice_range, size_mm (only when the reference carries a measure), components and a relative_location that names the
+zone, the patient's side and the slice range ("middle slices of the volume, patient's right, slices 6-10 of 16");
+the learner's measurements and each mark's plane / slice; search.slices_viewed_pct / finding_slices_viewed; outcomes
+keep size_verdict / slices_viewed, and `unmatched` marks stay in as outcomes with result unmatched.
 """
 
 from __future__ import annotations
 
 import math
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from datetime import datetime
 from typing import Any
 
@@ -20,6 +26,7 @@ from shared.contracts import (
     FactsFinding,
     FactsLearner,
     FactsMark,
+    FactsMeasurement,
     FactsPattern,
     FactsSearch,
     Finding,
@@ -28,6 +35,7 @@ from shared.contracts import (
 )
 
 PROJECTION = "frontal; PA vs AP not recorded"
+MODALITY_NAMES = {"ct": "CT", "mr": "MR"}
 # Size words from mask area / image area. Presentation buckets only (not used for scoring).
 SIZE_SMALL_MAX = 0.002  # < 0.2% of the image
 SIZE_MEDIUM_MAX = 0.02  # < 2% of the image
@@ -71,7 +79,113 @@ def _location_text(f: Finding, approximate: bool) -> str | None:
     return text
 
 
+# --------------------------------------------------------------------------- volumetric strings (all code-built)
+def n_slices(case: Case) -> int | None:
+    return int(case.volume.shape[0]) if case.volume is not None else None
+
+
+# Contract slice indices (slice_range, measure.slice, Mark.slice, telemetry.slice) are 0-based; EVERY human-facing
+# string is 1-based, like the viewer's "Slice 8 of 28" (docs/VOLUMETRIC_PLAN.md).
+HUMAN_SLICE_OFFSET = 1
+
+
+def human_slice(z: int | float) -> int:
+    """0-based contract slice index → the 1-based number the learner sees."""
+    return int(z) + HUMAN_SLICE_OFFSET
+
+
+def slice_range_text(slice_range: Sequence[int] | None, total: int | None = None) -> str | None:
+    """'slices 7-11 of 16' / 'slice 9 of 16' from a 0-based contract slice_range (1-based for the learner)."""
+    if not slice_range:
+        return None
+    z0, z1 = human_slice(slice_range[0]), human_slice(slice_range[-1])
+    core = f"slice {z0}" if z0 == z1 else f"slices {z0}-{z1}"
+    return f"{core} of {total}" if total else core
+
+
+def side_text(side: str | None) -> str | None:
+    if side in ("right", "left"):
+        return f"patient's {side}"
+    if side == "midline":
+        return "midline"
+    if side == "bilateral":
+        return "both sides"
+    return None
+
+
+def projection_text(case: Case) -> str:
+    if not vocab.is_volumetric(case.modality):
+        return PROJECTION
+    name = MODALITY_NAMES.get(case.modality, case.modality.upper())
+    seq = f" {case.volume.sequence}" if case.volume is not None and case.volume.sequence else ""
+    region = f" of the {case.body_region}" if case.body_region else ""
+    total = n_slices(case)
+    slices = f"; {total} axial slices" if total else ""
+    return f"axial {name}{seq}{region}{slices}"
+
+
+def provenance_text(case: Case) -> str | None:
+    """'Reference segmented by an abdominal radiologist (single reader) (Medical Segmentation Decathlon, Task07
+    Pancreas)': the badge from config/provenance.yaml, one sentence, code-built."""
+    if case.provenance is None:
+        return None
+    return f"Reference segmented by {case.provenance.segmented_by} ({case.provenance.dataset})"
+
+
+def _badge_sentence(badge: Any) -> str | None:
+    """'Segmented by X (dataset)' (Provenance.badge) → 'Reference segmented by X (dataset)'."""
+    if not badge or not isinstance(badge, str):
+        return None
+    return badge if badge.lower().startswith("reference ") else f"Reference {badge[:1].lower()}{badge[1:]}"
+
+
+def volume_location_text(f: Finding, case: Case) -> str | None:
+    """Zone (organ or slab third), patient's side, slice range: the only location words a volumetric debrief may
+    use. Zone ids name the patient's side (CLAUDE.md non-negotiable 3)."""
+    parts: list[str] = []
+    base = f.relative_location or (vocab.zone_human(f.primary_zone) if f.primary_zone else None)
+    if base:
+        parts.append(base.rstrip("."))
+    side = side_text(f.side)
+    if side and (not base or side.split()[-1] not in base.lower()):
+        parts.append(side)
+    sr = slice_range_text(f.slice_range, n_slices(case))
+    if sr:
+        parts.append(sr)
+    return ", ".join(parts) if parts else None
+
+
+def size_mm_text(size_mm: float | None, measure_slice: int | None = None) -> str | None:
+    if size_mm is None:
+        return None
+    s = f"{size_mm:g} mm long axis"
+    return f"{s} on slice {human_slice(measure_slice)}" if measure_slice is not None else s
+
+
+def _volume_facts_finding(f: Finding, case: Case) -> FactsFinding:
+    size_mm = round(float(f.measure.long_mm), 1) if f.measure is not None else None
+    return FactsFinding(
+        id=f.short_id,
+        label=f.label,
+        display=vocab.display(f.label),
+        kind=f.kind,
+        side=f.side,
+        primary_zone=f.primary_zone,
+        zones=list(f.zones),
+        relative_location=volume_location_text(f, case),
+        size=size_mm_text(size_mm, f.measure.slice if f.measure is not None else None),
+        difficulty=difficulty_word(f.difficulty) if f.kind == "focal" else None,  # type: ignore[arg-type]
+        zones_approximate=case.zones_approximate,
+        ctr=None,
+        slice_range=[int(f.slice_range[0]), int(f.slice_range[1])] if f.slice_range else None,
+        size_mm=size_mm,
+        components=[c.name for c in f.components] if f.components else None,
+    )
+
+
 def facts_finding(f: Finding, case: Case) -> FactsFinding:
+    if vocab.is_volumetric(case.modality):
+        return _volume_facts_finding(f, case)
     focal = f.kind == "focal"
     ctr = case.cardiothoracic_ratio if f.label == "cardiomegaly" else None
     return FactsFinding(
@@ -116,12 +230,16 @@ def _norm_search(s: Any) -> FactsSearch:
     if isinstance(s, FactsSearch):
         return s
     d = s if isinstance(s, Mapping) else s.model_dump()
+    pct = d.get("slices_viewed_pct")
+    fsv = d.get("finding_slices_viewed")
     return FactsSearch(
         lung_coverage_pct=float(round(float(d.get("lung_coverage_pct") or 0.0))),
         unvisited_review_areas=list(d.get("unvisited_review_areas") or []),
         first_visits=list(d.get("first_visits") or []),
         zoom_used=bool(d.get("zoom_used", False)),
         loupe_used=bool(d.get("loupe_used", False)),
+        slices_viewed_pct=float(round(float(pct))) if pct is not None else None,
+        finding_slices_viewed={short_id(str(k)): bool(v) for k, v in fsv.items()} if fsv else None,
     )
 
 
@@ -162,9 +280,15 @@ def build_facts(
     mark_zones: Mapping[str, str | None] | None = None,
     level: str = "MS2",
     history: Mapping[str, Any] | None = None,
+    volume: Mapping[str, Any] | None = None,
 ) -> DebriefFacts:
-    """Assemble DebriefFacts (shared/schemas/debrief_facts.json) for one submitted attempt."""
+    """Assemble DebriefFacts (shared/schemas/debrief_facts.json) for one submitted attempt.
+
+    `volume`: tutor_bridge.volume_facts(...) for CT / MR cases (BACKEND→TUTOR). Everything in it is also on the
+    contract objects, which this builder reads directly; it is used only to fill a provenance badge or a size the
+    case object lacks, so the two never disagree."""
     outs = [_norm_outcome(o) for o in outcomes]
+    vol = dict(volume or {})
     mark_zones = {short_id(k): v for k, v in (mark_zones or {}).items()}
     outcome_zone = {o.target: o.zone for o in outs if o.target.startswith("M")}
     marks = [
@@ -173,8 +297,14 @@ def build_facts(
             label=m.label,
             confidence=int(m.confidence),
             zone=mark_zones.get(short_id(m.mark_id)) or outcome_zone.get(short_id(m.mark_id)),
+            plane=m.plane,
+            slice=int(m.slice) if m.slice is not None else None,
         )
         for m in submit.marks
+    ]
+    measurements = [
+        FactsMeasurement(mark_id=short_id(x.mark_id), long_mm=round(float(x.long_mm), 1), plane=x.plane)
+        for x in submit.measurements
     ]
     labels = involved_labels(case, submit)
     hist = dict(history or {})
@@ -184,9 +314,12 @@ def build_facts(
         case=FactsCase(
             case_id=case.case_id,
             is_normal=case.is_normal,
-            projection=PROJECTION,
+            projection=projection_text(case),
             pixel_spacing_mm=case.pixel_spacing_mm,
             findings=[facts_finding(f, case) for f in case.findings],
+            modality=case.modality,
+            body_region=case.body_region,
+            provenance=provenance_text(case) or _badge_sentence(vol.get("provenance")),
         ),
         learner=FactsLearner(
             level=level,
@@ -196,6 +329,7 @@ def build_facts(
             time_to_submit_s=_time_to_submit_s(submit),
             marks=marks,
             pattern_selections=[FactsPattern(label=p.label, confidence=int(p.confidence)) for p in submit.patterns],
+            measurements=measurements,
         ),
         outcomes=outs,
         spatial_relations=rels,

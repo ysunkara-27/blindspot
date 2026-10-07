@@ -34,6 +34,7 @@ from backend.app.db import jload, new_id, now_iso, row, rows, tx
 from backend.app.engine import Evaluation, evaluate
 from backend.app.search.misstype import BUCKET
 from backend.app.settings import get_settings
+from backend.app.volumes import maskvol_url, next_case_volume, provenance_badge, submit_problems_volume
 from shared.contracts import (
     AskResponse,
     AssessmentRecorded,
@@ -62,6 +63,7 @@ FOUND_RESULTS = ("found", "mislabeled", "pattern_found")  # localized, as in the
 DEMO_NAME, DEMO_CODE = "demo", "DEMO"  # learner created by `make demo` (backend/app/demo_seed.py)
 DEFAULT_MAX_MARKS = 50  # QA issue 7; overridable by config/scoring.yaml submit.max_marks
 SELECTIONS = ("adaptive", "weak_areas", "random")  # SessionCreate.settings.selection
+DEFAULT_MODALITY = "cxr"  # SessionCreate.settings.modality: cxr | ct | mr (filters the case pool)
 # SessionCreate.settings.case_count bounds; overridable by config/adaptive.yaml session.{case_count_min,case_count_max}
 CASE_COUNT_MIN, CASE_COUNT_MAX = 3, 50
 PREVALENCE_MIN, PREVALENCE_MAX = 0.3, 0.7  # SPEC §9.2: instructor-settable range
@@ -122,6 +124,14 @@ def clean_settings(raw: dict[str, Any] | None) -> dict[str, Any]:
         st.pop("selection", None)
     elif sel not in SELECTIONS:
         errs.append(f"settings.selection must be one of {', '.join(SELECTIONS)}")
+    mod = st.get("modality")
+    if mod is None:
+        st.pop("modality", None)
+        lab = st.get("label")
+        if isinstance(lab, str) and lab in config.labels() and config.label_modality(lab) != DEFAULT_MODALITY:
+            st["modality"] = config.label_modality(lab)  # a CT/MR drill label implies its modality
+    elif mod not in config.MODALITIES:
+        errs.append(f"settings.modality must be one of {', '.join(config.MODALITIES)}")
     prev = st.pop("prevalence_abnormal", None)
     legacy = st.pop("prevalence", None)
     prev = legacy if prev is None else prev
@@ -191,6 +201,16 @@ def _session(con, sid: str) -> dict[str, Any]:
     return s
 
 
+def session_modality(s: dict[str, Any]) -> str:
+    m = (s.get("settings") or {}).get("modality")
+    return m if m in config.MODALITIES else DEFAULT_MODALITY
+
+
+def _attempt_modality(con, a: dict[str, Any]) -> str:
+    r = row(con, "SELECT settings_json FROM sessions WHERE id=?", a["session_id"])
+    return session_modality({"settings": jload(r["settings_json"], {}) if r else {}})
+
+
 def _servable(repo: CaseRepository, cid: str) -> bool:
     """Case exists and carries no QA flag outside the allowlist (selector.BENIGN_FLAGS)."""
     c = repo.get(cid)
@@ -202,19 +222,21 @@ def _servable(repo: CaseRepository, cid: str) -> bool:
     return True
 
 
-def _assessment_ids(repo: CaseRepository, mode: str) -> list[str]:
-    """Fixed order: data/processed/splits.json[mode] if it is an ordered list, else seeded order of the split.
-    QA-flagged cases (outside the allowlist) are dropped with a warning (REVIEW_NOTES issue 11)."""
+def _assessment_ids(repo: CaseRepository, mode: str, modality: str = DEFAULT_MODALITY) -> list[str]:
+    """Fixed order: data/processed/splits.json[mode] (or splits.json[mode + "_" + modality] for ct/mr) if it is an
+    ordered list, else seeded order of the split. Only cases of the session's modality; QA-flagged cases (outside
+    the allowlist) are dropped with a warning (REVIEW_NOTES issue 11)."""
     p = repo.root / "splits.json"
     if p.exists():
         try:
             d = json.loads(p.read_text())
-            ids = d.get(mode)
+            ids = d.get(f"{mode}_{modality}") if modality != DEFAULT_MODALITY else None
+            ids = d.get(mode) if ids is None else ids
             if isinstance(ids, list) and ids and all(isinstance(x, str) for x in ids):
-                return [i for i in ids if _servable(repo, i)]
+                return [i for i in ids if _servable(repo, i) and repo.get(i).modality == modality]
         except (ValueError, AttributeError):
             pass
-    return assessment_order([c.case_id for c in repo.by_split(mode) if _servable(repo, c.case_id)])
+    return assessment_order([c.case_id for c in repo.by_split(mode, modality) if _servable(repo, c.case_id)])
 
 
 def _b_values(con) -> dict[str, tuple[float, int]]:
@@ -240,16 +262,23 @@ def image_url(case_id: str) -> str:
     return f"{get_settings().api_prefix}/cases/{case_id}/image"
 
 
-def _next_case_payload(aid: str, case: Case, index: int, total: int | None, hints_enabled: bool) -> NextCase:
-    return NextCase(
-        attempt_id=aid,
-        case=NextCaseCase(
-            case_id=case.case_id, image_url=image_url(case.case_id), width=case.width, height=case.height
-        ),
-        index=index,
-        total=total,
-        hints_enabled=hints_enabled,
+def case_payload(case: Case) -> NextCaseCase:
+    """What the client may know about a case BEFORE submit: image/volume geometry, modality, provenance badge.
+    INVARIANT: no findings, labels, mask, slice ranges or measures (tests/test_volumetric_api.py)."""
+    return NextCaseCase(
+        case_id=case.case_id,
+        image_url=image_url(case.case_id),
+        width=case.width,
+        height=case.height,
+        modality=case.modality,
+        body_region=case.body_region,
+        volume=next_case_volume(case),
+        provenance=provenance_badge(case),
     )
+
+
+def _next_case_payload(aid: str, case: Case, index: int, total: int | None, hints_enabled: bool) -> NextCase:
+    return NextCase(attempt_id=aid, case=case_payload(case), index=index, total=total, hints_enabled=hints_enabled)
 
 
 def _done(index: int, total: int | None) -> NextCase:
@@ -264,17 +293,18 @@ def _done(index: int, total: int | None) -> NextCase:
 
 
 def _playlist_ids(repo: CaseRepository, settings: dict) -> list[str]:
-    """Servable practice-split cases of settings.playlist, in order, de-duplicated (missing/flagged/other-split
-    entries are skipped)."""
+    """Servable practice-split cases of settings.playlist, in order, de-duplicated (missing/flagged/other-split or
+    other-modality entries are skipped)."""
     pl = settings.get("playlist")
     if not isinstance(pl, list):
         return []
+    modality = session_modality({"settings": settings})
     out: list[str] = []
     for cid in pl:
         if not isinstance(cid, str) or cid in out or not _servable(repo, cid):
             continue
         c = repo.get(cid)
-        if c is not None and c.split == "practice":
+        if c is not None and c.split == "practice" and c.modality == modality:
             out.append(cid)
     return out
 
@@ -283,7 +313,7 @@ def session_total(repo: CaseRepository, s: dict[str, Any]) -> int | None:
     """Planned number of cases: the assessment form length; else the playlist length (Demo learner; wins over
     case_count); else settings.case_count; else None (open-ended)."""
     if is_assessment(s["mode"]):
-        return len(_assessment_ids(repo, s["mode"]))
+        return len(_assessment_ids(repo, s["mode"], session_modality(s)))
     st = s.get("settings") or {}
     pl = _playlist_ids(repo, st)
     if pl:
@@ -319,7 +349,7 @@ def next_case(sid: str) -> NextCase:
             _end_session(con, sid)
             return _done(n_done, total)
         if assess:
-            ids = _assessment_ids(repo, mode)
+            ids = _assessment_ids(repo, mode, session_modality(s))
             if n_done >= len(ids):
                 _end_session(con, sid)
                 return _done(n_done, total)
@@ -338,10 +368,11 @@ def next_case(sid: str) -> NextCase:
 
 def _select_practice(con, repo: CaseRepository, s: dict, n_done: int) -> Case | None:
     sel = config.adaptive()["selection"]
-    core = list(config.core_labels())
+    modality = session_modality(s)
+    core = list(config.core_labels_for(modality))  # modality-aware core pool (weak areas, Elo targets)
     lid, sid, mode, st = s["learner_id"], s["id"], s["mode"], s["settings"]
     bvals = _b_values(con)
-    pool = [_case_info(c, bvals) for c in repo.all()]
+    pool = [_case_info(c, bvals) for c in repo.by_modality(modality)]
     sess = rows(con, "SELECT case_id FROM attempts WHERE session_id=? ORDER BY idx", sid)
     recent = rows(
         con,
@@ -370,7 +401,7 @@ def _select_practice(con, repo: CaseRepository, s: dict, n_done: int) -> Case | 
     if playlist is not None:
         return playlist
     if mode == "review":
-        cid = _review_pick(con, lid, state, rng)
+        cid = _review_pick(con, lid, state, rng, modality)
         if cid and _servable(repo, cid) and (c := repo.get(cid)):
             return c
     prevalence = st.get("prevalence_abnormal", st.get("prevalence"))  # clean_settings clamps; old rows may not be
@@ -407,7 +438,10 @@ def _playlist_pick(repo: CaseRepository, settings: dict, sess: list[dict]) -> Ca
     return None
 
 
-def _review_pick(con, lid: str, state: LearnerState, rng: random.Random) -> str | None:
+def _review_pick(
+    con, lid: str, state: LearnerState, rng: random.Random, modality: str = DEFAULT_MODALITY
+) -> str | None:
+    repo = get_repo()
     hist = rows(
         con,
         "SELECT case_id, success, submitted_at FROM attempts WHERE learner_id=? AND submitted_at IS NOT "
@@ -416,6 +450,9 @@ def _review_pick(con, lid: str, state: LearnerState, rng: random.Random) -> str 
     )
     last: dict[str, tuple[int, float, bool]] = {}
     for i, h in enumerate(hist):
+        c = repo.get(h["case_id"])
+        if c is not None and c.modality != modality:
+            continue
         try:
             ts = time.mktime(time.strptime(h["submitted_at"][:19], "%Y-%m-%dT%H:%M:%S"))
         except ValueError:
@@ -492,7 +529,10 @@ def submit_problems(body: AttemptSubmit, width: float, height: float, max_marks:
 
 def validate_submit(body: AttemptSubmit, case: Case) -> None:
     max_marks = int(config.scoring().get("submit", {}).get("max_marks", DEFAULT_MAX_MARKS))
-    errs = submit_problems(body, case.width, case.height, max_marks)
+    if case.volume is not None:
+        errs = submit_problems_volume(body, case, max_marks)
+    else:
+        errs = submit_problems(body, case.width, case.height, max_marks)
     if errs:
         raise HTTPException(status_code=422, detail=errs)
 
@@ -509,6 +549,8 @@ def submit(aid: str, body: AttemptSubmit) -> tuple[SubmitResult | AssessmentReco
         raise _404("case")
     validate_submit(body, case)
     ev = evaluate(case, body, repo, hints_used=a["hints_used"])
+    if case.volume is not None:  # the label volume is served only through this attempt, only after submit
+        ev.reveal.maskvol_url = maskvol_url(aid)
     result = SubmitResult(
         score=ev.score,
         success=ev.success,
@@ -528,12 +570,13 @@ def submit(aid: str, body: AttemptSubmit) -> tuple[SubmitResult | AssessmentReco
             elo_log = _update_elo(con, a["learner_id"], case, ev)
         con.execute(
             "UPDATE attempts SET submitted_at=?, declared_normal=?, normal_confidence=?, marks_json=?, patterns_json=?,"
-            " hints_used=?, score=?, success=?, outcomes_json=?, search_json=?, elo_json=?, result_json=? WHERE id=?",
+            " hints_used=?, score=?, success=?, outcomes_json=?, search_json=?, elo_json=?, result_json=?,"
+            " measurements_json=? WHERE id=?",
             (
                 now_iso(),
                 int(body.declared_normal),
                 body.normal_confidence,
-                json.dumps([m.model_dump() for m in body.marks]),
+                json.dumps([m.model_dump(exclude_none=True) for m in body.marks]),
                 json.dumps([p.model_dump() for p in body.patterns]),
                 hints,
                 ev.score,
@@ -542,6 +585,7 @@ def submit(aid: str, body: AttemptSubmit) -> tuple[SubmitResult | AssessmentReco
                 json.dumps(ev.search_json),
                 json.dumps(elo_log) if elo_log else None,
                 result.model_dump_json(),  # served again by GET /attempts/{id}/result (never before the reveal rules)
+                json.dumps([m.model_dump() for m in body.measurements]) if body.measurements else None,
                 aid,
             ),
         )
@@ -584,7 +628,7 @@ def assessment_locked(con, repo: CaseRepository, a: dict) -> bool:
     """True for an assessment attempt whose session is not complete yet: nothing about it may be revealed."""
     if not is_assessment(a["mode"]):
         return False
-    return _n_submitted(con, a["session_id"]) < len(_assessment_ids(repo, a["mode"]))
+    return _n_submitted(con, a["session_id"]) < len(_assessment_ids(repo, a["mode"], _attempt_modality(con, a)))
 
 
 def stored_submit(a: dict, events: list[dict] | None) -> AttemptSubmit:
@@ -598,6 +642,7 @@ def stored_submit(a: dict, events: list[dict] | None) -> AttemptSubmit:
             "telemetry": events or [],
             "hints_used": min(3, max(0, int(a["hints_used"] or 0))),
             "client_timing": ClientTiming(shown_at=a["shown_at"], submitted_at=a["submitted_at"]).model_dump(),
+            "measurements": jload(a.get("measurements_json"), []) or [],
         }
     )
 
@@ -629,6 +674,8 @@ def get_result(aid: str) -> AttemptResult:
             res = SubmitResult.model_validate_json(a["result_json"])
         else:  # submitted before results were stored (e.g. the seeded demo history): scoring is deterministic
             _, _, ev = _reevaluate(con, repo, a)
+            if case.volume is not None:
+                ev.reveal.maskvol_url = maskvol_url(aid)
             res = SubmitResult(
                 score=ev.score,
                 success=ev.success,
@@ -640,9 +687,7 @@ def get_result(aid: str) -> AttemptResult:
     body = stored_submit(a, None)
     return AttemptResult(
         **{**res.model_dump(), "debrief_status": "pending"},
-        case=NextCaseCase(
-            case_id=case.case_id, image_url=image_url(case.case_id), width=case.width, height=case.height
-        ),
+        case=case_payload(case),
         submitted=SubmittedRead(
             marks=body.marks,
             patterns=body.patterns,
@@ -802,10 +847,13 @@ def hint(aid: str, body: HintRequest) -> HintResponse:
         if a["hints_used"] >= max_h:
             raise HTTPException(status_code=409, detail="no hints left")
         case = repo.get(a["case_id"])
-        zones, _ = repo.zones(case.case_id)
         level = a["hints_used"] + 1
         prev = jload(a["hint_log_json"], [])
-        text = tutor_bridge.hint(level, case, body.marks, body.telemetry, zones, previous=prev)
+        if case.volume is not None:
+            text = tutor_bridge.hint_volume(level, case, body.marks, body.telemetry, repo, previous=prev)
+        else:
+            zones, _ = repo.zones(case.case_id)
+            text = tutor_bridge.hint(level, case, body.marks, body.telemetry, zones, previous=prev)
         log_ = prev + [{"level": level, "at": now_iso(), "text": text}]
         con.execute("UPDATE attempts SET hints_used=?, hint_log_json=? WHERE id=?", (level, json.dumps(log_), aid))
     return HintResponse(level=level, text=text, remaining=max_h - level)
@@ -872,6 +920,8 @@ def summary(sid: str) -> AssessmentSummary:
             {
                 "attempt_id": r["id"],
                 "case_id": r["case_id"],
+                "modality": c.modality if c else None,
+                "provenance": provenance_badge(c) if c else None,
                 "index": a["idx"] + 1,
                 "score": r["score"],
                 "success": r["success"],
@@ -901,6 +951,7 @@ def summary(sid: str) -> AssessmentSummary:
     return AssessmentSummary(
         session_id=sid,
         mode=s["mode"],
+        modality=session_modality(s),
         n_cases=len(recs),
         n_abnormal=st["n_abnormal"],
         n_normal=st["n_normal"],
@@ -936,6 +987,7 @@ def parse_attempt(a: dict, repo: CaseRepository | None = None) -> dict[str, Any]
         "search": jload(a["search_json"], {}),
         "hints_used": a["hints_used"],
         "is_normal": bool(c.is_normal) if c else False,
+        "modality": c.modality if c else "cxr",
         "findings": [
             {
                 "id": f.short_id,
@@ -943,11 +995,32 @@ def parse_attempt(a: dict, repo: CaseRepository | None = None) -> dict[str, Any]
                 "kind": f.kind,
                 "centroid": list(f.centroid),
                 "difficulty": f.difficulty,
+                "zone": f.primary_zone,
             }
             for f in (c.findings if c else [])
         ],
         "b0": c.difficulty_prior if c else 0.0,
     }
+
+
+# ------------------------------------------------------------------ label volume after submit (CT / MR)
+def maskvol_bytes(aid: str) -> tuple[bytes, str]:
+    """The gzipped uint8 label volume of a SUBMITTED volumetric attempt (409 before submit; in assessment 409 until
+    the session summary is available; 404 for an X-ray attempt or a missing file). Returns (bytes, case_id)."""
+    repo = get_repo()
+    with tx() as con:
+        a = _attempt(con, aid)
+        if not a["submitted_at"]:
+            raise HTTPException(status_code=409, detail="attempt not submitted")
+        if assessment_locked(con, repo, a):
+            raise HTTPException(status_code=409, detail="available after the assessment summary")
+    case = repo.get(a["case_id"])
+    if case is None:
+        raise _404("case")
+    p = repo.maskvol_path(case)
+    if p is None or not p.exists():
+        raise _404("label volume")
+    return p.read_bytes(), case.case_id
 
 
 # ------------------------------------------------------------------ "show anatomy" after submit

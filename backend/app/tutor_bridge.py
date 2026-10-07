@@ -68,20 +68,62 @@ def build_facts(
     m = _mod("facts")
     if m is None or not hasattr(m, "build_facts"):
         return None
+    kw: dict[str, Any] = {
+        "case": case,
+        "submit": submit,
+        "outcomes": outcomes,
+        "spatial_relations": spatial_relations,
+        "search": search,
+        "mark_zones": mark_zones,
+        "level": level,
+        "history": history,
+    }
+    if case.volume is not None:
+        kw["volume"] = volume_facts(case, submit, outcomes, search)
     try:
-        return m.build_facts(
-            case=case,
-            submit=submit,
-            outcomes=outcomes,
-            spatial_relations=spatial_relations,
-            search=search,
-            mark_zones=mark_zones,
-            level=level,
-            history=history,
-        )
+        try:
+            return m.build_facts(**kw)
+        except TypeError:
+            if "volume" not in kw:
+                raise
+            kw.pop("volume")  # tutor facts builder without the volumetric kwarg yet
+            return m.build_facts(**kw)
     except Exception:  # noqa: BLE001
         log.exception("tutor.facts.build_facts failed")
         return None
+
+
+def volume_facts(case: Case, submit: AttemptSubmit, outcomes: list[Outcome], search: FactsSearch) -> dict[str, Any]:
+    """Code-computed volumetric facts for the tutor (BACKEND→TUTOR in docs/PROGRESS.md). Every number here comes from
+    the annotations (measure) or the learner (measurement); the only mm the tutor may ever state."""
+    v = case.volume
+    assert v is not None
+    nz = int(v.shape[0])
+    findings = {}
+    for f in case.findings:
+        findings[f.short_id] = {
+            "slice_range": list(f.slice_range) if f.slice_range else None,
+            "n_slices": (f.slice_range[1] - f.slice_range[0] + 1) if f.slice_range else None,
+            "size_mm": f.measure.long_mm if f.measure else None,
+            "measure_slice": f.measure.slice if f.measure else None,
+            "components": [c.name for c in f.components] if f.components else None,
+            "side": f.side,
+            "zone": f.primary_zone,
+        }
+    return {
+        "modality": case.modality,
+        "body_region": case.body_region,
+        "sequence": v.sequence,
+        "n_slices": nz,
+        "provenance": case.provenance.badge if case.provenance else None,
+        "provenance_grade": case.provenance.grade if case.provenance else None,
+        "findings": findings,
+        "measurements": [m.model_dump() for m in submit.measurements],
+        "size_verdicts": {o.target: o.size_verdict for o in outcomes if o.size_verdict},
+        "slices_viewed": {o.target: o.slices_viewed for o in outcomes if o.slices_viewed is not None},
+        "slices_viewed_pct": search.slices_viewed_pct,
+        "finding_slices_viewed": search.finding_slices_viewed,
+    }
 
 
 def generate_debrief(
@@ -218,6 +260,29 @@ def hint(
         except Exception:  # noqa: BLE001
             log.exception("tutor.hints.hint failed")
     return fallback_hint(level, case, marks, telemetry, zones)
+
+
+def hint_volume(
+    level: int,
+    case: Case,
+    marks: list[Mark],
+    telemetry: list[TelemetryEvent],
+    repo: Any,
+    *,
+    previous: list | None = None,
+) -> str:
+    """CT / MR hint: the tutor's `hints.hint_volume(level, case, marks, telemetry, data, previous=...)` when it exists,
+    else the deterministic ladder in backend/app/hints_volume.py. `data` = hints_volume.hint_data(...)."""
+    from backend.app import hints_volume
+
+    data = hints_volume.hint_data(case, marks, telemetry, repo)
+    m = _mod("hints")
+    if m is not None and hasattr(m, "hint_volume"):
+        try:
+            return str(m.hint_volume(level, case, marks, telemetry, data, previous=previous or []))
+        except Exception:  # noqa: BLE001
+            log.exception("tutor.hints.hint_volume failed")
+    return hints_volume.fallback_hint(level, case, data, previous)
 
 
 # ------------------------------------------------------------------ ask

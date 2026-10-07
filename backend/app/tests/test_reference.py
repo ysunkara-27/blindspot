@@ -16,6 +16,8 @@ from backend.app.tests.conftest import FIXTURES
 from pipeline import reference_bank as rb
 from shared.contracts import Case
 
+N_LABELS = 18  # 13 X-ray + 5 volumetric labels in config/taxonomy.yaml
+
 LABEL_KEYS = {
     "label",
     "display",
@@ -27,7 +29,9 @@ LABEL_KEYS = {
     "search_tip",
     "radiopaedia_url",
     "review_status",
+    "modality",  # the label's modality (volumetric expansion)
     "examples",
+    "volume_examples",  # CT/MR bench examples (volumetric expansion)
 }
 EXAMPLE_KEYS = {"case_id", "image_url", "width", "height", "finding"}
 FINDING_KEYS = {"finding_id", "polygon", "bbox", "relative_location", "side"}
@@ -133,7 +137,7 @@ def test_cli_writes_reviewable_yaml(processed_copy, tmp_path):
     assert text.startswith("#") and "BENCH" in text and "GENERATED" in text
     doc = yaml.safe_load(text)
     assert doc["version"] == 1 and doc["split"] == "bench"
-    assert len(doc["labels"]) == 13
+    assert len(doc["labels"]) == N_LABELS  # every taxonomy label (X-ray and volumetric)
     assert doc["labels"]["nodule"] == [{"case_id": "syn_001", "finding_id": "syn_001#F1"}]
     assert doc["labels"]["cardiomegaly"] == [{"case_id": "syn_007", "finding_id": "syn_007#F1"}]
     assert doc["normal"] == [{"case_id": "syn_008"}]
@@ -179,8 +183,8 @@ def test_reference_shape_matches_contract(ref_env):
     assert set(body) == {"labels", "normal_examples"}
     from backend.app import config
 
-    assert [e["label"] for e in body["labels"]] == list(config.labels())  # all 13, taxonomy order
-    assert len(body["labels"]) == 13
+    assert [e["label"] for e in body["labels"]] == list(config.labels())  # every label, taxonomy order
+    assert len(body["labels"]) == N_LABELS
     for e in body["labels"]:
         assert set(e) == LABEL_KEYS, e["label"]
         assert e["display"] == config.display(e["label"]) and e["kind"] in ("focal", "pattern")
@@ -274,7 +278,7 @@ def test_missing_or_broken_yaml_gives_empty_examples_not_an_error(ref_env, bank)
     c = ref_env(bank)
     r = c.get("/api/reference")
     assert r.status_code == 200, r.text
-    assert len(r.json()["labels"]) == 13 and all(e["examples"] == [] for e in r.json()["labels"])
+    assert len(r.json()["labels"]) == N_LABELS and all(e["examples"] == [] for e in r.json()["labels"])
     assert r.json()["normal_examples"] == []
     assert c.get("/api/reference/effusion").json()["examples"] == []
 
@@ -335,7 +339,10 @@ def test_committed_bank_is_well_formed():
     doc = yaml.safe_load(COMMITTED_BANK.read_text())
     from backend.app import config
 
-    assert doc["split"] == "bench" and set(doc["labels"]) == set(config.labels())
+    # the committed YAML lists the X-ray labels; volumetric picks live in data/processed/reference_bank_volumetric.json
+    assert doc["split"] == "bench" and set(doc["labels"]) == set(config.core_labels_for("cxr")) | {
+        lab for lab in config.labels() if config.label_modality(lab) == "cxr"
+    }
     for lab, entries in doc["labels"].items():
         assert len(entries) <= 3, lab
         for e in entries:

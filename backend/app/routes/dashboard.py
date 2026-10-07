@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query
 
-from backend.app import services
+from backend.app import config, services
 from backend.app.analytics.cohort import cohort_dashboard
-from backend.app.analytics.learner import learner_dashboard
+from backend.app.analytics.learner import learner_dashboard, misses_by_zone
 from backend.app.cases import get_repo
 from backend.app.db import row, rows, tx
 
@@ -15,8 +15,14 @@ router = APIRouter(tags=["dashboard"])
 
 @router.get("/learners/{lid}/dashboard")
 def learner(
-    lid: str, mode: str | None = Query(default=None, description="filter by mode; default excludes assessment")
+    lid: str,
+    mode: str | None = Query(default=None, description="filter by mode; default excludes assessment"),
+    modality: str | None = Query(default=None, description="cxr | ct | mr: every block over that modality only"),
 ) -> dict:
+    """`modality` filters every block and is echoed back; `n_by_modality` always counts the unfiltered attempts; for
+    ct/mr the volumetric `misses_by_zone` block is added (round-4 contract, docs/PROGRESS.md)."""
+    if modality is not None and modality not in config.MODALITIES:
+        raise HTTPException(status_code=422, detail=f"modality must be one of {', '.join(config.MODALITIES)}")
     with tx() as con:
         lr = row(con, "SELECT id, display_name, level FROM learners WHERE id=?", lid)
         if lr is None:
@@ -34,8 +40,16 @@ def learner(
             for r in rows(con, "SELECT label, theta, n FROM ability WHERE learner_id=?", lid)
         }
     repo = get_repo()
-    out = learner_dashboard([services.parse_attempt(a, repo) for a in atts], ab)
+    recs = [services.parse_attempt(a, repo) for a in atts]
+    n_by = {m: sum(r["modality"] == m for r in recs) for m in config.MODALITIES}
+    if modality:
+        recs = [r for r in recs if r["modality"] == modality]
+    out = learner_dashboard(recs, ab)
     out["learner"] = lr
+    out["modality"] = modality
+    out["n_by_modality"] = n_by
+    if modality in ("ct", "mr"):
+        out["misses_by_zone"] = misses_by_zone(recs)
     return out
 
 

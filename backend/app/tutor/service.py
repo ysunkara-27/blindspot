@@ -72,8 +72,9 @@ def user_text(facts: DebriefFacts, case: Case, has_images: bool, focus_label: st
     if has_images:
         _, _, target = primary_target(case, facts, [])
         around = f"around {target.short_id}" if target is not None else "around the learner's mark"
+        whole = "the whole film" if not vocab.is_volumetric(case.modality) else "one axial preview slice of the volume"
         parts.append(
-            "IMAGES: 1 = the whole film (cyan outlines = radiologist findings F#, amber circles = learner marks M#); "
+            f"IMAGES: 1 = {whole} (cyan outlines = reference findings F#, amber circles = learner marks M#); "
             f"2 = close-up {around} without outlines; 3 = the same close-up with thin cyan outlines."
         )
     focus = focus_line(facts, focus_label)

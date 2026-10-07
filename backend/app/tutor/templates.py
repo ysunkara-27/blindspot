@@ -5,6 +5,9 @@ validator (tested on every fixture scenario). Wording avoids side words except i
 
 Round 3 (UX audit): at EVERY level, crowded films and normal calls included, each finding row carries 1-2 key signs
 from its card and a full sentence for `why` (validator R9). Levels only shorten the wording around that core.
+
+Volumetric (CT / MR) cases use the pieces in templates_volume (slice-based why lines, size-verdict sentences, unmatched
+marks); the X-ray wording below is unchanged for modality cxr.
 """
 
 from __future__ import annotations
@@ -281,6 +284,32 @@ def _next_step(facts: DebriefFacts) -> str:
     return _NEXT_STEP["ok"]
 
 
+def _build_volume(
+    facts: DebriefFacts, cards: dict[str, TeachingCard], level: str, verdict: str, focus_label: str | None
+) -> DebriefOutput:
+    from backend.app.tutor import templates_volume as tv
+
+    res = {o.target: o for o in facts.outcomes}
+    findings: list[DebriefFindingOut] = []
+    n_found = 0
+    for f in facts.case.findings:
+        o = res.get(f.id)
+        result = o.result if o else "missed_search"
+        n_found += result in ("found", "mislabeled")
+        card = cards.get(f.label)
+        findings.append(
+            DebriefFindingOut(
+                finding_id=f.id,
+                result=result,  # type: ignore[arg-type]
+                where_to_look=tv.where(f, level),
+                what_it_looks_like=tv.what(f, result, card, level, len(facts.case.findings)),
+                why=tv.why(facts, f, o, result, card, o.learner_label if o else None, level, cards),
+            )
+        )
+    head = _focus_headline(facts, verdict, focus_label) or tv.headline(facts, verdict, n_found)
+    return DebriefOutput(headline=head, verdict=verdict, findings=findings, **tv.pieces(facts, cards, level))  # type: ignore[arg-type]
+
+
 def _build(
     facts: DebriefFacts, cards: dict[str, TeachingCard], zm: dict[str, Any], level: str, focus_label: str | None = None
 ) -> DebriefOutput:
@@ -288,6 +317,8 @@ def _build(
     verdicts = allowed_verdicts(facts)
     pref = ("all_found", "partly_found", "overcall", "missed_normal_call", "missed", "correct_normal")
     verdict = next(v for v in pref if v in verdicts)
+    if vocab.is_volumetric(facts.case.modality):
+        return _build_volume(facts, cards, level, verdict, focus_label)
     findings: list[DebriefFindingOut] = []
     n_found = 0
     for f in facts.case.findings:

@@ -72,7 +72,7 @@ def test_dev_routes_404_by_default(api_env, monkeypatch):
 def test_dev_routes_on_with_flag(api_env, monkeypatch):
     monkeypatch.setenv("BLINDSPOT_DEV", "1")
     c = api_env()
-    assert c.get("/api/dev/cases").json()["n"] == 10
+    assert c.get("/api/dev/cases").json()["n"] == 14  # 10 X-ray + 4 CT/MR synthetic cases
     assert c.get("/api/dev/cases/syn_005").json()["case_id"] == "syn_005"
     r = c.get("/api/dev/cases/syn_005/overlay", params={"layers": "zones,findings"})
     assert r.status_code == 200 and r.content[:8] == b"\x89PNG\r\n\x1a\n"

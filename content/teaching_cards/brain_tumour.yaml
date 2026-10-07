@@ -1,0 +1,21 @@
+label: brain_tumour
+display_name: Brain tumour
+kind: focal
+modality: mr
+one_liner: A mass in the brain with an enhancing part on T1 after contrast and a wide zone of oedema around it on FLAIR.
+key_signs:
+  - "Enhancement on T1 after contrast (T1c): a bright rim or bright solid tissue that normal brain does not show"
+  - A dark central core inside the enhancing rim
+  - "Surrounding oedema: bright on FLAIR and T2, dark on T1, spreading along the white matter"
+  - "Mass effect: the sulci nearby are flattened, the ventricle is squashed, the midline shifts away from it"
+  - Spans several consecutive slices and keeps its shape as you scroll
+where_it_hides: [brain_left, brain_right, brain_midline, superior_slab, mid_slab]
+mimics:
+  - Choroid plexus in the ventricles, which enhances normally
+  - Normal enhancing vessels and the dural venous sinuses
+  - Flow artefact in the ventricles and partial-volume blur at the top of the head
+  - Normal asymmetry of the sulci between the two hemispheres
+commonly_confused_with: []
+search_tip: Scroll through every slice on the T1 post-contrast sequence and then again on FLAIR, comparing each hemisphere with the matching slice on the other side for anything that enhances or swells.
+radiopaedia_url: null
+review: {status: ai_draft, reviewer: null, date: null, notes: "MR (MSD Task01 BraTS; components oedema / tumour core / enhancing tumour). No radiopaedia_url: the site returns the same 200 page for any slug, so no article could be confirmed."}

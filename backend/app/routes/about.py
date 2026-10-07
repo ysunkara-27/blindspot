@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
+from backend.app import config
+
 router = APIRouter(tags=["about"])
 
 NIH_CITATION = (
@@ -101,4 +103,5 @@ ABOUT = {
 
 @router.get("/about")
 def about() -> dict:
-    return ABOUT
+    """ABOUT plus `provenance`: config/provenance.yaml `datasets` keyed as the YAML, with `modality` per entry."""
+    return {**ABOUT, "provenance": config.provenance_datasets()}

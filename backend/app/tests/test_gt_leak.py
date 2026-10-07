@@ -57,7 +57,10 @@ def test_next_never_leaks_ground_truth_practice(api_env):
         r = c.get(f"/api/sessions/{s['session_id']}/next")
         body = r.json()
         assert set(body) == {"attempt_id", "case", "index", "total", "hints_enabled", "done"}
-        assert set(body["case"]) == {"case_id", "image_url", "width", "height"}
+        assert set(body["case"]) == {
+            "case_id", "image_url", "width", "height", "modality", "body_region", "volume", "provenance"
+        }
+        assert body["case"]["modality"] == "cxr" and body["case"]["volume"] is None  # default sessions are X-ray
         assert_no_ground_truth(body, body["case"]["case_id"])
         # no debrief before submit either
         assert c.get(f"/api/attempts/{body['attempt_id']}/debrief").status_code == 409
@@ -105,4 +108,4 @@ def test_no_public_case_metadata_route(api_env):
     # the only public per-case route is the image; JSON metadata lives under /api/dev (QA only)
     paths = {p for p, _ in iter_api_routes(c.app)}
     case_routes = {p for p in paths if p.startswith("/api/cases/")}
-    assert case_routes == {"/api/cases/{case_id}/image"}
+    assert case_routes == {"/api/cases/{case_id}/image", "/api/cases/{case_id}/volume"}  # pixels / voxels only

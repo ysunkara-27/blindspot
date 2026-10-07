@@ -21,6 +21,7 @@ from shared.contracts import Case, FactsCard, FactsSearch, Finding, Outcome
 
 NO_TIME_MS = 100.0  # below this the card says "no time spent there"
 FP_LINE = "radiologists marked nothing here"
+UNMATCHED_LINE = "the reference does not label anything here (not counted against you)"
 
 
 def _where(f: Finding) -> str:
@@ -72,6 +73,35 @@ def extras_text(n_marks: int, n_patterns: int) -> str:
     return " and ".join(parts)
 
 
+def size_verdict_text(sv: dict | None) -> str:
+    """Size verdict in plain words: the only place the card states mm (from measure + measurement facts)."""
+    if not sv:
+        return ""
+    plane = f", measured on a {sv['plane']} slice" if sv.get("plane") and sv["plane"] != "axial" else ""
+    verdict = (
+        "within tolerance"
+        if sv.get("ok")
+        else ("larger than" if sv["diff_mm"] > 0 else "smaller than") + " the reference"
+    )
+    return f" Size: you measured {sv['your_mm']:g} mm, reference {sv['reference_mm']:g} mm — {verdict}{plane}."
+
+
+def slices_text(f: Finding, nz: int, seen: int | None) -> str:
+    if not f.slice_range:
+        return ""
+    z0, z1 = f.slice_range
+    span = f"slices {z0 + 1}–{z1 + 1}" if z1 != z0 else f"slice {z0 + 1}"  # 1-based for people; contract is 0-based
+    out = f", {span} of {nz}"
+    if seen is not None:
+        n = z1 - z0 + 1
+        out += (
+            f" (you viewed {'all' if seen >= n else seen} of them)"
+            if n > 1
+            else (" (you viewed it)" if seen else " (you did not view it)")
+        )
+    return out
+
+
 def build_facts_card(
     case: Case,
     outcomes: Sequence[Outcome],
@@ -79,19 +109,24 @@ def build_facts_card(
     success: bool,
     search: FactsSearch,
     declared_normal: bool,
+    seen_slices: dict[str, int] | None = None,
 ) -> FactsCard:
     by_f = {f.short_id: f for f in case.findings}
     finding_outs = sorted((o for o in outcomes if o.target in by_f), key=lambda o: _id_order(o.target))
     fps = sorted((o for o in outcomes if o.result == "false_positive"), key=lambda o: _id_order(o.target))
+    unmatched = sorted((o for o in outcomes if o.result == "unmatched"), key=lambda o: _id_order(o.target))
     pfalse = [o for o in outcomes if o.result == "pattern_false"]
     extras = extras_text(len(fps), len(pfalse))
     lines: list[str] = []
+    vol = case.volume is not None
+    film = "scan" if vol else "film"
+    nz = int(case.volume.shape[0]) if case.volume else 0
 
     if case.is_normal:
         if not extras:
-            headline = "Correct: this film is normal" if declared_normal else "Nothing marked on a normal film"
+            headline = f"Correct: this {film} is normal" if declared_normal else f"Nothing marked on a normal {film}"
         else:
-            headline = f"This film is normal — {extras}"
+            headline = f"This {film} is normal — {extras}"
     else:
         found = sum(o.result in ("found", "mislabeled", "pattern_found") for o in finding_outs)
         total = len(finding_outs)
@@ -102,7 +137,7 @@ def build_facts_card(
         else:
             headline = f"You found {found} of {total} findings"
         if declared_normal:
-            headline = "This film is not normal — " + headline[0].lower() + headline[1:]
+            headline = f"This {film} is not normal — " + headline[0].lower() + headline[1:]
         elif extras:
             headline += f" — plus {extras}"
 
@@ -120,9 +155,12 @@ def build_facts_card(
             chip += f" (you called it {display(o.learner_label or 'not_sure').lower()})"
         elif o.result.startswith("missed_"):
             chip += f" ({dwell_text(o.dwell_ms)})"
-        lines.append(f"{o.target} {display(f.label)} — {_where(f)}: {chip}.")
+        where = _where(f) + (slices_text(f, nz, (seen_slices or {}).get(o.target)) if vol else "")
+        lines.append(f"{o.target} {display(f.label)} — {where}: {chip}.{size_verdict_text(o.size_verdict)}")
     for o in fps:
         lines.append(f"{o.target} ({zone_human(o.zone) if o.zone else 'outside the lungs'}): {FP_LINE}.")
+    for o in unmatched:
+        lines.append(f"{o.target} ({zone_human(o.zone) if o.zone else 'an unlabelled area'}): {UNMATCHED_LINE}.")
     for o in pfalse:
         lines.append(f"{display(o.target)}: selected, but radiologists did not report it.")
     if search.unvisited_review_areas:
@@ -131,5 +169,9 @@ def build_facts_card(
         )
     else:
         lines.append("You visited every review area.")
-    lines.append(f"Lung coverage {int(_half_up(search.lung_coverage_pct))}%. Score {score_text(score)}.")
+    if vol:
+        pct = search.slices_viewed_pct if search.slices_viewed_pct is not None else search.lung_coverage_pct
+        lines.append(f"You viewed {int(_half_up(pct))}% of the {nz} slices. Score {score_text(score)}.")
+    else:
+        lines.append(f"Lung coverage {int(_half_up(search.lung_coverage_pct))}%. Score {score_text(score)}.")
     return FactsCard(headline=headline, lines=lines)

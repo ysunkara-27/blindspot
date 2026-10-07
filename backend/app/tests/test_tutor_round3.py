@@ -151,10 +151,10 @@ def _run(f, case, sub, client, **kw):
 
 def test_prompt_v3_requires_a_sign_and_a_six_word_why_for_every_finding():
     p = load_prompt("debrief_system")
-    assert p.version == "v3"
+    assert p.version == "v4"
     assert "AT LEAST ONE item" in p.text and "AT LEAST 6 WORDS" in p.text and "DRILL FOCUS" in p.text
     assert "what_it_looks_like = []" not in p.text and "why ≤ 5 words" not in p.text  # the v2 crowded-film budget
-    assert 'for "correct"\n   write "correct"' in p.text  # live run 2026-10-06: "right spot" tripped R3 twice
+    assert 'for\n   "correct" write "correct"' in p.text  # live run 2026-10-06: "right spot" tripped R3 twice
     block = cards_block_text()
     assert "NEVER an empty list" in block and "at least 6 words" in block
 

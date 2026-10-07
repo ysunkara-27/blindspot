@@ -1,0 +1,17 @@
+# Anatomy explainer (hints and ask-the-tutor only; not a finding card). status ai_draft.
+anatomy: cerebral_hemispheres
+display_name: Cerebral hemispheres
+zones: [brain_left, brain_right, brain_midline]
+modality: mr
+body_region: brain
+one_liner: The two halves of the brain, separated by the falx in the midline, each with an outer rim of grey matter folded into gyri and sulci and an inner core of white matter around the ventricles.
+landmarks:
+  - "The falx and the ventricles mark the midline: compare each side against the other on the same slice"
+  - Grey matter is the outer folded rim; white matter is the smoother inner core
+  - The lateral ventricles are dark on T1 and bright on T2; the choroid plexus inside them enhances normally
+  - Sulci should be open and similar on both sides; a flattened sulcus is a clue to swelling
+mimics:
+  - Normal sulci and cortical gyri
+  - Choroid plexus and the calcified pineal gland
+  - Normal enhancing vessels and venous sinuses
+review: {status: ai_draft, reviewer: null, date: null, notes: null}

@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from backend.app import config
-from backend.app.analytics.blindspot_map import blindspot_points
+from backend.app.analytics.blindspot_map import FOUND, blindspot_points
 from backend.app.analytics.calibration import calibration
 from backend.app.analytics.froc import froc_curve
 from backend.app.search.misstype import BUCKET
@@ -107,6 +107,27 @@ def review_area_habit(records: Sequence[dict[str, Any]]) -> dict[str, Any]:
         k = sum(a in (r.get("search") or {}).get("visited_review_areas", []) for r in records)
         out.append({"area": a, "human": config.zone_human(a), "visited_pct": round(100 * k / n, 1) if n else None})
     return {"n": n, "areas": out}
+
+
+def misses_by_zone(records: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Volumetric blind-spot list: per zone (config volumetric zone order, then any other zone seen) the focal
+    findings graded there and how many were missed. Rows with n = 0 are omitted."""
+    counts: dict[str, list[int]] = {}
+    for r in records:
+        res = {o["target"]: o["result"] for o in r["outcomes"]}
+        for f in r["findings"]:
+            if f["kind"] != "focal" or f["id"] not in res:
+                continue
+            z = f.get("zone") or "unlabelled"
+            c = counts.setdefault(z, [0, 0])
+            c[0] += 1
+            c[1] += res[f["id"]] not in FOUND
+    order = list(config.volumetric_zones_cfg()) + [z for z in counts if z not in config.volumetric_zones_cfg()]
+    return [
+        {"zone": z, "human": config.zone_human(z), "n": counts[z][0], "n_missed": counts[z][1]}
+        for z in order
+        if z in counts
+    ]
 
 
 def learner_dashboard(

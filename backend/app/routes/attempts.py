@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, BackgroundTasks
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from backend.app import services
@@ -75,3 +76,16 @@ def flag(aid: str, body: FlagRequest) -> dict:
 def anatomy(aid: str) -> dict:
     """Simplified zone outlines for 'Show anatomy'. 409 before submit (and in assessment until the summary)."""
     return services.anatomy(aid)
+
+
+@router.get("/attempts/{aid}/maskvol", response_class=Response)
+def maskvol(aid: str) -> Response:
+    """GROUND TRUTH of a CT/MR attempt: gzip of the uint8 label volume (z, y, x), the same shape as the voxel volume.
+    409 before submit; in assessment 409 until the session summary; 404 for an X-ray attempt. `reveal.maskvol_url`
+    points here. Never cached."""
+    data, _ = services.maskvol_bytes(aid)
+    return Response(
+        data,
+        media_type="application/octet-stream",
+        headers={"Cache-Control": "no-store", "Content-Encoding": "identity", "X-Content-Type-Options": "nosniff"},
+    )

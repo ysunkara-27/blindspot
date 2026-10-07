@@ -75,9 +75,28 @@ def tutor_status(request: Request) -> TutorStatus | None:
         return None
 
 
+def _modalities() -> tuple[list[str] | None, dict[str, int] | None]:
+    try:
+        from backend.app.cases import get_repo
+
+        repo = get_repo()
+        return repo.modalities(), repo.count_by_modality()
+    except Exception:  # noqa: BLE001 — health must answer even if the data is missing
+        return None, None
+
+
 def health(request: Request) -> Health:
     s = get_settings()
-    return Health(ok=True, offline=s.offline, cases=_case_count(), version=APP_VERSION, tutor=tutor_status(request))
+    mods, by_mod = _modalities()
+    return Health(
+        ok=True,
+        offline=s.offline,
+        cases=_case_count(),
+        version=APP_VERSION,
+        tutor=tutor_status(request),
+        modalities=mods,
+        cases_by_modality=by_mod,
+    )
 
 
 @asynccontextmanager

@@ -1,0 +1,21 @@
+label: liver_tumour
+display_name: Liver tumour
+kind: focal
+modality: ct
+one_liner: A rounded focal area in the liver whose attenuation and enhancement differ from the surrounding liver on contrast CT.
+key_signs:
+  - A rounded area that is darker (hypoattenuating) or brighter than the liver around it on the portal-venous phase
+  - "Enhancement that differs from the liver: a rim that lights up, or a centre that stays dark"
+  - Hepatic or portal vein branches bend around it or stop at its edge instead of running through it
+  - Present on several consecutive slices and round on each, unlike a vessel which changes shape slice to slice
+  - A bulge in the liver outline when it sits near the surface
+where_it_hides: [liver, hepatic_vessels, superior_slab, mid_slab, right_half]
+mimics:
+  - Hepatic veins and portal branches seen end-on (round on one slice, tubular on the next)
+  - Mixing of contrast in the hepatic veins on early-phase slices
+  - Focal fat or fat sparing next to the falciform ligament
+  - Beam-hardening streaks from the ribs across the top of the liver
+commonly_confused_with: [pancreatic_tumour]
+search_tip: Scroll through every slice at the liver window and follow each vessel across neighbouring slices, because a true focal area stays round from slice to slice while a vessel lengthens into a tube.
+radiopaedia_url: null
+review: {status: ai_draft, reviewer: null, date: null, notes: "CT (MSD Task08 Hepatic Vessel, Task03 Liver). No radiopaedia_url: the site returns the same 200 page for any slug, so no article could be confirmed."}

@@ -1,0 +1,21 @@
+label: colon_tumour
+display_name: Colon tumour
+kind: focal
+modality: ct
+one_liner: A focal soft-tissue thickening of the colon wall on CT that narrows the lumen, often with an abrupt shoulder at each end.
+key_signs:
+  - Asymmetric thickening of the bowel wall that enhances with contrast
+  - An abrupt change from normal thin wall to thick wall (a shoulder) at each end
+  - A narrowed lumen with the bowel upstream distended by gas or stool
+  - Soft-tissue strands into the fat around the bowel
+  - The thickening stays on the same bowel segment across consecutive slices
+where_it_hides: [mid_slab, inferior_slab, right_half, left_half, midline_volume]
+mimics:
+  - Unopacified or collapsed bowel loops, which look thick-walled until they fill
+  - Stool mixed with gas inside the colon
+  - The normal thick muscular wall of the rectum and the sigmoid
+  - Small bowel loops lying against the colon on one slice
+commonly_confused_with: [pancreatic_tumour]
+search_tip: Scroll through every slice at the soft-tissue window and follow the colon segment by segment, watching the wall thickness and the lumen on each slice rather than judging one slice alone.
+radiopaedia_url: null
+review: {status: ai_draft, reviewer: null, date: null, notes: "CT (MSD Task10 Colon). No radiopaedia_url: the site returns the same 200 page for any slug, so no article could be confirmed."}

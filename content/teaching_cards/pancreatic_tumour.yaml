@@ -1,0 +1,21 @@
+label: pancreatic_tumour
+display_name: Pancreatic tumour
+kind: focal
+modality: ct
+one_liner: A focal area of the pancreas that enhances less than the gland around it on contrast CT, often with the duct upstream of it widened.
+key_signs:
+  - A hypoattenuating (darker, low-density) area inside the pancreas on the portal-venous phase
+  - Enhances less than the normal gland, so it stands out best on contrast-enhanced slices
+  - The pancreatic duct upstream of it is widened and the gland beyond it may be thinned
+  - The normal lobulated contour of the gland is lost, with a bulge or a sharp change in outline
+  - Fat planes around the splenic vein or the mesenteric vessels are blurred
+where_it_hides: [pancreas, mid_slab, inferior_slab, midline_volume]
+mimics:
+  - Unopacified bowel loops (duodenum and jejunum) lying against the pancreas
+  - The splenic vein running along the back of the pancreas, dark on early slices
+  - Normal fatty lobulation of an older person's pancreas (uneven but symmetric)
+  - Partial-volume blur at the top or bottom slice of the gland
+commonly_confused_with: [liver_tumour, colon_tumour]
+search_tip: Scroll through every slice of the volume at the soft-tissue window and follow the pancreas from tail to head on each one, comparing the brightness of the gland with its neighbours as you go.
+radiopaedia_url: null
+review: {status: ai_draft, reviewer: null, date: null, notes: "CT (MSD Task07). No radiopaedia_url: the site returns the same 200 page for any slug, so no article could be confirmed. Reviewer: add a link if you know the right article."}

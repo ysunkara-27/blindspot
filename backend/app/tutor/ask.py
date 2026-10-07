@@ -2,6 +2,11 @@
 
 Live answers are validated (R3 laterality, R5 labels, R6 banned content, ≤ 90 words); any failure, offline mode,
 or API error returns a deterministic template answer built from FACTS + cards.
+
+Volumetric (CT / MR) cases: "where" answers give the zone, patient's side and slice range from FACTS; "how big"
+answers give size_mm / the learner's measurement / the size verdict (mm only); "why missed" uses the slice-based
+why lines; unmatched marks are reported as "the reference does not label that spot"; anatomy questions ("what is the
+pancreas") answer from the anatomy explainer cards.
 """
 
 from __future__ import annotations
@@ -17,6 +22,7 @@ from typing import Any
 from backend.app.settings import get_settings
 from backend.app.tutor import analytics, vocab
 from backend.app.tutor import cards as cards_mod
+from backend.app.tutor import templates_volume as tv
 from backend.app.tutor.client import (
     ASK_MAX_TOKENS,
     ASK_SCHEMA,
@@ -64,6 +70,14 @@ _INTENTS: tuple[tuple[str, re.Pattern[str]], ...] = (
         ),
     ),
     (
+        "size",
+        re.compile(
+            r"\bhow\s+(?:big|large|small|long|wide)\b|\bsize\b|\bmeasur\w*|\bdiameter\b|\b\d+\s?mm\b|"
+            r"\bmillimet\w*|\btolerance\b",
+            re.I,
+        ),
+    ),
+    (
         "why_missed",
         re.compile(
             r"\bwhy\b[^.?!]*\b(?:miss\w*|overlook\w*|not\s+(?:see|find|spot|notice)|"
@@ -107,7 +121,7 @@ _MISS_KIND = {
 
 
 def classify_question(question: str) -> str:
-    """'management' | 'mimic' | 'why_missed' | 'where' | 'looks' | 'normal' | 'define' | 'other'."""
+    """'management' | 'mimic' | 'size' | 'why_missed' | 'where' | 'looks' | 'normal' | 'define' | 'other'."""
     q = question or ""
     if _MANAGEMENT_Q.search(q):
         return "management"
@@ -192,10 +206,63 @@ def _where_parts(f: FactsFinding, facts: DebriefFacts) -> list[str]:
             return [f"{_tag(f)} is a spread-out pattern: {loc}. Compare both lungs side to side."]
         return [f"{_tag(f)} is a whole-film pattern: judge both lungs as a whole, side to side and top to bottom."]
     loc = f.relative_location or (vocab.zone_human(f.primary_zone) if f.primary_zone else None)
+    if vocab.is_volumetric(facts.case.modality):
+        parts = [
+            f"{_tag(f)} is in the {loc.rstrip('.')}." if loc else f"{_tag(f)} is inside its outline on the slices."
+        ]
+        return parts + [_end(r.text) for r in facts.spatial_relations if r.to == f.id]
     parts = [
         f"{_tag(f)} is in the {loc.rstrip('.')}." if loc else f"{_tag(f)} is inside its cyan outline on the image."
     ]
     return parts + [_end(r.text) for r in facts.spatial_relations if r.to == f.id]
+
+
+def _size_parts(f: FactsFinding, facts: DebriefFacts) -> list[str]:
+    """Only FACTS sizes, always in mm: the reference size, the learner's measurement and the verdict."""
+    res = _outcomes(facts).get(f.id)
+    parts: list[str] = []
+    fact = tv.size_fact_sentence(f)
+    if fact:
+        parts.append(f"{_tag(f)}: {fact[0].lower()}{fact[1:]}")
+    verdict = tv.size_sentence(res)
+    if verdict:
+        parts.append(verdict)
+    elif facts.learner.measurements:
+        m = facts.learner.measurements[0]
+        parts.append(f"You measured {m.long_mm:g} mm on {m.mark_id}.")
+    if not parts:
+        parts.append(f"The reference gives no measurement for {_tag(f)}, so I cannot state a size.")
+    return parts
+
+
+def _unmatched_parts(facts: DebriefFacts, question: str) -> list[str]:
+    """An unmatched mark (the reference labels nothing there; public datasets are not exhaustive). [] if none."""
+    named = {x.upper() for x in re.findall(r"\bM\d+\b", question or "", re.I)}
+    ums = sorted((o for o in facts.outcomes if o.result == "unmatched"), key=lambda o: o.target.upper() not in named)
+    if not ums:
+        return []
+    o = ums[0]
+    where = f" ({vocab.zone_human(o.zone)})" if o.zone else ""
+    return [
+        f"The reference does not label the spot where you placed {o.target}{where}; {tv.UNMATCHED_NOTE}. "
+        "I cannot say what is there, only that the reference does not label it."
+    ]
+
+
+def _anatomy_parts(question: str, facts: DebriefFacts) -> list[str]:
+    """Anatomy explainer for a structure named in the question (CT / MR cases only)."""
+    if not vocab.is_volumetric(facts.case.modality):
+        return []
+    q = (question or "").lower()
+    for a in cards_mod.load_anatomy().values():
+        names = [a.display_name.lower(), a.anatomy.replace("_", " ")] + [vocab.zone_human(z).lower() for z in a.zones]
+        names += [w.rstrip("s") for w in a.display_name.lower().split() if len(w) >= 6]  # "hemisphere", "vessel"
+        if any(n in q for n in names):
+            parts = [f"{a.display_name}: {_clause(a.one_liner)}."]
+            if a.landmarks:
+                parts.append(_end(a.landmarks[0]))
+            return parts
+    return []
 
 
 def _signs(label: str, card: TeachingCard | None) -> list[str]:
@@ -238,6 +305,12 @@ def _overcall_parts(
     return []
 
 
+def _asks_unmatched(facts: DebriefFacts, question: str) -> bool:
+    named = {x.upper() for x in re.findall(r"\bM\d+\b", question or "", re.I)}
+    ums = {o.target.upper() for o in facts.outcomes if o.result == "unmatched"}
+    return bool(ums) and (not named or bool(named & ums))
+
+
 def _mark_parts(facts: DebriefFacts, question: str) -> list[str]:
     """For a question about the learner's own (correct) mark: what it matched. [] if no such mark."""
     named = {x.upper() for x in re.findall(r"\bM\d+\b", question or "", re.I)}
@@ -274,6 +347,9 @@ def template_answer(
     intent = classify_question(question)
     if intent == "management":
         return REFUSE_MANAGEMENT
+    vol = vocab.is_volumetric(facts.case.modality)
+    if vol:
+        zm = cards_mod.all_zone_mimics(zm)
     fs = facts.case.findings
     gt = {f.label for f in fs}
     learner = _learner_labels(facts)
@@ -283,31 +359,45 @@ def template_answer(
     off_film = [lab for lab in asked if lab not in gt] or [t for t, lab in mentions if lab is None]
     listed = _and(sorted({x.display.lower() for x in fs})) if fs else ""
     prefix: list[str] = []
+    noun = "volume" if vol else "film"
     if off_film:
-        prefix = (
-            [f"Radiologists did not mark that on this film; they marked {listed}."]
-            if fs
-            else ["Radiologists did not mark that: they marked nothing on this film."]
-        )
+        if vol:
+            prefix = (
+                [f"The reference does not label that on this volume; it labels {listed}."]
+                if fs
+                else ["The reference does not label that: it labels nothing on this volume."]
+            )
+        else:
+            prefix = (
+                [f"Radiologists did not mark that on this film; they marked {listed}."]
+                if fs
+                else ["Radiologists did not mark that: they marked nothing on this film."]
+            )
     ids = {x.id.upper() for x in fs}
     missing_ids = sorted({x.upper() for x in re.findall(r"\bF\d+\b", question or "", re.I)} - ids)
     if missing_ids:
         have = _and([x.id for x in fs]) if fs else "no findings"
-        prefix.append(f"This film has {have}; there is no {_and(missing_ids)}.")
+        prefix.append(f"This {noun} has {have}; there is no {_and(missing_ids)}.")
     f = _focus(question, facts, asked_here)
     same = [x for x in fs if f is not None and x.label == f.label and x.label in asked_here]
     res = _outcomes(facts)
     card = cards.get(f.label) if f else None
-    nothing = "Radiologists marked nothing on this film"
+    nothing = "The reference labels nothing on this volume" if vol else "Radiologists marked nothing on this film"
     body: list[str]
+    anatomy = _anatomy_parts(question, facts) if intent in ("define", "looks", "other", "where") and not asked else []
 
-    if intent == "where":
+    if vol and intent == "size":
+        body = _size_parts(f, facts) if f else [f"{nothing}, so there is no reference size to compare with."]
+        body += _unmatched_parts(facts, question)[:1] if not f else []
+    elif anatomy and intent in ("define", "other") and not asked_here:
+        body = anatomy
+    elif intent == "where":
         if len(same) > 1:
             body = [_where_parts(x, facts)[0] for x in same[:3]]
         else:
             body = _where_parts(f, facts) if f else [f"{nothing}, so there is no finding to locate."]
         if not f:
-            body += _overcall_parts(facts, cards, zm, question)[:1]
+            body += _overcall_parts(facts, cards, zm, question)[:1] or _unmatched_parts(facts, question)
     elif intent == "looks":
         lab = next((x for x in asked if x in gt | learner and x in cards), None)
         if lab is not None:
@@ -316,6 +406,11 @@ def template_answer(
                 body += _where_parts(f, facts)[:1]
         elif f:
             body = _signs(f.label, card) + _where_parts(f, facts)[:1]
+        elif vol:
+            body = [
+                f"{nothing}. On a lesion-free volume each slice matches the same level on the other side, "
+                "so compare slice by slice before marking."
+            ]
         else:
             body = [
                 f"{nothing}. On a normal film each area matches the same area on the other side, "
@@ -325,18 +420,23 @@ def template_answer(
         if f is None:
             body = [f"{nothing}, so there was nothing to miss."] + _overcall_parts(facts, cards, zm, question)[:1]
         elif _result(f, res) in ("found", "pattern_found"):
-            body = ["You did not miss anything radiologists marked: you found every finding on this film."]
+            who = "the reference labels" if vol else "radiologists marked"
+            body = [f"You did not miss anything {who}: you found every finding on this {noun}."]
             body += _overcall_parts(facts, cards, zm, question)[:1]
         else:
             r = _result(f, res)
             o = res.get(f.id)
             lead = f"{_tag(f)} was {_MISS_KIND[r]}." if r in _MISS_KIND else ""
-            body = [lead, why_sentence(f, r, card, o.learner_label if o else None, cards)]
+            if vol:
+                body = [lead, tv.why(facts, f, o, r, card, o.learner_label if o else None, "full", cards)]
+            else:
+                body = [lead, why_sentence(f, r, card, o.learner_label if o else None, cards)]
     elif intent == "mimic":
         body = _overcall_parts(facts, cards, zm, question)
         if not body and not re.search(r"\bmimic\w*|\blook[-\s]?alikes?\b", question or "", re.I):
             if _MARK_Q.search(question or ""):
-                body = _mark_parts(facts, question) or ["You did not place any marks on this film."]
+                body = _unmatched_parts(facts, question) if _asks_unmatched(facts, question) else []
+                body = body or _mark_parts(facts, question) or [f"You did not place any marks on this {noun}."]
         if not body:
             body = ["A mimic is a normal structure that can look like a finding."]
             if f and card and card.mimics:
@@ -347,9 +447,10 @@ def template_answer(
     elif intent == "normal":
         if f is None:
             body = [f"Yes: {nothing[0].lower()}{nothing[1:]}, so it is a normal study."]
-            body += _overcall_parts(facts, cards, zm, question)[:1]
+            body += _overcall_parts(facts, cards, zm, question)[:1] or _unmatched_parts(facts, question)
         else:
-            body = [f"No: radiologists marked {listed}."] + _where_parts(f, facts)[:1]
+            body = [f"No: {'the reference labels' if vol else 'radiologists marked'} {listed}."]
+            body += _where_parts(f, facts)[:1]
     elif intent == "define":
         lab = next((x for x in asked if x in gt | learner and x in cards), None)
         if lab is not None:
@@ -359,6 +460,8 @@ def template_answer(
                 body += _where_parts(f, facts)[:1]
             elif f and card:
                 body.append(f"{f.display}: {_clause(card.one_liner)}.")
+        elif anatomy:
+            body = anatomy
         elif f and card:
             body = [f"{f.id} is {with_article(f.label)}: {_clause(card.one_liner)}."]
         elif prefix:
@@ -366,11 +469,12 @@ def template_answer(
         else:
             body = [f"{nothing}; it is a normal study."] if not fs else [OFFLINE_HELP]
     elif asked_here and f is not None:
+        who = "the reference labels" if vol else "radiologists marked"
         if len(same) > 1:
-            body = [f"Yes: radiologists marked {len(same)} findings with that label on this film."]
+            body = [f"Yes: {who} {len(same)} findings with that label on this {noun}."]
             body += [_where_parts(x, facts)[0] for x in same[:3]]
         else:
-            body = [f"Yes: radiologists marked {with_article(f.label)} on this film."] + _where_parts(f, facts)[:1]
+            body = [f"Yes: {who} {with_article(f.label)} on this {noun}."] + _where_parts(f, facts)[:1]
         body += _signs(f.label, card)
     elif prefix:
         body = _where_parts(f, facts)[:1] if f else []

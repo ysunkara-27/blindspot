@@ -26,9 +26,9 @@ def _card_texts(c):
     return [c.one_liner, c.search_tip, *c.key_signs, *c.mimics]
 
 
-def test_thirteen_cards_one_per_label():
+def test_one_card_per_label():
     cards = load_cards()
-    assert len(CARD_FILES) == 13
+    assert len(CARD_FILES) == len(vocab.labels()) == 18  # 13 X-ray + 5 CT / MR
     assert set(cards) == set(vocab.labels())
 
 
@@ -44,10 +44,16 @@ def test_card_content_rules(label):
     assert c.display_name == vocab.display(label)
     assert 3 <= len(c.key_signs) <= 5
     assert c.review.status == "ai_draft"
-    assert set(c.where_it_hides) <= set(vocab.zone_ids()), "where_it_hides must use config zone ids"
+    modality = vocab.modality_of_label(label)
+    zone_ids = set(vocab.volumetric_zone_ids()) if modality != "cxr" else set(vocab.zone_ids())
+    assert set(c.where_it_hides) <= zone_ids, "where_it_hides must use config zone ids of the card's modality"
     assert c.where_it_hides
     assert c.mimics
-    assert set(c.commonly_confused_with) <= vocab.related({label}) - {label}, "only related-group labels"
+    if modality == "cxr":
+        assert set(c.commonly_confused_with) <= vocab.related({label}) - {label}, "only related-group labels"
+    else:  # CT / MR: only labels the learner can choose on that modality (no related groups in config yet)
+        assert set(c.commonly_confused_with) <= set(vocab.learner_options(modality)) - {label}
+        assert re.search(r"\bscroll\w*\b", c.search_tip, re.I) and re.search(r"\bwindow|sequence\b", c.search_tip, re.I)
     assert len(re.findall(r"[.!?](\s|$)", c.search_tip.strip())) == 1, "search_tip is one sentence"
     assert c.radiopaedia_url is None or c.radiopaedia_url.startswith("https://radiopaedia.org/articles/")
     cfg = vocab.validator_cfg()

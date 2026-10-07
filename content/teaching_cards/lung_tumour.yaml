@@ -1,0 +1,21 @@
+label: lung_tumour
+display_name: Lung tumour
+kind: focal
+modality: ct
+one_liner: A solid soft-tissue mass inside the lung on CT, denser than lung and often with irregular edges.
+key_signs:
+  - A soft-tissue density (grey, not black) inside the air-filled lung on the lung window
+  - Spiculated, lobulated or irregular edges rather than a smooth round outline
+  - Present on several consecutive slices and solid on the soft-tissue window too
+  - Vessels or an airway lead into it, or it sits against the pleura and pulls it inward
+  - Sometimes an air-filled centre or a hazy halo around it
+where_it_hides: [superior_slab, mid_slab, inferior_slab, right_half, left_half]
+mimics:
+  - Pulmonary vessels seen end-on (round on one slice, a branching tube on the next)
+  - Vessels crowding together near the hilum
+  - Dependent density along the back of the lungs where the person lay
+  - Motion blur from breathing at the lung bases
+commonly_confused_with: []
+search_tip: Scroll through every slice at the lung window from the top of the lungs to the diaphragm, then switch to the soft-tissue window and scroll again, following each round shadow onto the neighbouring slices.
+radiopaedia_url: null
+review: {status: ai_draft, reviewer: null, date: null, notes: "CT (MSD Task06 Lung). No radiopaedia_url: the site returns the same 200 page for any slug, so no article could be confirmed."}

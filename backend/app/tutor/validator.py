@@ -16,6 +16,16 @@ Rules (error strings are prefixed with the rule tag so the faithfulness eval can
   R9 completeness (round 3, UX audit): every finding row has at least one what_it_looks_like item and a `why` of at
      least 6 words (no empty sign lists, no stubs such as "Never examined." or "Pattern missed.")
 validate_ask applies R3 (sentence-level + sided zone phrases), R5, R6 and a 90-word limit.
+
+Volumetric (CT / MR) cases (facts.case.modality ct|mr):
+  R2 overcall entries also cover `unmatched` marks; their wording never says wrong / false / incorrect / mistake
+     (the reference does not label that spot; public datasets are not exhaustive)
+  R4 zone vocabulary adds the volumetric zones (organ, slab third, hemisphere, midline) and their adjacency; slice
+     numbers ("slice 9", "slices 7-11") are 1-based like the viewer and must lie within that finding's slice_range
+     ± 1 or on a learner mark ± 1 (FACTS indices are 0-based)
+  R5 allowed text adds the anatomy explainer cards and the volumetric zone mimics
+  R6 mm is allowed only when FACTS carries a size (size_mm, a measurement or a size_verdict) and every "N mm" must be
+     one of those numbers (± 1 mm); cm is always banned
 """
 
 from __future__ import annotations
@@ -27,7 +37,8 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from backend.app.tutor import vocab
-from backend.app.tutor.cards import load_cards, load_zone_mimics
+from backend.app.tutor.cards import all_zone_mimics, load_anatomy, load_cards, load_zone_mimics
+from backend.app.tutor.facts import human_slice
 from shared.contracts import DebriefFacts, DebriefOutput, TeachingCard
 
 ASK_MAX_WORDS = 90
@@ -114,6 +125,15 @@ ZONE_FAMILIES: dict[str, tuple[str, ...]] = {
     "periphery": ("right_periphery", "left_periphery"),
     "mediastinum": ("mediastinum",),
     "subdiaphragmatic": ("subdiaphragmatic",),
+    # volumetric (CT / MR) zones; "right/left hemisphere" is handled as a sided family below
+    "pancreas": ("pancreas",),
+    "liver": ("liver",),
+    "hepatic_vessels": ("hepatic_vessels",),
+    "superior_slab": ("superior_slab",),
+    "mid_slab": ("mid_slab",),
+    "inferior_slab": ("inferior_slab",),
+    "midline_volume": ("midline_volume", "brain_midline"),
+    "hemisphere": ("brain_right", "brain_left"),
 }
 _FAMILY_RE: dict[str, str] = {
     "apex": r"ap(?:ex|ices|ical)",
@@ -126,8 +146,18 @@ _FAMILY_RE: dict[str, str] = {
     "periphery": r"peripher(?:y|al)",
     "mediastinum": r"mediastin(?:um|al)",
     "subdiaphragmatic": r"(?:sub)?(?:hemi)?diaphragm(?:atic|s)?",
+    "pancreas": r"pancreas",
+    "liver": r"liver",
+    "hepatic_vessels": r"hepatic\s+(?:vessels?|veins?)|portal\s+veins?",
+    "superior_slab": r"(?:upper|superior|top)\s+(?:slices|third|slab)",
+    "mid_slab": r"(?:middle|mid|central)\s+(?:slices|third|slab)",
+    "inferior_slab": r"(?:lower|inferior|bottom)\s+(?:slices|third|slab)",
+    "midline_volume": r"midline",
+    "hemisphere": r"(?:cerebral\s+)?hemispheres?",
 }
-_SIDEABLE = {"apex", "hilum", "costophrenic_angle", "upper_zone", "mid_zone", "lower_zone", "periphery"}
+_SIDEABLE = {"apex", "hilum", "costophrenic_angle", "upper_zone", "mid_zone", "lower_zone", "periphery", "hemisphere"}
+# sided family -> zone id when the id is not "<side>_<family>"
+_SIDED_IDS = {"hemisphere": {"right": "brain_right", "left": "brain_left"}}
 _FAMILY_COMPILED = {k: re.compile(rf"\b(?:{v})\b", re.I) for k, v in _FAMILY_RE.items()}
 _SIDED_RE = re.compile(
     r"\b(?P<side>right|left)\s+(?:lung\s+)?(?P<term>"
@@ -142,6 +172,11 @@ _RIB_LEVEL_RE = re.compile(
     re.I,
 )
 _RAW_ZONE_ID_RE = re.compile(r"\b[a-z]+(?:_[a-z]+)+\b")
+_MR_SEQUENCE_RE = re.compile(r"\bT[12]c?\b|\bFLAIR\b")  # MR sequence names, not vertebral levels
+
+
+def _no_sequences(text: str, ctx: _Ctx) -> str:
+    return _MR_SEQUENCE_RE.sub(" ", text or "") if ctx.volumetric else (text or "")
 
 
 def zone_mentions(text: str) -> tuple[list[str], list[str]]:
@@ -150,7 +185,8 @@ def zone_mentions(text: str) -> tuple[list[str], list[str]]:
     spans: list[tuple[int, int]] = []
     for m in _SIDED_RE.finditer(text):
         fam = next(k for k in _SIDEABLE if m.group(k))
-        sided.append(f"{m['side'].lower()}_{fam}")
+        side = m["side"].lower()
+        sided.append(_SIDED_IDS.get(fam, {}).get(side, f"{side}_{fam}"))
         spans.append(m.span())
     unsided: list[str] = []
     for fam, rx in _FAMILY_COMPILED.items():
@@ -168,6 +204,20 @@ def _zones_with_neighbours(zones: Iterable[str]) -> set[str]:
             out.add(z)
             out |= vocab.neighbors(z)
     return out
+
+
+_ORGAN_ZONES = {"pancreas", "liver", "hepatic_vessels", "brain_left", "brain_right", "brain_midline"}
+
+
+def _volumetric_allowed(ff: Any, allowed: set[str], ctx: _Ctx) -> set[str]:
+    """Organ zones follow the label, not adjacency: config adjacency links every slab third to the organ zones (an
+    organ label may be absent from the mask), so an organ zone is allowed only when it is in FACTS or the label's
+    card says the finding hides there and its side matches (a pancreatic tumour in the middle slices may be placed
+    "in the pancreas", never "in the liver"; a left brain tumour in the "left cerebral hemisphere" only)."""
+    own = set(ff.zones) | ({ff.primary_zone} if ff.primary_zone else set()) | _location_zones(ff.relative_location)
+    card = ctx.cards.get(ff.label)
+    hides = {z for z in (card.where_it_hides if card else []) if vocab.side_of_zone(z) in (None, ff.side)}
+    return {z for z in allowed if z not in _ORGAN_ZONES or z in own} | (hides & _ORGAN_ZONES)
 
 
 def _location_zones(rel: str | None) -> set[str]:
@@ -192,6 +242,24 @@ LABEL_TERMS: list[tuple[str, str]] = [
     (r"\bconsolidat\w*|\bairspace\s+(?:disease|opacit\w+)", "consolidation"),
     (r"\batelecta\w*", "atelectasis"),
     (r"\bnodul(?:e|es|ar)\b", "nodule"),
+    # volumetric (CT / MR) labels, before the bare "mass / tumour" line below
+    (
+        r"\bpancrea(?:tic|s)\s+(?:tumou?rs?|mass(?:es)?|lesions?)\b|\btumou?rs?\s+(?:of|in)\s+the\s+pancreas\b",
+        "pancreatic_tumour",
+    ),
+    (
+        r"\b(?:liver|hepatic)\s+(?:tumou?rs?|mass(?:es)?|lesions?)\b|\btumou?rs?\s+(?:of|in)\s+the\s+liver\b",
+        "liver_tumour",
+    ),
+    (
+        r"\bbrain\s+(?:tumou?rs?|mass(?:es)?|lesions?)\b|\bgliom\w*|\bglioblastom\w*|\btumou?rs?\s+(?:of|in)\s+the\s+brain\b",
+        "brain_tumour",
+    ),
+    (r"\blung\s+tumou?rs?\b|\btumou?rs?\s+(?:of|in)\s+the\s+lungs?\b", "lung_tumour"),
+    (
+        r"\b(?:colon|colonic|colorectal|bowel|rectal)\s+(?:tumou?rs?|mass(?:es)?)\b|\btumou?rs?\s+(?:of|in)\s+the\s+(?:colon|bowel)\b",
+        "colon_tumour",
+    ),
     (r"\bmass(?:es)?\b|\btumou?rs?\b", "mass"),
     (r"\bcalcifi\w*", "calcification"),
     (r"\bfractur\w*|\bbroken\s+(?:ribs?|bones?|clavicles?)\b", "fracture"),
@@ -282,10 +350,16 @@ TUTOR_SAFETY_PATTERNS: list[str] = [
 _MEASURE_HINT = re.compile(r"cm\|mm|mm\|cm")
 
 
-def _banned_patterns(cfg: dict[str, Any], pixel_spacing_known: bool) -> list[re.Pattern[str]]:
+_CM_RE = re.compile(r"\b\d+(?:\.\d+)?\s?(?:cm|centimet\w*)\b|\bcentimet\w*", re.I)
+_MM_RE = re.compile(r"\b(\d+(?:\.\d+)?)\s?(?:mm|millimet\w*)\b", re.I)
+_SLICE_RE = re.compile(r"\bslices?\s+(\d+)(?:\s*(?:-|–|—|to|through|and)\s*(\d+))?", re.I)
+MM_TOLERANCE = 1.0
+
+
+def _banned_patterns(cfg: dict[str, Any], sizes_allowed: bool) -> list[re.Pattern[str]]:
     pats = []
     for p in list(cfg.get("banned_patterns", [])) + TUTOR_SAFETY_PATTERNS:
-        if pixel_spacing_known and _MEASURE_HINT.search(p):
+        if sizes_allowed and _MEASURE_HINT.search(p):
             continue
         pats.append(re.compile(p, re.I))
     return pats
@@ -293,6 +367,35 @@ def _banned_patterns(cfg: dict[str, Any], pixel_spacing_known: bool) -> list[re.
 
 def banned_hits(text: str, cfg: dict[str, Any], pixel_spacing_known: bool = False) -> list[str]:
     return [m.group(0) for rx in _banned_patterns(cfg, pixel_spacing_known) for m in rx.finditer(text or "")]
+
+
+def size_numbers_mm(facts: DebriefFacts) -> set[float]:
+    """Every size FACTS states in mm: finding size_mm, learner measurements, size_verdict your/reference/diff."""
+    out: set[float] = set()
+    for f in facts.case.findings:
+        if f.size_mm is not None:
+            out.add(float(f.size_mm))
+    for m in facts.learner.measurements:
+        out.add(float(m.long_mm))
+    for o in facts.outcomes:
+        sv = o.size_verdict or {}
+        for k in ("your_mm", "reference_mm", "diff_mm"):
+            if sv.get(k) is not None:
+                out.add(abs(float(sv[k])))
+    return out
+
+
+def mm_mentions(text: str) -> list[tuple[str, float]]:
+    return [(m.group(0), float(m.group(1))) for m in _MM_RE.finditer(text or "")]
+
+
+def slice_mentions(text: str) -> list[tuple[str, list[int]]]:
+    """[("slices 6-10", [6, 10]), ("slice 8", [8])]."""
+    out = []
+    for m in _SLICE_RE.finditer(text or ""):
+        nums = [int(m.group(1))] + ([int(m.group(2))] if m.group(2) else [])
+        out.append((m.group(0), nums))
+    return out
 
 
 # --------------------------------------------------------------------------- context derived from FACTS
@@ -311,6 +414,10 @@ class _Ctx:
         self.fp_marks = {o.target for o in f.outcomes if o.result == "false_positive" and o.target in self.mark_ids}
         if not self.fp_marks:  # tolerate outcome targets for marks not listed in learner.marks
             self.fp_marks = {o.target for o in f.outcomes if o.result == "false_positive" and o.target[:1] == "M"}
+        self.volumetric = vocab.is_volumetric(f.case.modality)
+        self.unmatched_marks = {o.target for o in f.outcomes if o.result == "unmatched" and o.target[:1] == "M"}
+        self.size_numbers = size_numbers_mm(f)
+        self.sizes_allowed = f.case.pixel_spacing_mm is not None or bool(self.size_numbers)
         gt = {x.label for x in f.case.findings}
         learner = {m.label for m in f.learner.marks} | {p.label for p in f.learner.pattern_selections}
         learner |= {o.learner_label for o in f.outcomes if o.learner_label}
@@ -320,6 +427,8 @@ class _Ctx:
         for lab in base:
             if lab in self.cards:
                 allowed |= set(self.cards[lab].commonly_confused_with)
+        if any(lab.endswith("_tumour") for lab in base):
+            allowed.add("mass")  # bare "tumour" / "mass" on a CT / MR case refers to the labelled tumour
         self.gt_labels = gt
         self.allowed_labels = allowed
         involved = set(f.teaching_cards) | base
@@ -330,9 +439,25 @@ class _Ctx:
                 texts += [c.one_liner, c.search_tip, *c.key_signs, *c.mimics]
         ref_zones = {z for x in f.case.findings for z in x.zones} | {m.zone for m in f.learner.marks if m.zone}
         ref_zones |= {o.zone for o in f.outcomes if o.zone}
+        if self.volumetric:
+            self.zone_mimics = all_zone_mimics(self.zone_mimics)
+            for a in load_anatomy().values():
+                texts += [a.display_name, a.one_liner, *a.landmarks, *a.mimics]
         for z in ref_zones:
             texts += list((self.zone_mimics.get("entries") or {}).get(z, []))
         self.allowed_text = " \n ".join(texts).lower()
+        # slice numbers a debrief may write (1-based, as the viewer shows them; FACTS indices are 0-based): per
+        # finding its slice_range ± 1, plus the learner's marks ± 1
+        self.mark_slices: set[int] = set()
+        for m in f.learner.marks:
+            if m.slice is not None:
+                self.mark_slices |= {human_slice(m.slice) + d for d in (-1, 0, 1)}
+        self.finding_slices: dict[str, set[int]] = {}
+        for x in f.case.findings:
+            if x.slice_range:
+                z0, z1 = human_slice(x.slice_range[0]), human_slice(x.slice_range[-1])
+                self.finding_slices[x.id] = set(range(z0 - 1, z1 + 2))
+        self.all_slices = set().union(*self.finding_slices.values()) | self.mark_slices if self.volumetric else set()
         # zone universe for free-text sided zone phrases (ask answers)
         uni: set[str] = set()
         for x in f.case.findings:
@@ -395,8 +520,32 @@ def _label_errors(field_name: str, text: str, ctx: _Ctx) -> list[str]:
 
 
 def _banned_errors(field_name: str, text: str, ctx: _Ctx) -> list[str]:
-    known = ctx.facts.case.pixel_spacing_mm is not None
-    return [f"R6 {field_name}: banned content '{h}'" for h in banned_hits(text, ctx.cfg, known)]
+    errs = [f"R6 {field_name}: banned content '{h}'" for h in banned_hits(text, ctx.cfg, ctx.sizes_allowed)]
+    if not ctx.volumetric:
+        return errs
+    for m in _CM_RE.finditer(text or ""):
+        errs.append(f"R6 {field_name}: '{m.group(0)}' states centimetres; sizes are always in mm")
+    for term, val in mm_mentions(text):
+        if not any(abs(val - x) <= MM_TOLERANCE for x in ctx.size_numbers):
+            known = ", ".join(f"{x:g} mm" for x in sorted(ctx.size_numbers)) or "none"
+            errs.append(f"R6 {field_name}: '{term}' is not a size in FACTS (FACTS sizes: {known})")
+    return errs
+
+
+def _slice_errors(field_name: str, text: str, ctx: _Ctx, finding_id: str | None = None) -> list[str]:
+    if not ctx.volumetric:
+        return []
+    allowed = (ctx.finding_slices.get(finding_id, set()) | ctx.mark_slices) if finding_id else ctx.all_slices
+    errs = []
+    for term, nums in slice_mentions(text):
+        bad = [n for n in nums if n not in allowed]
+        if bad:
+            what = f"finding {finding_id}'s slices" if finding_id else "the slices FACTS lists"
+            errs.append(f"R4 {field_name}: '{term}' names slice {bad[0]}, which is not within {what} or a mark")
+    return errs
+
+
+_UNMATCHED_BANNED = re.compile(r"\bwrong\b|\bfalse\b|\bincorrect\w*|\bmistak\w*|\berror\w*|\bfalse[- ]positive", re.I)
 
 
 # --------------------------------------------------------------------------- verdicts
@@ -443,7 +592,7 @@ def total_word_limit(facts: DebriefFacts, cfg: dict[str, Any] | None = None) -> 
     n0 = int(c.get("total_limit_base_findings", BASE_LIMIT_FINDINGS))
     per = int(c.get("words_per_extra_finding", WORDS_PER_EXTRA_FINDING))
     n = len(facts.case.findings)
-    n_fp = sum(o.result == "false_positive" for o in facts.outcomes)
+    n_fp = sum(o.result in ("false_positive", "unmatched") for o in facts.outcomes)
     mandatory = (
         int(c.get("words_overhead", WORDS_OVERHEAD))
         + int(c.get("words_per_finding", WORDS_PER_FINDING)) * n
@@ -518,16 +667,31 @@ def validate(
         if f.finding_id in ctx.findings and o is not None and f.result != o.result:
             errs.append(f"R1: finding {f.finding_id} result is '{f.result}' but FACTS says '{o.result}'")
 
-    # R2 overcalls
+    # R2 overcalls (false-positive marks; on volumes also the unmatched marks)
     oc = Counter(o.mark_id for o in output.overcalls)
     for mid in sorted(ctx.fp_marks):
         if oc[mid] == 0:
             errs.append(f"R2: false-positive mark {mid} needs an overcall entry")
         elif oc[mid] > 1:
             errs.append(f"R2: overcall {mid} appears {oc[mid]} times")
+    for mid in sorted(ctx.unmatched_marks):
+        if oc[mid] == 0:
+            errs.append(f"R2: unmatched mark {mid} needs an overcall entry saying the reference does not label it")
+        elif oc[mid] > 1:
+            errs.append(f"R2: overcall {mid} appears {oc[mid]} times")
     for mid in oc:
-        if mid not in ctx.fp_marks:
-            errs.append(f"R2: overcall {mid} is not a false-positive mark in FACTS; remove it")
+        if mid not in ctx.fp_marks and mid not in ctx.unmatched_marks:
+            errs.append(f"R2: overcall {mid} is not a false-positive or unmatched mark in FACTS; remove it")
+    for o in output.overcalls:
+        if o.mark_id in ctx.unmatched_marks:
+            m = _UNMATCHED_BANNED.search(o.explanation or "")
+            if m:
+                errs.append(
+                    f"R2 {o.mark_id}.explanation: '{m.group(0)}' — an unmatched mark is not wrong; say the "
+                    "reference does not label that spot and that public datasets are not exhaustive"
+                )
+            if not re.search(r"\blabel\w*\b|\breference\b", o.explanation or "", re.I):
+                errs.append(f"R2 {o.mark_id}.explanation: say that the reference does not label that spot")
 
     # R3 + R4 per finding where_to_look
     for f in output.findings:
@@ -547,6 +711,8 @@ def validate(
         else:
             allowed = _zones_with_neighbours(ff.zones + ([ff.primary_zone] if ff.primary_zone else []))
             allowed |= _location_zones(ff.relative_location)
+            if ctx.volumetric:
+                allowed = _volumetric_allowed(ff, allowed, ctx)
             for z in sided:
                 if z not in allowed:
                     errs.append(f"R4 {f.finding_id}.where_to_look: '{vocab.zone_human(z)}' is not where FACTS put it")
@@ -555,7 +721,7 @@ def validate(
                     errs.append(f"R4 {f.finding_id}.where_to_look: '{fam.replace('_', ' ')}' is not where FACTS put it")
         for rx, what in ((_LOBE_RE, "lobe"), (_RIB_LEVEL_RE, "rib level")):
             for text, name in ((where, "where_to_look"), (f.why, "why")):
-                m = rx.search(text or "")
+                m = rx.search(_no_sequences(text, ctx))
                 if m:
                     errs.append(f"R4 {f.finding_id}.{name}: names a {what} ('{m.group(0)}'); FACTS has no {what}s")
         if not where.strip():
@@ -577,6 +743,12 @@ def validate(
                 f"R9 {f.finding_id}.why has {n_why} words ('{f.why.strip()}'); write a full sentence of at least "
                 f"{why_min} words about what the learner did there"
             )
+        for text, name in (
+            (where, "where_to_look"),
+            (f.why, "why"),
+            *((t, "what_it_looks_like") for t in f.what_it_looks_like),
+        ):
+            errs += _slice_errors(f"{f.finding_id}.{name}", text, ctx, f.finding_id)
 
     # R3 (sentence level), R4 lobes, R5, R6 across all text
     for name, text in _text_fields(output):
@@ -589,7 +761,9 @@ def validate(
         errs += _idiom_errors(name, text)
         errs += _label_errors(name, text, ctx)
         errs += _banned_errors(name, text, ctx)
-        raw = [w for w in _RAW_ZONE_ID_RE.findall(text or "") if w in set(vocab.zone_ids()) | {"not_sure"}]
+        if not re.match(r"F\d+\.", name):
+            errs += _slice_errors(name, text, ctx)
+        raw = [w for w in _RAW_ZONE_ID_RE.findall(text or "") if w in set(vocab.all_zone_ids()) | {"not_sure"}]
         if raw:
             errs.append(f"R8 {name}: write zone names in plain words, not ids ('{raw[0]}')")
 
@@ -652,11 +826,12 @@ def validate_ask(
     for z in sided:
         if z not in ctx.zone_universe:
             errs.append(f"R3 answer: '{vocab.zone_human(z)}' is not a location in FACTS")
-    m = _LOBE_RE.search(text or "") or _RIB_LEVEL_RE.search(_without_mimic_phrases(text or "", ctx))
+    m = _LOBE_RE.search(text or "") or _RIB_LEVEL_RE.search(_without_mimic_phrases(_no_sequences(text, ctx), ctx))
     if m:
         errs.append(f"R4 answer: names a location FACTS does not have ('{m.group(0)}')")
     errs += _label_errors("answer", text, ctx)
     errs += _banned_errors("answer", text, ctx)
+    errs += _slice_errors("answer", text, ctx)
     if words(text) > max_words:
         errs.append(f"R7 answer: {words(text)} words; maximum {max_words}")
     errs = list(dict.fromkeys(errs))

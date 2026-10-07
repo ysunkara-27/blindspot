@@ -9,12 +9,30 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from pydantic import BaseModel, ConfigDict
 
 from backend.app.tutor import vocab
-from shared.contracts import ReviewStatus, TeachingCard
+from shared.contracts import CardReview, ReviewStatus, TeachingCard
 
 STATUS_ORDER: tuple[ReviewStatus, ...] = ("ai_draft", "student_reviewed", "radiologist_reviewed")
 ZONE_MIMICS_DRAFT = "_zone_mimics_draft.yaml"
+ANATOMY_PREFIX = "_anatomy_"
+
+
+class AnatomyCard(BaseModel):
+    """Anatomy explainer (content/teaching_cards/_anatomy_<name>.yaml): used by hints and ask-the-tutor on CT / MR
+    cases, never as a finding. Names normal structures only."""
+
+    model_config = ConfigDict(extra="forbid")
+    anatomy: str
+    display_name: str
+    zones: list[str] = []
+    modality: str | None = None
+    body_region: str | None = None
+    one_liner: str
+    landmarks: list[str] = []
+    mimics: list[str] = []
+    review: CardReview
 
 
 # --------------------------------------------------------------------------- cards
@@ -41,7 +59,42 @@ def _load_cards_cached(directory: str, _sig: tuple) -> dict[str, TeachingCard]:
     return out
 
 
+def load_anatomy(directory: Path | None = None) -> dict[str, AnatomyCard]:
+    """Anatomy explainers keyed by anatomy id (files `_anatomy_*.yaml`). Re-read when a file changes."""
+    d = Path(directory) if directory else vocab.CARDS_DIR
+    return dict(_load_anatomy_cached(str(d), _signature(d)))
+
+
+@lru_cache(maxsize=8)
+def _load_anatomy_cached(directory: str, _sig: tuple) -> dict[str, AnatomyCard]:
+    out: dict[str, AnatomyCard] = {}
+    for p in sorted(Path(directory).glob(f"{ANATOMY_PREFIX}*.yaml")):
+        card = AnatomyCard.model_validate(yaml.safe_load(p.read_text()))
+        if p.stem != ANATOMY_PREFIX + card.anatomy:
+            raise ValueError(f"{p.name}: anatomy {card.anatomy!r} does not match the file name")
+        out[card.anatomy] = card
+    return out
+
+
+def anatomy_for_zone(zone: str | None, anatomy: dict[str, AnatomyCard] | None = None) -> AnatomyCard | None:
+    cards = anatomy if anatomy is not None else load_anatomy()
+    return next((c for c in cards.values() if zone and zone in c.zones), None)
+
+
+def cards_for_modality(modality: str | None, cards: dict[str, TeachingCard] | None = None) -> dict[str, TeachingCard]:
+    """Cards whose label belongs to this modality (taxonomy `modality`, default cxr)."""
+    cards = cards if cards is not None else load_cards()
+    m = modality or "cxr"
+    return {k: v for k, v in cards.items() if (v.modality or vocab.modality_of_label(k)) == m}
+
+
 # --------------------------------------------------------------------------- zone mimics
+def load_volumetric_zone_mimics() -> dict[str, Any]:
+    """{"status", "entries": {zone: [str, ...]}} from config `volumetric.zone_mimics` (CT / MR zones)."""
+    cfg = vocab.volumetric_cfg().get("zone_mimics") or {}
+    return {"status": cfg.get("status", "ai_draft"), "entries": dict(cfg.get("entries") or {})}
+
+
 def load_zone_mimics() -> dict[str, Any]:
     """{"status": ..., "entries": {zone: [str, ...]}} from config; the tutor draft if config is still empty."""
     cfg = vocab.review_areas_cfg().get("zone_mimics") or {}
@@ -56,7 +109,19 @@ def load_zone_mimics() -> dict[str, Any]:
 
 def zone_mimics_for(zone: str | None, zone_mimics: dict[str, Any] | None = None) -> list[str]:
     zm = zone_mimics if zone_mimics is not None else load_zone_mimics()
-    return list((zm.get("entries") or {}).get(zone or "", []))
+    out = list((zm.get("entries") or {}).get(zone or "", []))
+    if not out and zone in vocab.volumetric_zone_ids():
+        out = list(load_volumetric_zone_mimics()["entries"].get(zone, []))
+    return out
+
+
+def all_zone_mimics(zone_mimics: dict[str, Any] | None = None) -> dict[str, Any]:
+    """X-ray zone mimics plus the volumetric ones in a single {"status", "entries"} (ids are disjoint)."""
+    zm = zone_mimics if zone_mimics is not None else load_zone_mimics()
+    vz = load_volumetric_zone_mimics()
+    entries = {**(vz.get("entries") or {}), **(zm.get("entries") or {})}
+    statuses = [_status_of(zm.get("status")), _status_of(vz.get("status"))]
+    return {"status": min(statuses, key=STATUS_ORDER.index), "entries": entries}
 
 
 # --------------------------------------------------------------------------- provenance
@@ -101,7 +166,12 @@ FIELD_GUIDE = """OUTPUT FIELD GUIDE (applies to every debrief)
 - next_step: one concrete thing to do on the next film.
 - Crowded films (5 or more findings): keep each entry short (zone name, one sign, one short sentence), but still
   one sign and a why of at least 6 words for every finding.
-- If the user message has a DRILL FOCUS line, lead the headline with that finding type; still list every finding."""
+- If the user message has a DRILL FOCUS line, lead the headline with that finding type; still list every finding.
+- CT / MR volumes (FACTS case.modality ct or mr): where_to_look = the finding's relative_location from FACTS (organ or
+  slab, patient's side, slice range) in plain words. Sizes only as FACTS gives them (size_mm, the learner's
+  measurement, the size_verdict) and always in mm. Outcomes with result unmatched get an overcall entry too: say the
+  reference does not label that spot and that public datasets are not exhaustive; never call it wrong or false and
+  never guess what it is; possible_mimics from ZONE MIMICS for that mark's zone (or [] when the zone is unknown)."""
 
 
 def _card_text(c: TeachingCard) -> str:
@@ -130,7 +200,25 @@ def cards_block_text(cards: dict[str, TeachingCard] | None = None, zone_mimics: 
     parts.append("ZONE MIMICS (normal structures often mistaken for abnormalities, by zone)")
     for z in sorted((zm.get("entries") or {})):
         parts.append(f"- {vocab.zone_human(z)}: " + "; ".join(zm["entries"][z]))
+    vz = load_volumetric_zone_mimics()
+    if vz.get("entries"):
+        parts += ["", "ZONE MIMICS ON CT / MR VOLUMES (by volumetric zone)"]
+        for z in sorted(vz["entries"]):
+            parts.append(f"- {vocab.zone_human(z)}: " + "; ".join(vz["entries"][z]))
+    anatomy = load_anatomy()
+    if anatomy:
+        parts += ["", "ANATOMY ON CT / MR VOLUMES (normal structures; never findings)"]
+        for a in sorted(anatomy):
+            parts += [_anatomy_text(anatomy[a]), ""]
     return "\n".join(parts).strip() + "\n"
+
+
+def _anatomy_text(a: AnatomyCard) -> str:
+    lines = [f"## {a.display_name} ({', '.join(vocab.zone_human(z) for z in a.zones) or a.anatomy})", a.one_liner]
+    lines += ["Landmarks:", *[f"- {x}" for x in a.landmarks]]
+    if a.mimics:
+        lines += ["Looks like a finding but is normal:", *[f"- {m}" for m in a.mimics]]
+    return "\n".join(lines)
 
 
 def all_cards_text() -> str:

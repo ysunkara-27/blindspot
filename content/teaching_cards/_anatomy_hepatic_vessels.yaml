@@ -1,0 +1,16 @@
+# Anatomy explainer (hints and ask-the-tutor only; not a finding card). status ai_draft.
+anatomy: hepatic_vessels
+display_name: Hepatic vessels
+zones: [hepatic_vessels, liver]
+modality: ct
+body_region: abdomen
+one_liner: Two branching trees inside the liver, the portal veins and the hepatic veins, which fill with contrast and look round when a branch is cut end-on.
+landmarks:
+  - Portal branches have a bright wall of fat and tissue around them; hepatic veins run between the segments without it
+  - The hepatic veins converge on the inferior vena cava near the top of the liver
+  - A vessel is round on one slice and becomes a tube on the next; a focal area stays round
+  - Branches taper smoothly towards the liver surface
+mimics:
+  - Vessels seen end-on, which look like round spots on a single slice
+  - Mixing of contrast in the hepatic veins on early-phase slices
+review: {status: ai_draft, reviewer: null, date: null, notes: null}

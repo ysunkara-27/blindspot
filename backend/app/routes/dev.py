@@ -43,6 +43,7 @@ def list_cases(split: str | None = None, limit: int = 200) -> dict:
         "cases": [
             {
                 "case_id": c.case_id,
+                "modality": c.modality,
                 "split": c.split,
                 "is_normal": c.is_normal,
                 "labels": [f.label for f in c.findings],
@@ -125,5 +126,60 @@ def overlay(case_id: str, layers: str = Query(default="zones,findings")) -> Resp
                 1,
                 cv2.LINE_AA,
             )
+    ok, buf = cv2.imencode(".png", out)
+    return Response(buf.tobytes(), media_type="image/png", headers={"Cache-Control": "no-store"})
+
+
+@router.get("/cases/{case_id}/volume_preview")
+def volume_preview(case_id: str, slice: int | None = None, scale: int = Query(default=4, ge=1, le=8)) -> Response:
+    """QA for CT/MR cases: the measure slice (or `slice`) windowed to 8 bit, finding outlines (cyan, with ids) and
+    organ-zone outlines (grey). Dev-gated like every /dev route."""
+    repo = get_repo()
+    case = repo.get(case_id)
+    if case is None or case.volume is None:
+        raise HTTPException(status_code=404, detail="volumetric case not found")
+    vol = repo.volume(case_id)
+    mv = repo.maskvol(case_id)
+    if vol is None:
+        raise HTTPException(status_code=404, detail="volume not found")
+    nz = vol.shape[0]
+    if slice is None:
+        measured = [f.measure.slice for f in case.findings if f.measure is not None]
+        slice = measured[0] if measured else nz // 2
+    z = min(nz - 1, max(0, int(slice)))
+    wc, ww = case.volume.window.wc, case.volume.window.ww
+    img = np.clip((vol[z].astype(np.float32) - (wc - ww / 2)) / max(ww, 1e-6) * 255, 0, 255).astype(np.uint8)
+    out = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+    if scale > 1:
+        out = cv2.resize(out, None, fx=scale, fy=scale, interpolation=cv2.INTER_NEAREST)
+    if mv is not None:
+        from backend.app.cases import anatomy_zone_values
+
+        for zone, vals in anatomy_zone_values(case).items():
+            m = np.isin(mv[z], vals).astype(np.uint8)
+            if scale > 1:
+                m = cv2.resize(m, None, fx=scale, fy=scale, interpolation=cv2.INTER_NEAREST)
+            cnts, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            cv2.drawContours(out, cnts, -1, GRATICULE_BGR, 1)
+            if cnts:
+                x, y, _, h = cv2.boundingRect(max(cnts, key=cv2.contourArea))
+                cv2.putText(out, zone, (x, y + h + 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, GRATICULE_BGR, 1, cv2.LINE_AA)
+    for f in case.findings:
+        fm = repo.finding_volmask(case_id, f.finding_id)
+        if fm is None:
+            continue
+        m = fm[z].astype(np.uint8)
+        if scale > 1:
+            m = cv2.resize(m, None, fx=scale, fy=scale, interpolation=cv2.INTER_NEAREST)
+        cnts, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        cv2.drawContours(out, cnts, -1, CYAN_BGR, 1)
+        if cnts:
+            x, y, _, _ = cv2.boundingRect(max(cnts, key=cv2.contourArea))
+            cv2.putText(
+                out, f"{f.short_id} {f.label}", (x, max(10, y - 3)), cv2.FONT_HERSHEY_SIMPLEX, 0.35, CYAN_BGR, 1
+            )
+    cv2.putText(
+        out, f"{case_id} slice {z + 1}/{nz} (index {z})", (4, 12), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1
+    )
     ok, buf = cv2.imencode(".png", out)
     return Response(buf.tobytes(), media_type="image/png", headers={"Cache-Control": "no-store"})

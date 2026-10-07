@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS attempts (
   case_id TEXT NOT NULL, mode TEXT NOT NULL, idx INTEGER NOT NULL DEFAULT 0, shown_at TEXT NOT NULL,
   submitted_at TEXT, declared_normal INTEGER, normal_confidence INTEGER, marks_json TEXT, patterns_json TEXT,
   hints_used INTEGER NOT NULL DEFAULT 0, hint_log_json TEXT NOT NULL DEFAULT '[]', score REAL, success INTEGER,
-  outcomes_json TEXT, search_json TEXT, elo_json TEXT, result_json TEXT);
+  outcomes_json TEXT, search_json TEXT, elo_json TEXT, result_json TEXT, measurements_json TEXT);
 CREATE INDEX IF NOT EXISTS attempts_session ON attempts(session_id);
 CREATE INDEX IF NOT EXISTS attempts_learner ON attempts(learner_id);
 CREATE TABLE IF NOT EXISTS telemetry (attempt_id TEXT PRIMARY KEY, events_json TEXT NOT NULL, n_events INTEGER);
@@ -91,6 +91,7 @@ MIGRATIONS = (
     ("asks", "input_tokens", "INTEGER"),
     ("asks", "output_tokens", "INTEGER"),
     ("asks", "cache_read_tokens", "INTEGER"),
+    ("attempts", "measurements_json", "TEXT"),  # volumetric size measurements (CT / MR)
 )
 BUSY_TIMEOUT_MS = 30_000
 
