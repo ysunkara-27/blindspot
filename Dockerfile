@@ -9,7 +9,7 @@ WORKDIR /web
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY frontend/ ./
-ARG VITE_BASE_PATH=/blindspot/
+ARG VITE_BASE_PATH=/
 RUN VITE_BASE_PATH=${VITE_BASE_PATH} npm run build
 
 # ---------------------------------------------------------------- 2. API (Python 3.12 + uv, no `ml` extra)
