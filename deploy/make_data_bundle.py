@@ -107,6 +107,26 @@ def build(src: Path, out: Path) -> dict[str, int]:
         z = c.get("zones_path")
         if z and (src / z).exists():
             gzip_zones(src / z, out / (z + ".gz"))
+    # Volumetric cases (cases_msd.jsonl): every case's volume, label volume, preview and zones3d file, plus the
+    # reference-bank picks. These are already gzipped packs; holdout does not apply (no holdout split for volumes).
+    vol_src = src / "cases_msd.jsonl"
+    if vol_src.exists():
+        vol_lines = [ln for ln in vol_src.read_text().splitlines() if ln.strip()]
+        (out / "cases_msd.jsonl").write_text("\n".join(vol_lines) + "\n")
+        for ln in vol_lines:
+            c = json.loads(ln)
+            rels = [c.get("image_path")]
+            v = c.get("volume") or {}
+            rels += [v.get("data_path"), v.get("mask_path")]
+            rels.append(f"zones3d/{c['case_id']}.json")
+            for rel in rels:
+                if rel and (src / rel).exists():
+                    _place(src / rel, out / rel)
+                elif rel:
+                    missing += 1
+        for extra in ("reference_bank_volumetric.json", "volumetric_stats.json"):
+            if (src / extra).exists():
+                shutil.copy2(src / extra, out / extra)
     sizes: dict[str, int] = {}
     for p in out.rglob("*"):
         if p.is_file():
