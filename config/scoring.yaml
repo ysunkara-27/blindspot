@@ -53,3 +53,13 @@ volumetric:
     ask_for_labels: [pancreatic_tumour, liver_tumour, brain_tumour, lung_tumour, colon_tumour]
   unmatched:
     note: "A mark that matches no reference label is reported as 'unmatched' (the reference does not label every lesion), not as a false positive, and does not reduce the score."
+
+# Free-drawn outline marks (Mark.tool = draw): accepted as a hit if the centroid hits OR IoU ≥ iou_hit OR ≥ area_frac_hit
+# of the outline's area lies on the finding. outline_verdict: on_target (IoU ≥ on_target_iou), partly, too_broad
+# (covers ≥ 50 % of the finding but area > too_broad_factor × the finding's), off.
+outline:
+  iou_hit: 0.1
+  on_target_iou: 0.3
+  area_frac_hit: 0.4
+  too_broad_factor: 8
+  max_points: 400
