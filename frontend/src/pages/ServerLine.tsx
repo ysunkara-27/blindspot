@@ -1,6 +1,7 @@
 // One quiet line about the film library. It only gets loud when something is wrong, and then says what to do.
 // (The tutor's own state is the TutorNotice banner above the form.)
 import { apiMode } from '../api/client';
+import { libraryLine } from '../api/sessionOptions';
 import { useHealth } from '../tutor/health';
 
 export function ServerLine({ className }: { className?: string }) {
@@ -11,7 +12,7 @@ export function ServerLine({ className }: { className?: string }) {
       {health.isPending ? 'Checking the film library…'
         : mock ? 'The film library is not reachable, so you are seeing synthetic practice shapes, not radiographs. Reload the page to try the library again.'
         : health.data?.ok
-          ? `Library: ${health.data.cases.toLocaleString()} chest films with radiologist outlines.`
+          ? libraryLine(health.data)
           : 'The film library is not answering. Check your connection, then reload the page.'}
     </p>
   );

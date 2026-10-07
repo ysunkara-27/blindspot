@@ -149,3 +149,16 @@ export function cohortQuery(p: URLSearchParams): string {
   const qs = q.toString();
   return qs ? `?${qs}` : '';
 }
+
+/** Round 4: does the reading log need a scan-type switch? Only once the library or this log holds something besides
+ *  chest films (health `cases_by_modality` / `modalities`, or the dashboard's `n_by_modality`). */
+export function showScopeSwitch(
+  h: { cases_by_modality?: Record<string, number> | null; modalities?: string[] | null } | null | undefined,
+  d: { n_by_modality: Record<string, number> | null } | null | undefined,
+): boolean {
+  const by = h?.cases_by_modality;
+  if (by && ((by.ct ?? 0) > 0 || (by.mr ?? 0) > 0)) return true;
+  if (!by && h?.modalities?.some((m) => m === 'ct' || m === 'mr')) return true;
+  const n = d?.n_by_modality;
+  return !!n && ((n.ct ?? 0) > 0 || (n.mr ?? 0) > 0);
+}

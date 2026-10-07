@@ -1,6 +1,8 @@
 // The end-of-set summary as data: a guard for GET /sessions/{sid}/summary (round-3 rows, with fallbacks for an older
 // server) and the plain-language read-outs built from it. Pure; unit-tested in summaryModel.test.ts.
+import { isModality } from '../api/labels';
 import { guardStats, MISS_BUCKETS, type CaseStats, type MissBucket, type MissMix } from '../dashboard/types';
+import type { Modality } from '../types/contracts';
 
 export type SummaryRow = {
   attemptId: string | null;
@@ -15,11 +17,17 @@ export type SummaryRow = {
   nFindings: number;
   nFound: number;
   nFalse: number;
+  /** cxr | ct | mr; null from an older server (every case was a chest film). */
+  modality: Modality | null;
+  /** The '___ by ___' block or sentence, when the row carries one. */
+  provenance: unknown;
 };
 
 export type SetSummary = {
   sessionId: string;
   mode: string;
+  /** The set's scan type: the server's, else the rows' when they agree, else null (mixed or unknown). */
+  modality: Modality | null;
   nCases: number;
   /** Films in the set, when it has a fixed length. */
   total: number | null;
@@ -63,6 +71,8 @@ function row(v: unknown, i: number): SummaryRow[] {
     nFindings: num(v.n_findings) ? v.n_findings : findings.length,
     nFound: num(v.n_found) ? v.n_found : findings.filter((f) => FOUND.has(byTarget.get(f.id) ?? '')).length,
     nFalse: num(v.n_false_positives) ? v.n_false_positives : outcomes.filter((o) => o.result === 'false_positive').length,
+    modality: isModality(v.modality) ? v.modality : null,
+    provenance: v.provenance ?? null,
   }];
 }
 
@@ -84,9 +94,13 @@ export function guardSetSummary(v: unknown): SetSummary {
     score_mean: o.score_mean,
   });
   const mix = stats?.miss_type_mix ?? (Object.fromEntries(MISS_BUCKETS.map((b) => [b, 0])) as MissMix);
+  const settings = isObj(o.settings) ? o.settings : {};
+  const rowMods = new Set(rows.map((r) => r.modality).filter(Boolean));
+  const modality = isModality(o.modality) ? o.modality : isModality(settings.modality) ? settings.modality : rowMods.size === 1 ? [...rowMods][0]! : null;
   return {
     sessionId: typeof o.session_id === 'string' ? o.session_id : '',
     mode: typeof o.mode === 'string' ? o.mode : 'practice',
+    modality,
     nCases,
     total,
     // An older server sends no flag: a set with a known length is complete when all of it is read.
@@ -128,11 +142,12 @@ export function commonMiss(mix: MissMix): { bucket: MissBucket | null; n: number
 
 const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`;
 
-/** One line for a film in the per-film list: what was on it and what happened. */
+/** One line for a film in the per-film list: what was on it and what happened. A CT / MR row says "study". */
 export function rowLine(r: SummaryRow, missName: (b: MissBucket) => string): { what: string; outcome: string } {
+  const noun = r.modality && r.modality !== 'cxr' ? 'study' : 'film';
   if (r.isNormal) {
-    const outcome = r.success ? 'Correctly called normal' : r.nFalse > 0 ? `${plural(r.nFalse, 'false alarm')} on a normal film` : 'Called abnormal';
-    return { what: 'Normal film', outcome };
+    const outcome = r.success ? 'Correctly called normal' : r.nFalse > 0 ? `${plural(r.nFalse, 'false alarm')} on a normal ${noun}` : 'Called abnormal';
+    return { what: noun === 'film' ? 'Normal film' : 'No lesion', outcome };
   }
   const what = r.findings.length ? r.findings.join(', ') : plural(r.nFindings, 'finding');
   const found = r.nFindings ? `Found ${r.nFound} of ${r.nFindings}` : '';

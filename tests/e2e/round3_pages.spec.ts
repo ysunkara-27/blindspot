@@ -43,8 +43,10 @@ test('a 5-film mixed set: "of 5" in the header, an end screen with 5 rows, and o
   await expect(page.getByTestId('practice-weak')).toBeDisabled();
   await expect(page.getByTestId('note-weak')).toHaveText('Opens after 5 films, so there is something to go on. You have read 0; 5 to go.');
   await expect(page.getByTestId('practice-mixed')).toBeChecked();
-  await expect(page.getByTestId('scan-type')).toHaveText('Chest X-ray');
-  await expect(page.getByText('More body regions are planned')).toBeVisible();
+  // Round 4: the scan type is a real selector, first on the page; Chest X-ray is chosen unless remembered otherwise.
+  await expect(page.getByTestId('scan-cxr')).toHaveAttribute('aria-checked', 'true');
+  await expect(page.getByTestId('scan-cxr')).toHaveText('Chest X-ray');
+  await expect(page.getByTestId('scan-note')).toBeVisible();
   await expect(page.getByTestId('half-normal')).toHaveText('About half the films are normal — finding nothing is a real answer.');
   await expect(page.getByTestId('level')).toHaveCount(0);
   await page.getByTestId('name').fill('E2E round3 (test)');
@@ -204,13 +206,16 @@ test('learner nav is Read · Reading log · Reference · About; cohort and revie
   await expect(page.getByRole('heading', { level: 1, name: 'Expert review' })).toBeVisible();
 });
 
-test('the finding library lists 13 finding types with signs, mimics, examples and normal films', async ({ page }) => {
+test('the finding library lists the 13 chest finding types with signs, mimics, examples and normal films', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto('/reference?mock=0');
   await expect(page.getByRole('heading', { level: 1, name: 'Finding library' })).toBeVisible();
-  await expect(page.getByTestId('ref-entry')).toHaveCount(13, { timeout: 15_000 });
-  await expect(page.getByTestId('ref-index').getByRole('link')).toHaveCount(await page.getByTestId('ref-normal').count() ? 14 : 13);
+  // Round 4: entries are grouped by scan type; the chest group keeps its thirteen (CT / MR cards come after it).
+  const chest = page.locator('[data-testid=ref-scan-group][data-modality=cxr]');
+  await expect(chest.getByTestId('ref-entry')).toHaveCount(13, { timeout: 15_000 });
+  const total = await page.getByTestId('ref-entry').count();
+  await expect(page.getByTestId('ref-index').getByRole('link')).toHaveCount(await page.getByTestId('ref-normal').count() ? total + 1 : total);
   const nodule = page.locator('#nodule');
   await expect(nodule.getByRole('heading', { level: 2, name: 'Nodule' })).toBeVisible();
   await expect(nodule).toContainText('Key signs');

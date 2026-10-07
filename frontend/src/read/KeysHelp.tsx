@@ -1,10 +1,10 @@
 // Keyboard and mouse help: opens with "?" and with the "Keys" button.
 // While open it owns the keyboard (capture phase), so reading-room shortcuts cannot fire behind it.
 import { useEffect, useLayoutEffect, useRef } from 'react';
-import { markKeysSeen, SHORTCUTS } from './keys';
+import { markKeysSeen, shortcutsFor } from './keys';
 import s from './KeysHelp.module.css';
 
-export function KeysHelp({ onClose }: { onClose: () => void }) {
+export function KeysHelp({ onClose, volume = false }: { onClose: () => void; volume?: boolean }) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const close = useRef(onClose);
   useLayoutEffect(() => { close.current = onClose; });
@@ -33,13 +33,13 @@ export function KeysHelp({ onClose }: { onClose: () => void }) {
           <button ref={closeRef} type="button" className={s.close} onClick={onClose} data-testid="keys-close">Close</button>
         </div>
         <p className={s.lede}>
-          Pick what you see and click where it is, tick whole-film findings, or call the film normal; then submit.{' '}
+          {volume ? 'Scroll through the slices, pick what you see and click where it is, measure what you mark, or call the scan normal; then submit.' : 'Pick what you see and click where it is, tick whole-film findings, or call the film normal; then submit.'}{' '}
           <span className={s.cyan}>Cyan</span> is the expert outline; <span className={s.amber}>amber</span> is you.
         </p>
         <table className={s.table}>
           <tbody>
-            {SHORTCUTS.map(([k, what, isKey]) => (
-              <tr key={k}>
+            {shortcutsFor(volume).map(([k, what, isKey]) => (
+              <tr key={`${k}|${what}`}>
                 <th scope="row">{isKey ? <kbd className={s.kbd}>{k}</kbd> : k}</th>
                 <td>{what}</td>
               </tr>

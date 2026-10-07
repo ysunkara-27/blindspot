@@ -432,3 +432,108 @@
 .legendRing { display: inline-block; width: 12px; height: 12px; margin-right: 6px; border-radius: 50%; border: 1.5px dashed var(--grease-amber); vertical-align: -2px; }
 .legendKey { display: inline-block; width: 22px; height: 8px; margin-right: 5px; vertical-align: 0; }
 .legendKey + .legendKey, .legendGap { margin-left: 10px; }
+
+/* ---- Volumes (CT / MR): the same room, the volume inside the film area. ---- */
+.measuring { cursor: crosshair; }
+.windowing { cursor: ns-resize; }
+.markGhost { opacity: 0.45; }
+/* "Not in the reference": a dotted grey ring, neither cyan (truth) nor amber (learner). */
+.unmatchedRing { fill: none; stroke: #b8c2cc; stroke-opacity: 0.9; stroke-linecap: round; }
+.caliperCasing { stroke: rgba(0, 0, 0, 0.6); stroke-linecap: round; }
+.caliperLine { stroke: var(--grease-amber); stroke-linecap: round; }
+.caliperEnd { fill: var(--film-black); stroke: var(--grease-amber); }
+.caliperText {
+  fill: var(--grease-amber);
+  font-weight: 700;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.85);
+  stroke-linejoin: round;
+  font-variant-numeric: tabular-nums;
+}
+.stripMeasure { margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: var(--grease-amber); color: #1d1300; font-weight: 700; font-variant-numeric: tabular-nums; }
+.wlReadout {
+  position: absolute;
+  right: 10px;
+  top: 8px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(9, 11, 13, 0.72);
+  color: #c9d1d8;
+  font-size: var(--fs-1);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  z-index: 2;
+}
+/* Component tints (brain): three cyan opacities under the outline. */
+.component { fill: var(--lightbox-cyan); stroke: none; }
+.compKey { display: inline-flex; gap: 10px; margin-left: 12px; color: #c9d1d8; }
+.compKey i { display: inline-block; width: 12px; height: 12px; border-radius: 2px; background: var(--lightbox-cyan); vertical-align: -2px; }
+/* Anatomy on a slice: organ zones tinted in graticule grey at 30 %. */
+.zoneTint { fill: var(--graticule); fill-opacity: 0.3; stroke: var(--graticule); stroke-opacity: 0.8; pointer-events: all; }
+.zoneTintOn { fill-opacity: 0.45; }
+.legendTint { display: inline-block; width: 14px; height: 10px; border-radius: 2px; background: var(--graticule); opacity: 0.5; margin-right: 6px; vertical-align: -1px; }
+
+/* The 2×2 grid. */
+.grid {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 2px;
+  background: #000;
+}
+.pane { position: relative; overflow: hidden; background: var(--pacs-surround); cursor: default; }
+.pane:hover { box-shadow: inset 0 0 0 1px var(--graticule); }
+.paneTag {
+  position: absolute;
+  left: 8px;
+  top: 6px;
+  padding: 1px 7px;
+  border-radius: 4px;
+  background: rgba(9, 11, 13, 0.72);
+  color: #e6ebef;
+  font-size: var(--fs-1);
+  pointer-events: none;
+}
+.paneInfo { padding: 14px 16px; color: #c9d1d8; font-size: var(--fs-1); overflow: auto; background: #15181a; }
+.infoList { margin: 0 0 10px; display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; }
+.infoList div { display: contents; }
+.infoList dt { color: #8c99a6; }
+.infoList dd { margin: 0; color: #e6ebef; font-variant-numeric: tabular-nums; }
+.infoBadge { display: inline-block; margin: 2px 0 10px; }
+.infoKey { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 10px; }
+.infoHint { margin: 0; color: #8c99a6; }
+
+/* Slice controls. */
+.sliceGroup { display: inline-flex; align-items: center; gap: 10px; }
+.sliceSlider { width: 180px !important; }
+.select {
+  background: #1c2024;
+  color: #e6ebef;
+  border: 1px solid #3a4148;
+  border-radius: 4px;
+  padding: 3px 6px;
+  font: inherit;
+  font-size: var(--fs-1);
+}
+/* The slice dwell bar: one cell per slice, cyan where the finding lives, amber height = time there. */
+.dwell { display: inline-flex; align-items: center; gap: 8px; }
+.dwellCells { display: inline-flex; align-items: flex-end; gap: 1px; height: 22px; width: 180px; padding: 1px; background: #0c0e10; border-radius: 3px; }
+.dwellCell {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 2px;
+  height: 100%;
+  padding: 0;
+  border: none;
+  border-radius: 1px;
+  background: #22272c;
+  cursor: pointer;
+  overflow: hidden;
+}
+.dwellFinding { background: rgba(94, 234, 255, 0.35); }
+.dwellMissed { box-shadow: inset 0 0 0 1px var(--grease-amber); background: rgba(94, 234, 255, 0.18); }
+.dwellCurrent { outline: 1px solid #e6ebef; outline-offset: -1px; }
+.dwellFill { position: absolute; left: 0; right: 0; bottom: 0; background: var(--grease-amber); opacity: 0.9; }
+.dwellNote { color: #c9d1d8; max-width: 260px; white-space: normal; line-height: 1.2; }

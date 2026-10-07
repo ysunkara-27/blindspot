@@ -1,23 +1,32 @@
 // /read — the reading room (SPEC §1.3, §5, §14). One case at a time; ReadingRoom is keyed by attempt id.
 // Round 3: pathology-first marking, required confidence, magnifier off by default, reference drawer, first-run
 // tutorial, search trace with a legend and "not visited" rings, and a header that says "Case 3 of 10".
+// Volumes (CT / MR): the same room. The voxels are fetched and gunzipped here (never the mask before submit), the
+// plane / slice navigation and the caliper live here so the rail's size step and the viewer share them, and the
+// reveal opens the single axial view at the finding's measured slice with the label volume decoded on demand.
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { api, ApiError, assetUrl, isSubmitResult } from '../api/client';
 import { labelDisplay, modeDisplay, zoneDisplay } from '../api/labels';
-import { canSubmit, confidenceTarget, initialRead, readReducer, toHintMarks, toSubmitMarks, toSubmitPatterns } from '../read/readState';
+import { canSubmit, confidenceTarget, initialRead, initialVolumetricRead, pendingSizes, readReducer, toHintMarks, toSubmitMarks, toSubmitMeasurements, toSubmitPatterns, type DraftMark } from '../read/readState';
+import { measurementFromCaliper, useTools } from '../read/tools';
 import { ReadRail } from '../rail/ReadRail';
 import { ResultSummary } from '../rail/ResultSummary';
 import { DebriefPanel } from '../rail/DebriefPanel';
 import { AskTutor } from '../rail/AskTutor';
 import { isAssessment, useSession, type SessionInfo } from '../state/session';
 import type { AssessmentRecorded, AttemptSubmit, Confidence, HintResponse, NextCase, SubmitResult } from '../types/contracts';
-import { Viewer } from '../viewer/Viewer';
+import { Viewer, type VolumeUi } from '../viewer/Viewer';
 import type { RevealView } from '../viewer/RevealLayer';
+import { displayLengthMm, planeGeom, revealSlice } from '../viewer/volume/planes';
+import { initialNav, showPlane, stepSlice, type VolumeNav } from '../viewer/volume/nav';
+import { cachedGunzip, DECOMPRESS_SUPPORTED, decodeMask, decodeVolume } from '../viewer/volume/volume';
+import { guardMaskNames, isVolumetric, volumeMeta } from '../viewer/volume/guard';
 import { colorizeServerHeatmap, densityFromTelemetry, densityToDataUrl } from '../viewer/heatmap';
 import { TelemetryBuffer } from '../viewer/telemetry';
 import { Footer, Nav, SyntheticBadge } from '../app/Shell';
+import { ProvenanceBadge } from '../app/ProvenanceBadge';
 import { track } from '../analytics';
 import { TutorNotice } from '../tutor/TutorNotice';
 import { SessionSummaryView } from './SessionSummaryView';
@@ -90,8 +99,8 @@ function ReadSession({ session }: { session: SessionInfo }) {
   }, []);
   const layers = (
     <>
-      {help ? <KeysHelp onClose={closeHelp} /> : null}
-      {tour && !help ? <Tutorial onClose={closeTour} /> : null}
+      {help ? <KeysHelp onClose={closeHelp} volume={!!next.data && !next.data.done && isVolumetric(next.data.case)} /> : null}
+      {tour && !help ? <Tutorial onClose={closeTour} modality={next.data && !next.data.done ? next.data.case.modality : null} /> : null}
     </>
   );
 
@@ -152,10 +161,13 @@ function ReadSession({ session }: { session: SessionInfo }) {
   );
 }
 
-/** Header "View" menu: display options that are not part of reading a film. */
-function ViewMenu() {
+/** Header "View" menu: display options that are not part of reading a film. X-ray cases also keep the caliper here
+ *  (a px ruler; on a volume the caliper is in the bar under the film and in the rail's size step). */
+function ViewMenu({ caliper }: { caliper: boolean }) {
   const projector = useSession((s) => s.projector);
   const setProjector = useSession((s) => s.setProjector);
+  const tool = useTools((t) => t.tool);
+  const setTool = useTools((t) => t.setTool);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
   const btn = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
@@ -194,6 +206,12 @@ function ViewMenu() {
             <span>Large-screen mode: {projector ? 'on' : 'off'}</span>
             <span className={room.menuNote}>For a projector: brighter film, thicker lines, larger type.</span>
           </button>
+          {caliper && (
+            <button type="button" className={room.menuItem} aria-pressed={tool === 'caliper'} onClick={() => { setTool(tool === 'caliper' ? 'mark' : 'caliper'); setPos(null); }} data-testid="caliper-menu">
+              <span>Caliper: {tool === 'caliper' ? 'on' : 'off'} <kbd className={room.kbd}>C</kbd></span>
+              <span className={room.menuNote}>Drag on the film to measure in pixels (no pixel spacing is known for these films).</span>
+            </button>
+          )}
         </div>
       )}
     </>
@@ -222,8 +240,9 @@ function RoomHeader({ session, next, onHelp, onTour }: {
         </span>
       )}
       <SyntheticBadge short />
+      {next && <ProvenanceBadge provenance={next.case.provenance} modality={next.case.modality} className={room.provenance} />}
       <span className={room.spacer} />
-      <ViewMenu />
+      <ViewMenu caliper={!!next && !isVolumetric(next.case)} />
       <button type="button" className={room.btn} onClick={onTour} data-testid="tutorial-button" title="Walk through the reading room, step by step">
         How to read here
       </button>
@@ -254,10 +273,33 @@ function ReadingRoom({ session, next, header, loupe, setLoupe, showSearch, toggl
   const projector = useSession((s) => s.projector);
   const aid = next.attempt_id;
   const assessment = isAssessment(session.mode);
-  const [read, dispatch] = useReducer(readReducer, initialRead);
+  const volumetric = isVolumetric(next.case);
+  const vmeta = volumetric ? volumeMeta(next.case) : null;
+  const [read, dispatch] = useReducer(readReducer, vmeta ? initialVolumetricRead : initialRead);
+  // Volumes: plane / slice navigation (grid first), the decoded voxels, and after submit the label volume.
+  const [nav, setNavState] = useState<VolumeNav | null>(() => (vmeta ? initialNav(vmeta) : null));
+  const setNav = useCallback((f: (n: VolumeNav) => VolumeNav) => setNavState((n) => (n ? f(n) : n)), []);
+  const volumeQ = useQuery({
+    queryKey: ['volume', vmeta?.data_url ?? ''],
+    queryFn: async () => decodeVolume(await cachedGunzip(assetUrl(vmeta!.data_url)), vmeta!),
+    enabled: !!vmeta,
+    staleTime: Infinity,
+    gcTime: 5 * 60_000,
+    retry: 1,
+  });
+  // The film tool (mark / caliper) and the caliper draft are shared with the rail and the header menu; fresh per case.
+  const tool = useTools((t) => t.tool);
+  const setTool = useTools((t) => t.setTool);
+  const caliperDraft = useTools((t) => t.caliper);
+  const setCaliper = useTools((t) => t.setCaliper);
+  const forMark = useTools((t) => t.forMark);
+  const measureFor = useTools((t) => t.measure);
+  const resetTools = useTools((t) => t.reset);
+  useEffect(() => { resetTools(); return () => resetTools(); }, [resetTools]);
   const telemetry = useMemo(() => new TelemetryBuffer(), []);
   const shownAt = useRef('');
   const submittedTelemetry = useRef<AttemptSubmit['telemetry']>([]);
+  const [submittedTel, setSubmittedTel] = useState<AttemptSubmit['telemetry']>([]);
   const [confirmNormal, setConfirmNormal] = useState(false);
   const [hints, setHints] = useState<HintResponse[]>([]);
   const [hintsLeft, setHintsLeft] = useState(3);
@@ -290,7 +332,7 @@ function ReadingRoom({ session, next, header, loupe, setLoupe, showSearch, toggl
   const submitM = useMutation({
     mutationFn: (body: AttemptSubmit) => api.submit(aid, body),
     onSuccess: async (r) => {
-      if (isSubmitResult(r)) {
+      if (isSubmitResult(r) && !vmeta) {
         // Build the search trace before revealing so the sequence starts with it.
         let url: string | null = null;
         try {
@@ -301,6 +343,11 @@ function ReadingRoom({ session, next, header, loupe, setLoupe, showSearch, toggl
         }
         setHeatmapUrl(url);
       }
+      if (isSubmitResult(r) && vmeta) {
+        // The reveal opens the single axial view at the finding's measured slice (the viewer draws the splats per slice).
+        setNav((n) => showPlane(n, vmeta, 'axial', revealSlice(r.reveal.findings, vmeta.shape[0])));
+      }
+      resetTools();
       setResult(r);
       track('film_submitted');
       prefetchNext();
@@ -311,6 +358,7 @@ function ReadingRoom({ session, next, header, loupe, setLoupe, showSearch, toggl
     if (!canSubmit(read) || submitM.isPending || result) return;
     const tel = telemetry.snapshot();
     submittedTelemetry.current = tel;
+    setSubmittedTel(tel);
     dispatch({ type: 'closePopover' });
     submitM.mutate({
       marks: toSubmitMarks(read),
@@ -320,8 +368,44 @@ function ReadingRoom({ session, next, header, loupe, setLoupe, showSearch, toggl
       telemetry: tel,
       hints_used: hints.length,
       client_timing: { shown_at: shownAt.current || new Date().toISOString(), submitted_at: new Date().toISOString() },
+      ...(read.volumetric ? { measurements: toSubmitMeasurements(read) } : {}),
     });
   }, [read, submitM, result, telemetry, hints.length]);
+
+  // ---- Volumes: the size step and slice keys. ----
+  const drawnMm = vmeta && caliperDraft?.plane && caliperDraft.slice != null ? displayLengthMm(planeGeom(vmeta, caliperDraft.plane), caliperDraft.p0, caliperDraft.p1) : null;
+  const jumpTo = useCallback((m: DraftMark) => {
+    if (!vmeta || !m.plane || m.slice == null) return;
+    setNav((n) => showPlane(n, vmeta, m.plane!, m.slice!));
+  }, [vmeta, setNav]);
+  /** "Measure": the single axial view at the mark's slice, caliper armed. */
+  const onMeasure = useCallback((id: string) => {
+    const m = read.marks.find((x) => x.mark_id === id);
+    if (!vmeta || !m) return;
+    const plane = m.plane ?? 'axial';
+    setNav((n) => showPlane(n, vmeta, plane, m.slice ?? n.slice[plane]));
+    dispatch({ type: 'select', id });
+    measureFor(id);
+  }, [read.marks, vmeta, setNav, measureFor]);
+  const onRecord = useCallback((id: string) => {
+    if (!vmeta || !caliperDraft) return;
+    const m = measurementFromCaliper(vmeta, caliperDraft);
+    if (!m) return;
+    dispatch({ type: 'recordSize', id, m });
+    resetTools();
+  }, [vmeta, caliperDraft, resetTools]);
+  const onSkip = useCallback((id: string) => {
+    dispatch({ type: 'skipSize', id });
+    if (forMark === id) resetTools();
+  }, [forMark, resetTools]);
+  const toggleCaliper = useCallback(() => {
+    if (result) return;
+    if (tool === 'caliper') { resetTools(); return; }
+    // On a volume, C starts the size step of the first mark still waiting for one (else a free ruler).
+    const pending = pendingSizes(read)[0];
+    if (vmeta && pending) onMeasure(pending.mark_id);
+    else setTool('caliper');
+  }, [result, tool, resetTools, read, vmeta, onMeasure, setTool]);
 
   const askHint = useCallback(() => {
     if (hintsEnabled && hintsLeft > 0 && !hintM.isPending && !result) { track('hint'); hintM.mutate(); }
@@ -336,9 +420,9 @@ function ReadingRoom({ session, next, header, loupe, setLoupe, showSearch, toggl
   // Keyboard shortcuts (SPEC §5.1).
   const conflict = submitM.error instanceof ApiError && submitM.error.status === 409;
   const canAnatomy = !!result && isSubmitResult(result);
-  const keys = useRef({ submit, askHint, callNormal, read, result, onNext, loupe, setLoupe, conflict, canAnatomy });
+  const keys = useRef({ submit, askHint, callNormal, read, result, onNext, loupe, setLoupe, conflict, canAnatomy, vmeta, tool, forMark, drawnMm, onRecord, toggleCaliper, resetTools, nav });
   useLayoutEffect(() => {
-    keys.current = { submit, askHint, callNormal, read, result, onNext, loupe, setLoupe, conflict, canAnatomy };
+    keys.current = { submit, askHint, callNormal, read, result, onNext, loupe, setLoupe, conflict, canAnatomy, vmeta, tool, forMark, drawnMm, onRecord, toggleCaliper, resetTools, nav };
   });
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -352,8 +436,17 @@ function ReadingRoom({ session, next, header, loupe, setLoupe, showSearch, toggl
       if (e.metaKey || e.ctrlKey || e.altKey || isTextEntry(e.target)) return;
       const sel = k.read.selectedId;
       const onButton = (e.target as HTMLElement | null)?.tagName === 'BUTTON';
+      // Volumes: ↑ / ↓ scroll slices, PageUp / PageDown jump five (in the single-plane view; the grid scrolls by wheel).
+      if (k.vmeta && k.nav && !k.nav.grid && (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'PageUp' || e.key === 'PageDown')) {
+        e.preventDefault();
+        const d = e.key === 'ArrowUp' ? -1 : e.key === 'ArrowDown' ? 1 : e.key === 'PageUp' ? -5 : 5;
+        const meta = k.vmeta;
+        setNav((n) => stepSlice(n, meta, n.plane, d));
+        return;
+      }
       switch (e.key) {
         case 'm': case 'M': case 'l': case 'L': k.setLoupe(!k.loupe); break;
+        case 'c': case 'C': k.toggleCaliper(); break;
         case 'n': case 'N': k.callNormal(); break;
         case 'h': case 'H': k.askHint(); break;
         case 'a': case 'A': if (k.canAnatomy) setAnatomyOn((v) => !v); break;
@@ -370,12 +463,15 @@ function ReadingRoom({ session, next, header, loupe, setLoupe, showSearch, toggl
           break;
         case 'Escape':
           if (useReference.getState().label) { useReference.getState().close(); break; }
+          if (k.tool === 'caliper') { k.resetTools(); break; }
           if (k.read.armed) dispatch({ type: 'disarm' });
           else dispatch({ type: 'select', id: null });
           break;
         case 'Enter':
           if (onButton) return;
           e.preventDefault();
+          // The size step: Enter records the drawn caliper for the mark being measured.
+          if (!k.result && k.forMark && k.drawnMm != null) { k.onRecord(k.forMark); break; }
           if (!k.result) k.submit();
           else k.onNext();
           break;
@@ -388,20 +484,46 @@ function ReadingRoom({ session, next, header, loupe, setLoupe, showSearch, toggl
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [setNav]);
 
   const submitResult = result && isSubmitResult(result) ? result : null;
   const unvisitedIds = submitResult?.reveal.search.unvisited_review_areas;
   // Zone outlines come from the server only after this attempt is submitted (never before: no ground truth leaks).
   // They draw "Show anatomy" and place the "not visited" rings of the search trace.
-  const anatomyQ = useQuery({
+  const anatomyRaw = useQuery({
     queryKey: ['anatomy', aid],
-    queryFn: async () => guardAnatomy(await api.anatomy(aid)),
+    queryFn: () => api.anatomy(aid),
     enabled: !!submitResult && (anatomyOn || !!unvisitedIds?.length),
     staleTime: Infinity,
     retry: false,
   });
+  const anatomyData = useMemo(() => (anatomyRaw.data === undefined ? undefined : guardAnatomy(anatomyRaw.data)), [anatomyRaw.data]);
+  const anatomyQ = { status: anatomyRaw.status, data: anatomyData };
   const toggleAnatomy = useCallback(() => setAnatomyOn((v) => !v), []);
+  // Volumes, after submit only: the label volume (never requested before the result is in hand).
+  const maskUrl = submitResult?.reveal.maskvol_url ?? null;
+  const maskQ = useQuery({
+    queryKey: ['maskvol', aid, maskUrl ?? ''],
+    queryFn: async () => decodeMask(await cachedGunzip(assetUrl(maskUrl!)), vmeta!),
+    enabled: !!vmeta && !!maskUrl && !!submitResult,
+    staleTime: Infinity,
+    retry: 1,
+  });
+  const maskNames = useMemo(() => guardMaskNames(anatomyRaw.data), [anatomyRaw.data]);
+  const volumeUi: VolumeUi | undefined = vmeta && nav ? {
+    meta: vmeta,
+    data: volumeQ.data ?? null,
+    status: volumeQ.isError ? 'error' : volumeQ.data ? 'success' : 'pending',
+    error: volumeQ.isError ? (DECOMPRESS_SUPPORTED ? 'The scan could not be loaded. Check the connection and reload.' : 'This browser cannot open scans (no gzip support). Try a current Chrome, Edge, Firefox or Safari.') : null,
+    modality: next.case.modality ?? 'ct',
+    provenance: next.case.provenance,
+    nav,
+    setNav,
+    mask: maskQ.data ?? null,
+    maskNames,
+    sliceDwell: submitResult ? (submitResult.reveal.search.slice_dwell ?? null) : undefined,
+    submittedTelemetry: submitResult ? submittedTel : undefined,
+  } : undefined;
   // Rings are markers at each area's centre: between 2.5% and 8% of the film width.
   const located = useMemo(
     () => unvisitedRings(anatomyQ.data, unvisitedIds ?? [], 0.025 * next.case.width, 0.08 * next.case.width),
@@ -439,6 +561,8 @@ function ReadingRoom({ session, next, header, loupe, setLoupe, showSearch, toggl
             anatomy={{ on: anatomyOn, status: anatomyQ.status, data: anatomyQ.data ?? null }}
             onToggleAnatomy={toggleAnatomy}
             search={submitResult ? { on: showSearch, onToggle: toggleSearch, unvisited: unvisitedNames, located: located.rings.length > 0 && located.missing.length === 0 } : undefined}
+            volume={volumeUi}
+            caliper={{ tool, setTool, draft: caliperDraft, setDraft: setCaliper, forMark }}
           />
         </div>
       </div>
@@ -461,6 +585,9 @@ function ReadingRoom({ session, next, header, loupe, setLoupe, showSearch, toggl
                 : null}
               alreadyRecorded={submitM.error instanceof ApiError && submitM.error.status === 409}
               onNext={onNext}
+              modality={next.case.modality}
+              onJump={vmeta ? jumpTo : undefined}
+              size={vmeta ? { forMark, drawnMm, onMeasure, onRecord, onSkip } : undefined}
             />
           ) : submitResult ? (
             <div className={rail.result}>

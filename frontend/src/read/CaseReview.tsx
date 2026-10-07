@@ -12,8 +12,9 @@ import { RevealLayer, type RevealView } from '../viewer/RevealLayer';
 import { SEARCH_LEGEND } from '../viewer/SearchExplainer';
 import vs from '../viewer/Viewer.module.css';
 import c from './CaseReview.module.css';
+import { VolumeReview } from './VolumeReview';
 
-export type CaseReviewMark = { mark_id: string; x: number; y: number; label?: string | null; confidence?: number | null };
+export type CaseReviewMark = { mark_id: string; x: number; y: number; label?: string | null; confidence?: number | null; plane?: string | null; slice?: number | null; voxel?: number[] | null };
 export type CaseReviewProps = {
   result: SubmitResult;
   imageUrl: string;
@@ -22,9 +23,25 @@ export type CaseReviewProps = {
   marks: CaseReviewMark[];
   /** Also render the outcome list and the search summary under the film (default: the film only). */
   summary?: boolean;
+  /** CT / MR: the scan type and the case's `volume` block (shape, spacing, window, data_url); the mask URL is in the result. */
+  modality?: string | null;
+  volume?: unknown;
 };
 
-export function CaseReview({ result, imageUrl, width, height, marks, summary = false }: CaseReviewProps) {
+export function CaseReview(props: CaseReviewProps) {
+  const { result, modality, volume, marks, summary = false } = props;
+  if ((modality === 'ct' || modality === 'mr') && volume) {
+    return (
+      <div className={c.review} data-testid="case-review" data-modality={modality}>
+        <VolumeReview result={result} volume={volume} marks={marks} />
+        {summary && <div className={c.summary}><ResultSummary result={result} settle={false} /></div>}
+      </div>
+    );
+  }
+  return <FilmReview {...props} />;
+}
+
+function FilmReview({ result, imageUrl, width, height, marks, summary = false }: CaseReviewProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [boxW, setBoxW] = useState(0);
   const [failed, setFailed] = useState(false);

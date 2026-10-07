@@ -43,3 +43,28 @@ export function clampView(v: View, stageW: number, stageH: number, imgW: number,
   const originY = Math.min(stageH - keep, Math.max(keep - h, v.originY));
   return { ...v, originX, originY };
 }
+
+// ---- Volumes (CT / MR) -------------------------------------------------------------------------------------------
+// The same screen transform serves a slice: "image px" are the slice's DISPLAY px (square pixels of `unit` mm, see
+// viewer/volume/planes.ts). A click becomes a 3-D mark through exactly this path: client → image (above) → voxel.
+import { displayToInPlane, displayToVoxel, inPlaneToDisplay, type PlaneGeom, type Voxel } from './volume/planes';
+
+export type PlanePoint = { x: number; y: number; voxel: Voxel; plane: PlaneGeom['plane']; slice: number };
+
+/** clientX/clientY on a slice → in-plane voxel coords (the mark's x, y), the full voxel, plane and slice. */
+export function clientToPlane(
+  clientX: number, clientY: number, stage: { left: number; top: number }, v: View, g: PlaneGeom, slice: number,
+): PlanePoint {
+  const d = clientToImage(clientX, clientY, stage, v);
+  return displayToPlane(d.x, d.y, g, slice);
+}
+/** Display px on the current slice → the same (used by the keyboard crosshair and by drags). */
+export function displayToPlane(xd: number, yd: number, g: PlaneGeom, slice: number): PlanePoint {
+  const { u, v } = displayToInPlane(g, xd, yd);
+  return { x: u, y: v, voxel: displayToVoxel(g, slice, xd, yd), plane: g.plane, slice };
+}
+/** In-plane voxel coords → screen px, through the one transform. */
+export function planeToScreen(u: number, v: number, g: PlaneGeom, view: View): { x: number; y: number } {
+  const d = inPlaneToDisplay(g, u, v);
+  return imageToScreen(d.x, d.y, view);
+}

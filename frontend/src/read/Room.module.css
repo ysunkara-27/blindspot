@@ -80,3 +80,5 @@
 .menuNote { font-size: 13px; color: var(--report-ink-muted); white-space: normal; }
 .center { display: grid; place-items: center; color: #c9d1d8; text-align: center; padding: 24px; }
 .center a { color: #c9d1d8; }
+.provenance { margin-left: 4px; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 1100px) { .provenance { display: none; } }

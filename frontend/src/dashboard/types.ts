@@ -36,8 +36,11 @@ export type Calibration = { bins: CalibrationBin[]; n: number; confident_misses:
 export type FrocPoint = { threshold: number; llf: number | null; nlf: number | null; n_ll: number; n_nl: number };
 export type Froc = { n_images: number; n_lesions: number; n_marks: number; points: FrocPoint[] };
 
-export type BlindspotPoint = { x: number; y: number; label: string; result: string; found: boolean };
+export type BlindspotPoint = { x: number; y: number; label: string; result: string; found: boolean; zone: string | null; modality: string | null };
 export type BlindspotMap = { frame: string; n: number; n_missed: number; points: BlindspotPoint[] };
+
+/** Round 4 (CT / MR): misses counted by zone, when the server sends them; else derived from the map's points. */
+export type ZoneMisses = { zone: string; human: string; n: number; n_missed: number };
 
 export type ReviewArea = { area: string; human: string; visited_pct: number | null };
 export type ReviewAreaHabit = { n: number; areas: ReviewArea[] };
@@ -54,6 +57,11 @@ export type CohortLearner = {
 
 export type LearnerDashboard = {
   n_attempts: number;
+  /** cxr | ct | mr counts; absent on a server that does not split by scan type. */
+  n_by_modality: Record<string, number> | null;
+  /** Echo of the `?modality=` filter the server applied; null when it applied none. */
+  modality: string | null;
+  misses_by_zone: ZoneMisses[] | null;
   summary: CaseStats | null;
   learning_curve: LearningCurve | null;
   miss_type_mix: MissTypeMix | null;
@@ -165,10 +173,35 @@ export function guardBlindspot(v: unknown): BlindspotMap | null {
   if (!isObj(v)) return null;
   const points = arr(v.points).flatMap((p) =>
     isObj(p) && num(p.x) && num(p.y)
-      ? [{ x: p.x, y: p.y, label: str(p.label), result: str(p.result), found: p.found === true }]
+      ? [{ x: p.x, y: p.y, label: str(p.label), result: str(p.result), found: p.found === true, zone: typeof p.zone === 'string' ? p.zone : null, modality: typeof p.modality === 'string' ? p.modality : null }]
       : [],
   );
   return { frame: str(v.frame), n: num(v.n) ? v.n : points.length, n_missed: num(v.n_missed) ? v.n_missed : points.filter((p) => !p.found).length, points };
+}
+
+export function guardZoneMisses(v: unknown): ZoneMisses[] | null {
+  if (!Array.isArray(v)) return null;
+  return v.flatMap((z) => (isObj(z) && typeof z.zone === 'string' && num(z.n)
+    ? [{ zone: z.zone, human: str(z.human, z.zone.replace(/_/g, ' ')), n: z.n, n_missed: num(z.n_missed) ? z.n_missed : 0 }]
+    : []));
+}
+
+/** Misses by zone from the map's points (every point carries its zone on a CT / MR server), for the list view. */
+export function zoneMissesFromMap(map: BlindspotMap | null): ZoneMisses[] {
+  const by = new Map<string, ZoneMisses>();
+  for (const p of map?.points ?? []) {
+    if (!p.zone) continue;
+    const z = by.get(p.zone) ?? { zone: p.zone, human: p.zone.replace(/_/g, ' '), n: 0, n_missed: 0 };
+    z.n += 1;
+    if (!p.found) z.n_missed += 1;
+    by.set(p.zone, z);
+  }
+  return [...by.values()].sort((a, b) => b.n_missed - a.n_missed || b.n - a.n || a.zone.localeCompare(b.zone));
+}
+
+export function guardModalityCounts(v: unknown): Record<string, number> | null {
+  if (!isObj(v)) return null;
+  return Object.fromEntries(Object.entries(v).filter(([, n]) => num(n)).map(([k, n]) => [k, n as number]));
 }
 
 export function guardReviewAreas(v: unknown): ReviewAreaHabit | null {
@@ -184,6 +217,9 @@ export function guardLearnerDashboard(v: unknown): LearnerDashboard {
   const lr = isObj(o.learner) ? o.learner : null;
   return {
     n_attempts: num(o.n_attempts) ? o.n_attempts : 0,
+    n_by_modality: guardModalityCounts(o.n_by_modality),
+    modality: typeof o.modality === 'string' ? o.modality : isObj(o.filters) && typeof o.filters.modality === 'string' ? o.filters.modality : null,
+    misses_by_zone: guardZoneMisses(o.misses_by_zone),
     summary: guardStats(o.summary),
     learning_curve: guardLearningCurve(o.learning_curve),
     miss_type_mix: guardMissTypeMix(o.miss_type_mix),

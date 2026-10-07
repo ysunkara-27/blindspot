@@ -1,0 +1,17 @@
+/* Neutral pill: ink outline on paper, no cyan/amber (those mean truth and learner on a film). */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 3px 10px;
+  border: 1px solid var(--report-rule, #cfd6dc);
+  border-radius: 999px;
+  background: #f5f7f8;
+  color: var(--report-ink-muted, #5b6670);
+  font-size: 13px;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.short { font-size: 12px; padding: 1px 8px; white-space: normal; line-height: 1.3; }

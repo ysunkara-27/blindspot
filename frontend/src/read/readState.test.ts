@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  canSubmit, confidenceTarget, initialRead, NOTHING_YET, readReducer, submitBlockers, toHintMarks, toSubmitMarks, toSubmitPatterns,
+  canSubmit, confidenceTarget, initialRead, initialVolumetricRead, needsSize, NOTHING_YET, pendingSizes, readReducer, submitBlockers, toHintMarks, toSubmitMarks, toSubmitMeasurements, toSubmitPatterns,
   type ReadAction, type ReadState,
 } from './readState';
 
@@ -148,5 +148,55 @@ describe('digit keys and payloads', () => {
     expect(toHintMarks(s)[0]).toMatchObject({ mark_id: 'M1', label: 'not_sure' });
     const done = run([{ type: 'label', id: 'M1', label: 'mass' }, { type: 'confidence', id: 'M1', confidence: 2 }], s);
     expect(toSubmitMarks(done)).toEqual([{ mark_id: 'M1', x: 1, y: 1, label: 'mass', confidence: 2 }]);
+  });
+});
+
+describe('volumes: 3-D marks and the size step', () => {
+  const at = { plane: 'axial' as const, slice: 8, voxel: [24, 36, 8] as [number, number, number] };
+  const place = (s: ReadState, label: 'pancreatic_tumour' | 'not_sure') =>
+    readReducer(readReducer(s, { type: 'arm', label }), { type: 'place', x: 24, y: 36, at });
+  it('keeps plane, slice and voxel on the mark and sends them', () => {
+    let s = place(initialVolumetricRead, 'pancreatic_tumour');
+    expect(s.marks[0]).toMatchObject({ mark_id: 'M1', x: 24, y: 36, ...at });
+    s = readReducer(s, { type: 'confidence', id: 'M1', confidence: 4 });
+    expect(toHintMarks(s)[0]).toMatchObject(at);
+    // The size step blocks submit until measured or skipped.
+    expect(submitBlockers(s)).toEqual(['M1 needs a size: measure it or skip']);
+    expect(pendingSizes(s).map((m) => m.mark_id)).toEqual(['M1']);
+    s = readReducer(s, { type: 'recordSize', id: 'M1', m: { long_mm: 13.46, plane: 'axial', slice: 8, p0: [20, 36, 8], p1: [29, 36, 8] } });
+    expect(submitBlockers(s)).toEqual([]);
+    expect(toSubmitMarks(s)[0]).toMatchObject({ ...at, label: 'pancreatic_tumour', confidence: 4 });
+    expect(toSubmitMeasurements(s)).toEqual([{ mark_id: 'M1', long_mm: 13.5, plane: 'axial', slice: 8, p0: [20, 36, 8], p1: [29, 36, 8] }]);
+    // Moving or relabelling the mark drops its measurement; skipping satisfies the step too.
+    s = readReducer(s, { type: 'move', id: 'M1', x: 30, y: 36, at: { ...at, voxel: [30, 36, 8] } });
+    expect(toSubmitMeasurements(s)).toEqual([]);
+    s = readReducer(s, { type: 'skipSize', id: 'M1' });
+    expect(canSubmit(s)).toBe(true);
+    expect(toSubmitMeasurements(s)).toEqual([]);
+  });
+  it('asks for a size only for mass-like labels on a volumetric read', () => {
+    let s = readReducer(place(initialVolumetricRead, 'not_sure'), { type: 'confidence', id: 'M1', confidence: 3 });
+    expect(canSubmit(s)).toBe(true);
+    s = readReducer(readReducer(initialRead, { type: 'arm', label: 'mass' }), { type: 'place', x: 1, y: 2 });
+    s = readReducer(s, { type: 'confidence', id: 'M1', confidence: 3 });
+    expect(canSubmit(s)).toBe(true); // an X-ray mass has no size step
+    expect(toSubmitMarks(s)[0]).toEqual({ mark_id: 'M1', x: 1, y: 2, label: 'mass', confidence: 3 });
+    expect(needsSize('nodule')).toBe(true);
+    expect(needsSize('effusion')).toBe(false);
+  });
+});
+
+describe('measurement from the caliper', () => {
+  it('converts a caliper drag on a slice into mm and voxel endpoints', async () => {
+    const { measurementFromCaliper } = await import('./tools');
+    const meta = { shape: [16, 64, 64], spacing: [3, 1.5, 1.5] };
+    const m = measurementFromCaliper(meta, { plane: 'axial', slice: 8, p0: [20, 36], p1: [29, 36] });
+    expect(m).toEqual({ long_mm: 13.5, plane: 'axial', slice: 8, p0: [20, 36, 8], p1: [29, 36, 8] });
+    // Coronal: 10 display px down = 5 slices of 3 mm = 15 mm.
+    const c = measurementFromCaliper(meta, { plane: 'coronal', slice: 30, p0: [10, 0], p1: [10, 10] });
+    expect(c?.long_mm).toBeCloseTo(15);
+    expect(c?.p1).toEqual([10, 30, 5]);
+    expect(measurementFromCaliper(meta, { plane: null, slice: null, p0: [0, 0], p1: [1, 1] })).toBeNull();
+    expect(measurementFromCaliper(meta, { plane: 'axial', slice: 1, p0: [1, 1], p1: [1, 1] })).toBeNull();
   });
 });

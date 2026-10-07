@@ -49,10 +49,20 @@
 .countOn span { background: var(--report-ink); color: #fff; font-weight: 700; }
 .count input:focus-visible + span { outline: 2px solid var(--grease-amber); outline-offset: -2px; }
 
-.scanRow { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-.chip { display: inline-flex; align-items: center; gap: 7px; padding: 6px 14px; border-radius: 999px; background: var(--report-ink); color: #fff; font-weight: 700; font-size: var(--fs-1); }
-.chip::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--grease-amber); }
-.planned { color: var(--report-ink-muted); font-size: var(--fs-1); }
+.scanRow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+/* Scan-type chips: the chosen one is the ink pill with the amber dot (as the old fixed chip was); the others are
+   outlined; a scan type the library does not hold yet is muted and says "coming". */
+.chip {
+  display: inline-flex; align-items: center; gap: 7px; padding: 6px 14px; border-radius: 999px;
+  border: 1px solid #b9c2ca; background: #fff; color: var(--report-ink); font: inherit; font-weight: 700; font-size: var(--fs-1); cursor: pointer;
+}
+.chip::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: transparent; border: 1px solid #b9c2ca; box-sizing: border-box; }
+.chip:focus-visible { outline: 2px solid var(--grease-amber); outline-offset: 2px; }
+.chipOn { background: var(--report-ink); border-color: var(--report-ink); color: #fff; }
+.chipOn::before { background: var(--grease-amber); border-color: var(--grease-amber); }
+.chipOff { color: var(--report-ink-muted); border-style: dashed; cursor: default; font-weight: 400; }
+.chipOff::before { display: none; }
+.coming { font-size: 12px; font-weight: 400; color: var(--report-ink-muted); }
 
 .go { border-top: 1px solid var(--report-rule); padding: 20px 0 0; }
 .half { margin: 0 0 14px; line-height: 1.5; }

@@ -9,7 +9,9 @@ import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { api, ApiError, assetUrl } from '../api/client';
-import { fetchAttemptResult, type AttemptReview } from '../api/sessionOptions';
+import { modalityDisplay } from '../api/labels';
+import { caseNoun, fetchAttemptResult, type AttemptReview } from '../api/sessionOptions';
+import { ProvenanceBadge } from '../app/ProvenanceBadge';
 import { PageShell } from '../app/Shell';
 import { useTitle } from '../app/useTitle';
 import { DebriefPanel } from '../rail/DebriefPanel';
@@ -41,26 +43,31 @@ function Film({ review, caseId }: { review: AttemptReview; caseId: string | null
   const url = review.film?.image_url ? assetUrl(review.film.image_url) : id ? api.imageUrl(id) : null;
   const size = useImageSize(url, { w: review.film?.width ?? null, h: review.film?.height ?? null });
   const normal = review.result.reveal.findings.length === 0;
+  const volumetric = !!review.modality && review.modality !== 'cxr';
+  const film = caseNoun(review.modality);
   // The result always lists the marks it scored; with none listed, "no marks" is known even without coordinates.
   const marks = review.marks ?? (review.result.reveal.marks.length === 0 ? [] : null);
+  // A CT / MR read: the reading room's CaseReview draws the volume itself (viewer side); the result, the case's volume
+  // block and the scan type go through as sent. Spread so the X-ray call stays byte-identical.
+  const volumeProps = volumetric ? { modality: review.modality, volume: review.film?.volume ?? null } : {};
   if (!url) {
-    return <p className={c.notice} data-testid="case-no-film">The film for this read could not be identified from this link. Open the review from the set summary to see it. The outcomes and the debrief are shown here.</p>;
+    return <p className={c.notice} data-testid="case-no-film">The {film} for this read could not be identified from this link. Open the review from the set summary to see it. The outcomes and the debrief are shown here.</p>;
   }
   return (
     <div data-testid="case-film-block">
       <div className={c.surround}>
         {size
-          ? <CaseReview result={review.result} imageUrl={url} width={size.w} height={size.h} marks={marks ?? []} />
-          : <p className={c.loading}>Loading the film…</p>}
+          ? <CaseReview result={review.result} imageUrl={url} width={size.w} height={size.h} marks={marks ?? []} {...(volumeProps as object)} />
+          : <p className={c.loading}>Loading the {film}…</p>}
       </div>
-      {normal && <p className={c.note}>This film is normal, so there is nothing to outline.</p>}
+      {normal && <p className={c.note}>{volumetric ? 'The dataset labelled no lesion in this study, so there is nothing to outline.' : 'This film is normal, so there is nothing to outline.'}</p>}
       {marks == null && (
         <p className={c.note} data-testid="case-no-marks">
           Where you placed your {review.result.reveal.marks.length === 1 ? 'mark' : `${review.result.reveal.marks.length} marks`} is not available for
-          this read, so the film shows the expert outlines only. The list beside it says how each mark was scored.
+          this read, so the {film} shows the expert outlines only. The list beside it says how each mark was scored.
         </p>
       )}
-      {marks != null && marks.length === 0 && <p className={c.note} data-testid="case-zero-marks">You placed no marks on this film.</p>}
+      {marks != null && marks.length === 0 && <p className={c.note} data-testid="case-zero-marks">You placed no marks on this {film}.</p>}
     </div>
   );
 }
@@ -78,7 +85,9 @@ export function CaseReviewPage() {
   const prev = at > 0 ? rows[at - 1] : null;
   const next = at >= 0 && at < rows.length - 1 ? rows[at + 1] : null;
   const to = (aid: string | null) => `/review-case/${encodeURIComponent(aid ?? '')}?set=${encodeURIComponent(setId ?? '')}`;
-  useTitle(row ? `Film ${row.index} review` : 'Film review');
+  const modality = q.data?.modality ?? row?.modality ?? null;
+  const Noun = modality && modality !== 'cxr' ? 'Study' : 'Film';
+  useTitle(row ? `${Noun} ${row.index} review` : `${Noun} review`);
   const status = q.error instanceof ApiError ? q.error.status : 0;
   const back = setId ? <Link to={`/set/${encodeURIComponent(setId)}`} data-testid="back-to-summary">Back to the set summary</Link> : <Link to="/progress">Open my reading log</Link>;
 
@@ -86,19 +95,27 @@ export function CaseReviewPage() {
     <PageShell wide>
       <div className={c.head}>
         <div>
-          <h1 className={c.h1} data-testid="case-review-title">{row ? `Film ${row.index}${rows.length ? ` of ${rows.length}` : ''}` : 'Film review'}</h1>
-          <p className={c.sub}>Your read, with the expert outlines over it.</p>
+          <h1 className={c.h1} data-testid="case-review-title">{row ? `${Noun} ${row.index}${rows.length ? ` of ${rows.length}` : ''}` : `${Noun} review`}</h1>
+          <p className={c.sub}>
+            Your read, with the expert outlines over it.
+            {q.data && (
+              <span className={c.meta}>
+                {modality && modality !== 'cxr' && <span data-testid="review-modality">{modalityDisplay(modality)}</span>}
+                <ProvenanceBadge provenance={q.data.provenance ?? row?.provenance} modality={modality} />
+              </span>
+            )}
+          </p>
         </div>
-        <nav className={c.pager} aria-label="Films in this set">
-          {setId && (prev?.attemptId ? <Link to={to(prev.attemptId)} data-testid="prev-film">Previous film</Link> : <span>Previous film</span>)}
-          {setId && (next?.attemptId ? <Link to={to(next.attemptId)} data-testid="next-film">Next film</Link> : <span>Next film</span>)}
+        <nav className={c.pager} aria-label={`${Noun}s in this set`}>
+          {setId && (prev?.attemptId ? <Link to={to(prev.attemptId)} data-testid="prev-film">Previous {Noun.toLowerCase()}</Link> : <span>Previous {Noun.toLowerCase()}</span>)}
+          {setId && (next?.attemptId ? <Link to={to(next.attemptId)} data-testid="next-film">Next {Noun.toLowerCase()}</Link> : <span>Next {Noun.toLowerCase()}</span>)}
           {back}
         </nav>
       </div>
 
       {q.isPending ? <p className={p.muted}>Loading your read…</p> : q.isError ? (
         <p className={c.notice} data-testid="case-review-error">
-          {status === 409 ? 'This review is not open yet. A film can be reviewed once it is submitted, and a test film once the whole test is finished.'
+          {status === 409 ? 'This review is not open yet. A read can be reviewed once it is submitted, and a test film once the whole test is finished.'
             : status === 404 ? 'No read was found for this link. It may belong to another browser or to a set that is no longer stored.'
             : 'The review did not load. Check your connection, then reload the page.'}
           {' '}{back}

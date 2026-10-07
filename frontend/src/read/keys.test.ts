@@ -17,3 +17,15 @@ describe('SHORTCUTS', () => {
     expect(text).not.toMatch(/loupe/i);
   });
 });
+
+describe('shortcutsFor', () => {
+  it('adds the slice, plane and caliper keys on a volume and leaves the X-ray list alone', async () => {
+    const { shortcutsFor, SHORTCUTS, VOLUME_SHORTCUTS } = await import('./keys');
+    expect(shortcutsFor(false)).toBe(SHORTCUTS);
+    const v = shortcutsFor(true);
+    expect(v.slice(0, VOLUME_SHORTCUTS.length)).toEqual(VOLUME_SHORTCUTS);
+    expect(v.map(([k]) => k)).toContain('Ctrl + wheel');
+    expect(v.map(([k]) => k)).not.toContain('Mouse wheel'.repeat(2));
+    expect(v.filter(([k]) => k === 'C')).toHaveLength(1);
+  });
+});

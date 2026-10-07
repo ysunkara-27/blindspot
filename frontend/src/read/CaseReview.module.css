@@ -10,3 +10,8 @@
 .toggle:focus-visible { outline: 2px solid #9a6200; outline-offset: 2px; }
 .proxy { margin: 6px 0 0; font-size: 13px; color: var(--report-ink-muted); }
 .summary { margin-top: 12px; }
+/* Volumes: the slice slider and the dwell bar under the scan. */
+.sliceRow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; margin-top: 8px; font-size: 14px; color: var(--report-ink-muted); }
+.sliceLabel { display: inline-flex; align-items: center; gap: 8px; font-variant-numeric: tabular-nums; }
+.sliceLabel input { width: 180px; accent-color: var(--graticule); }
+.dwellWrap { display: inline-flex; background: #15181a; padding: 4px 8px; border-radius: 4px; color: #c9d1d8; }

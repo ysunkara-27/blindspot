@@ -3,6 +3,7 @@
 .head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; }
 .h1 { font-size: var(--fs-4); font-weight: 700; margin: 0; }
 .sub { color: var(--report-ink-muted); font-size: var(--fs-1); margin: 4px 0 0; }
+.meta { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-left: 10px; vertical-align: middle; }
 .pager { display: flex; gap: 16px; align-items: center; font-size: var(--fs-1); }
 .pager a { color: var(--report-ink); }
 .pager span { color: #8c97a2; }

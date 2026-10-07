@@ -24,6 +24,8 @@
 .filmNo { font-weight: 700; font-variant-numeric: tabular-nums; }
 .filmWhat { font-weight: 700; }
 .filmOutcome { display: block; font-weight: 400; color: var(--report-ink-muted); font-size: var(--fs-1); line-height: 1.4; margin-top: 2px; }
+.filmMeta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 4px; font-weight: 400; font-size: 13px; color: var(--report-ink-muted); }
+.setType { color: var(--report-ink-muted); }
 .filmScore { text-align: right; font-variant-numeric: tabular-nums; color: var(--report-ink-muted); font-size: var(--fs-1); white-space: nowrap; }
 .filmScore strong { color: var(--report-ink); font-size: var(--fs-2); }
 .filmGo { text-align: right; text-decoration: underline; font-size: var(--fs-1); }

@@ -7,17 +7,22 @@ import { InfoButton } from '../reference/ReferenceDrawer';
 import type { Outcome, SubmitResult } from '../types/contracts';
 import { OutcomeChip } from './OutcomeList';
 import { PROXY_NOTE, scoreSentence, searchLines, whyLine } from './copy';
+import { sizeVerdictText } from '../viewer/volume/dwell';
 import s from './Rail.module.css';
+
+type MarkResult = SubmitResult['reveal']['marks'][number]['result'] | 'unmatched';
 
 export function ResultSummary({ result, settle = true }: { result: SubmitResult; settle?: boolean }) {
   const [info, setInfo] = useState(false);
   const findings = result.reveal.findings;
   const byTarget = new Map<string, Outcome>(result.outcomes.map((o) => [o.target, o]));
-  const fps = result.reveal.marks.filter((m) => m.result === 'false_positive' || m.result === 'duplicate');
+  // CT / MR: `unmatched` marks (the reference does not label that spot) are listed too, neutrally.
+  const fps = result.reveal.marks.filter((m) => m.result === 'false_positive' || m.result === 'duplicate' || (m.result as MarkResult) === 'unmatched');
+  const volumetric = result.reveal.modality === 'ct' || result.reveal.modality === 'mr';
   const patternFalse = result.outcomes.filter((o) => o.result === 'pattern_false');
   const tn = result.outcomes.find((o) => o.result === 'true_negative');
   const anyProxy = result.outcomes.some((o) => { const t = OUTCOME_COPY[o.result]?.missType; return t === 'search' || t === 'recognition' || t === 'decision'; });
-  const search = searchLines(result.reveal.search);
+  const search = searchLines(result.reveal.search, volumetric);
   const anim = settle ? s.settle : '';
   return (
     <>
@@ -47,6 +52,9 @@ export function ResultSummary({ result, settle = true }: { result: SubmitResult;
                 <InfoButton label={f.label} display={f.display} />
                 {res && <span className={s.outcomeChipCell}><OutcomeChip result={res} /></span>}
                 {res && <span className={s.why}>{whyLine(res, { dwell_ms: o?.dwell_ms ?? f.dwell_ms, learner_label: o?.learner_label, matched: o?.matched })}</span>}
+                {f.size_verdict && (
+                  <span className={s.sizeVerdict} data-testid={`size-verdict-${f.finding_id}`} data-ok={f.size_verdict.ok ? '1' : '0'}>{sizeVerdictText(f.size_verdict)}</span>
+                )}
               </li>
             );
           })}
@@ -57,8 +65,8 @@ export function ResultSummary({ result, settle = true }: { result: SubmitResult;
                 <span className={s.markId}>{m.mark_id}</span>
                 <span className={s.outcomeWhat}>Your mark{m.zone ? <span className={s.muted}> · {zoneDisplay(m.zone)}</span> : null}</span>
                 <span />
-                <span className={s.outcomeChipCell}><OutcomeChip result={m.result} /></span>
-                <span className={s.why}>{whyLine(m.result, { learner_label: o?.learner_label, matched: m.matched_finding ?? o?.matched })}</span>
+                <span className={s.outcomeChipCell}><OutcomeChip result={m.result as MarkResult} /></span>
+                <span className={s.why}>{whyLine(m.result as MarkResult, { learner_label: o?.learner_label, matched: m.matched_finding ?? o?.matched })}</span>
               </li>
             );
           })}

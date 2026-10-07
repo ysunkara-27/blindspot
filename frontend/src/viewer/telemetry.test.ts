@@ -76,3 +76,26 @@ describe('downsample', () => {
     expect(downsample(a, 10)).toEqual(a);
   });
 });
+
+describe('volumes', () => {
+  it('records plane and slice on every event, and throttles window drags like moves', () => {
+    let t = 0;
+    const b = new TelemetryBuffer(() => t, 100);
+    b.start();
+    const s = (slice: number) => ({ zoom: 1, vp: [0, 0, 64, 64] as [number, number, number, number], loupe: false, plane: 'axial' as const, slice, x: 1, y: 2 });
+    expect(b.push('slice', s(3))).toBe(true);
+    t = 5;
+    expect(b.push('window', s(3))).toBe(true);
+    t = 10;
+    expect(b.push('window', s(3))).toBe(false); // within 33 ms of the last throttled event
+    t = 50;
+    expect(b.push('plane', { ...s(0), plane: 'coronal' })).toBe(true);
+    const ev = b.snapshot();
+    expect(ev.map((e) => e.kind)).toEqual(['slice', 'window', 'plane']);
+    expect(ev[0]).toMatchObject({ plane: 'axial', slice: 3, x: 1, y: 2 });
+    expect(ev[2]).toMatchObject({ plane: 'coronal', slice: 0 });
+    // An X-ray sample has no plane: nothing is added.
+    b.push('move', { zoom: 1, vp: [0, 0, 1, 1], loupe: false });
+    expect('plane' in b.snapshot()[3]).toBe(false);
+  });
+});

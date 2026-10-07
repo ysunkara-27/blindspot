@@ -1,5 +1,6 @@
-// /reference — the finding library: every finding type Blindspot trains, with its definition, key signs, mimics, a
-// search tip, example films with the radiologist's outline, normal films, and a Radiopaedia link (link only).
+// /reference — the finding library, grouped by scan type: every finding type Blindspot trains, with its definition,
+// key signs, mimics, a search tip, example films (or CT / MR slices) with the reference outline, normal films, and a
+// Radiopaedia link (link only).
 // Content comes from GET /api/reference (teaching cards + annotated example films from a separate reference set);
 // nothing here is written by a model at view time. The fetch, guard and types are the reading room's
 // (api/reference.ts, reference/guard.ts), so this page and the reference drawer share one cached payload; only the
@@ -8,17 +9,26 @@ import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useLocation } from 'react-router-dom';
 import { apiMode, assetUrl } from '../api/client';
-import { FOCAL_LABELS, labelDisplay, PATTERN_LABELS } from '../api/labels';
+import { FOCAL_LABELS, labelDisplay, MODALITIES, MODALITY_DISPLAY, PATTERN_LABELS, VOLUMETRIC_LABELS } from '../api/labels';
 import { fetchReference, type ReferenceExample, type ReferenceFilm, type ReferenceLabel } from '../api/reference';
+import { ProvenanceBadge } from '../app/ProvenanceBadge';
 import { PageShell } from '../app/Shell';
 import { useTitle } from '../app/useTitle';
 import { PROVENANCE } from '../rail/debriefCopy';
 import { EXAMPLES_NOTE } from '../reference';
 import { uiTerms } from '../reference/guard';
+import { VolumeExample } from '../reference/VolumeExample';
+import type { Modality } from '../types/contracts';
 import p from './Pages.module.css';
 import r from './Reference.module.css';
 
 const KIND_NOTE = { focal: 'Marked on the film', pattern: 'Called for the whole film' } as const;
+const KIND_NOTE_VOL = { focal: 'Marked on a slice', pattern: 'Called for the whole study' } as const;
+const SCAN_NOTE: Record<Modality, string> = {
+  cxr: 'Example films with the radiologists\' outline.',
+  ct: 'Example studies with the reference segmentation; scroll the slices under each one.',
+  mr: 'Example studies with the reference segmentation; scroll the slices under each one.',
+};
 
 function ExampleFilm({ ex, outline, alt }: { ex: ReferenceExample | ReferenceFilm; outline: boolean; alt: string }) {
   const [failed, setFailed] = useState(false);
@@ -39,18 +49,23 @@ function ExampleFilm({ ex, outline, alt }: { ex: ReferenceExample | ReferenceFil
           </>
         )}
       </div>
-      {f?.relative_location && <figcaption className={r.filmCap}>{f.relative_location.charAt(0).toUpperCase() + f.relative_location.slice(1)}</figcaption>}
+      <figcaption className={r.filmCap}>
+        {f?.relative_location ? `${f.relative_location.charAt(0).toUpperCase()}${f.relative_location.slice(1)} ` : ''}
+        <ProvenanceBadge provenance={ex.provenance} modality={ex.modality} short />
+      </figcaption>
     </figure>
   );
 }
 
 function Entry({ l, outline, known }: { l: ReferenceLabel; outline: boolean; known: Set<string> }) {
   const confused = l.commonly_confused_with.filter((x) => x !== l.label);
+  const volumetric = l.modality !== 'cxr';
+  const scan = MODALITY_DISPLAY[l.modality].long.toLowerCase();
   return (
-    <section className={r.entry} id={l.label} aria-labelledby={`ref-${l.label}`} data-testid="ref-entry">
+    <section className={r.entry} id={l.label} aria-labelledby={`ref-${l.label}`} data-testid="ref-entry" data-modality={l.modality}>
       <div className={r.entryHead}>
         <h2 className={r.h2} id={`ref-${l.label}`}>{l.display}</h2>
-        <span className={r.kind}>{KIND_NOTE[l.kind]}</span>
+        <span className={r.kind}>{(volumetric ? KIND_NOTE_VOL : KIND_NOTE)[l.kind]}</span>
       </div>
       {l.one_liner && <p className={r.oneLiner}>{uiTerms(l.one_liner)}</p>}
       <div className={r.cols}>
@@ -76,12 +91,18 @@ function Entry({ l, outline, known }: { l: ReferenceLabel; outline: boolean; kno
           ))}
         </p>
       )}
-      <h3 className={r.h3}>Example films{l.examples.length ? ` (${l.examples.length})` : ''}</h3>
+      <h3 className={r.h3}>{volumetric ? 'Example studies' : 'Example films'}{l.examples.length ? ` (${l.examples.length})` : ''}</h3>
       {l.examples.length ? (
         <ul className={r.films}>
-          {l.examples.map((ex, i) => <li key={ex.case_id || i}><ExampleFilm ex={ex} outline={outline} alt={`Chest radiograph with ${l.display.toLowerCase()}`} /></li>)}
+          {l.examples.map((ex, i) => (
+            <li key={ex.case_id || i}>
+              {ex.volume
+                ? <VolumeExample ex={ex} outline={outline} alt={`${MODALITY_DISPLAY[ex.modality].long} with ${l.display.toLowerCase()}`} />
+                : <ExampleFilm ex={ex} outline={outline} alt={`Chest radiograph with ${l.display.toLowerCase()}`} />}
+            </li>
+          ))}
         </ul>
-      ) : <p className={r.none}>No example films are loaded for this finding yet.</p>}
+      ) : <p className={r.none}>No example {volumetric ? `${scan} studies` : 'films'} are loaded for this finding yet.</p>}
       <p className={r.foot}>
         {l.review_status && <span className={r.status}>{PROVENANCE[l.review_status] ?? l.review_status.replace(/_/g, ' ')}</span>}
         {l.radiopaedia_url && <a href={l.radiopaedia_url} target="_blank" rel="noreferrer">Read more on Radiopaedia</a>}
@@ -105,14 +126,20 @@ export function ReferencePage() {
   const labels = q.data?.labels ?? [];
   const known = new Set(labels.map((l) => l.label));
   const offline = q.isError || (q.data && labels.length === 0);
-  const group = (kind: 'focal' | 'pattern') => labels.filter((l) => l.kind === kind);
+  // Grouped by scan type (chest films first), then marked-on-the-film before whole-film findings.
+  const scans = MODALITIES.filter((m) => labels.some((l) => l.modality === m));
+  const group = (m: Modality, kind: 'focal' | 'pattern') => labels.filter((l) => l.modality === m && l.kind === kind);
+  const normals = q.data?.normal_examples ?? [];
+  const normalsOf = (m: Modality) => normals.filter((n) => n.modality === m);
+  const many = scans.length > 1;
 
   return (
     <PageShell width={860}>
       <h1 className={p.h1}>Finding library</h1>
-      <p className={p.lede}>
-        The thirteen findings Blindspot trains: what each one is, the signs to look for, what gets mistaken for it, and
-        example films with the radiologist's outline.
+      <p className={p.lede} data-testid="ref-lede">
+        {many
+          ? `The ${labels.length} findings Blindspot trains, by scan type: what each one is, the signs to look for, what gets mistaken for it, and example films or studies with the reference outline.`
+          : 'The thirteen findings Blindspot trains: what each one is, the signs to look for, what gets mistaken for it, and example films with the radiologist\'s outline.'}
       </p>
 
       {q.isPending ? <p className={p.muted}>Loading the library…</p> : offline ? (
@@ -121,7 +148,7 @@ export function ReferencePage() {
             The library did not load. Check your connection, then reload the page. These are the findings it covers:
           </p>
           <ul className={r.names} data-testid="ref-names">
-            {[...FOCAL_LABELS, ...PATTERN_LABELS].map((l) => <li key={l.id} data-testid="ref-name">{l.display}</li>)}
+            {[...FOCAL_LABELS, ...PATTERN_LABELS, ...VOLUMETRIC_LABELS].map((l) => <li key={l.id} data-testid="ref-name">{l.display}</li>)}
           </ul>
         </div>
       ) : (
@@ -132,32 +159,53 @@ export function ReferencePage() {
             </p>
           )}
           <dl className={r.index} data-testid="ref-index">
-            {(['focal', 'pattern'] as const).map((k) => group(k).length > 0 && (
-              <div key={k} style={{ display: 'contents' }}>
-                <dt>{KIND_NOTE[k]}</dt>
-                <dd>{group(k).map((l) => <a key={l.label} href={`#${l.label}`}>{l.display}</a>)}</dd>
+            {scans.map((m) => (['focal', 'pattern'] as const).map((k) => group(m, k).length > 0 && (
+              <div key={`${m}-${k}`} style={{ display: 'contents' }}>
+                <dt>{many ? `${MODALITY_DISPLAY[m].long} · ` : ''}{(m === 'cxr' ? KIND_NOTE : KIND_NOTE_VOL)[k]}</dt>
+                <dd>{group(m, k).map((l) => <a key={l.label} href={`#${l.label}`}>{l.display}</a>)}</dd>
               </div>
-            ))}
-            {(q.data?.normal_examples.length ?? 0) > 0 && <div style={{ display: 'contents' }}><dt>For comparison</dt><dd><a href="#normal">Normal films</a></dd></div>}
+            )))}
+            {normals.length > 0 && <div style={{ display: 'contents' }}><dt>For comparison</dt><dd><a href="#normal">Normal films</a></dd></div>}
           </dl>
           <label className={r.toggle}>
             <input type="checkbox" checked={outline} onChange={(e) => setOutline(e.target.checked)} data-testid="ref-outline-toggle" />
-            Show the expert outlines on the example films
+            Show the expert outlines on the examples
           </label>
 
-          {labels.map((l) => <Entry key={l.label} l={l} outline={outline} known={known} />)}
-
-          {(q.data?.normal_examples.length ?? 0) > 0 && (
-            <section className={r.entry} id="normal" aria-labelledby="ref-normal" data-testid="ref-normal">
-              <div className={r.entryHead}><h2 className={r.h2} id="ref-normal">Normal films</h2></div>
-              <p className={r.oneLiner}>About half the films you read are normal. Knowing what nothing looks like is half the skill.</p>
-              <ul className={r.films}>
-                {q.data!.normal_examples.map((ex, i) => <li key={ex.case_id || i}><ExampleFilm ex={ex} outline={false} alt="Normal chest radiograph" /></li>)}
-              </ul>
+          {scans.map((m) => (
+            <section key={m} className={r.scan} id={`scan-${m}`} aria-labelledby={`ref-scan-${m}`} data-testid="ref-scan-group" data-modality={m}>
+              {many && (
+                <div className={r.scanHead}>
+                  <h2 className={r.scanTitle} id={`ref-scan-${m}`}>{MODALITY_DISPLAY[m].long}</h2>
+                  <p className={r.scanNote}>{SCAN_NOTE[m]}</p>
+                </div>
+              )}
+              {[...group(m, 'focal'), ...group(m, 'pattern')].map((l) => <Entry key={l.label} l={l} outline={outline} known={known} />)}
+              {m === 'cxr' && normalsOf('cxr').length > 0 && (
+                <section className={r.entry} id="normal" aria-labelledby="ref-normal" data-testid="ref-normal">
+                  <div className={r.entryHead}><h2 className={r.h2} id="ref-normal">Normal films</h2></div>
+                  <p className={r.oneLiner}>About half the films you read are normal. Knowing what nothing looks like is half the skill.</p>
+                  <ul className={r.films}>
+                    {normalsOf('cxr').map((ex, i) => <li key={ex.case_id || i}><ExampleFilm ex={ex} outline={false} alt="Normal chest radiograph" /></li>)}
+                  </ul>
+                </section>
+              )}
+              {m !== 'cxr' && normalsOf(m).length > 0 && (
+                <section className={r.entry} id={`normal-${m}`} aria-labelledby={`ref-normal-${m}`} data-testid="ref-normal-volume">
+                  <div className={r.entryHead}><h2 className={r.h2} id={`ref-normal-${m}`}>No lesion, for comparison</h2></div>
+                  <p className={r.oneLiner}>A slab where the dataset labelled no lesion; not certified normal by a radiologist.</p>
+                  <ul className={r.films}>
+                    {normalsOf(m).map((ex, i) => <li key={ex.case_id || i}>{ex.volume
+                      ? <VolumeExample ex={{ ...ex, finding: null }} outline={false} alt={`${MODALITY_DISPLAY[m].long} with no labelled lesion`} />
+                      : <ExampleFilm ex={ex} outline={false} alt={`${MODALITY_DISPLAY[m].long} with no labelled lesion`} />}</li>)}
+                  </ul>
+                </section>
+              )}
             </section>
-          )}
+          ))}
           <p className={p.mutedSmall} style={{ marginTop: 18 }}>
-            {EXAMPLES_NOTE} They are de-identified research radiographs with radiologist outlines (ChestX-Det). Radiopaedia is linked, never copied.
+            {EXAMPLES_NOTE} Chest films are de-identified research radiographs with radiologist outlines (ChestX-Det)
+            {many ? '; CT and MR studies are slabs from the Medical Segmentation Decathlon with their reference segmentations (CC BY-SA 4.0)' : ''}. Radiopaedia is linked, never copied.
             Sources and licences are on the <Link to="/about">About page</Link>. For education, not for clinical use.
           </p>
         </div>

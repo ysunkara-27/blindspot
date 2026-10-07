@@ -2,9 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { availableSteps, hasTutorialFlag, placeCard, shouldOpenTutorial, STEPS, tourStep, type Rect } from './steps';
 
 describe('tutorial steps', () => {
-  it('has the seven steps in order, each pointing at a real control', () => {
-    expect(STEPS.map((s) => s.id)).toEqual(['film', 'magnifier', 'pick', 'confidence', 'whole', 'hints', 'submit']);
+  it('has the seven X-ray steps in order, each pointing at a real control; the two volume steps sit between them', () => {
+    expect(STEPS.filter((s) => !s.volumetric).map((s) => s.id)).toEqual(['film', 'magnifier', 'pick', 'confidence', 'whole', 'hints', 'submit']);
+    expect(STEPS.map((s) => s.id)).toEqual(['film', 'slices', 'magnifier', 'pick', 'confidence', 'measure', 'whole', 'hints', 'submit']);
     for (const s of STEPS) expect(s.target).toMatch(/^\[data-tour="[a-z-]+"\]$/);
+  });
+  it('a chest film never sees the volume steps, even when their controls are on the page; a CT sees them only when they are', () => {
+    expect(availableSteps(() => true).map((s) => s.id)).toEqual(['film', 'magnifier', 'pick', 'confidence', 'whole', 'hints', 'submit']);
+    expect(availableSteps(() => true, STEPS, true).map((s) => s.id)).toEqual(['film', 'slices', 'magnifier', 'pick', 'confidence', 'measure', 'whole', 'hints', 'submit']);
+    expect(availableSteps((sel) => sel !== '[data-tour="measure"]', STEPS, true).map((s) => s.id)).not.toContain('measure');
   });
   it('never mentions a points cost for hints', () => {
     for (const s of STEPS) expect(`${s.title} ${s.body}`).not.toMatch(/points?|cost/i);

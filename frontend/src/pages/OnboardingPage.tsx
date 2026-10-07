@@ -16,6 +16,8 @@ import { ServerLine } from './ServerLine';
 import l from './Landing.module.css';
 
 export const HALF_NORMAL = 'About half the films are normal — finding nothing is a real answer.';
+/** CT / MR normals are slabs the dataset labelled lesion-free, not radiologist-certified normals (About says so). */
+export const HALF_NORMAL_STUDIES = 'About half the studies show no lesion — finding nothing is a real answer.';
 
 export function OnboardingPage() {
   useTitle(null);

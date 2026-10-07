@@ -18,6 +18,8 @@ export type Step = {
   body: string;
   /** Used when the target is not on the page (e.g. hints are off in a test set). Omit to drop the step instead. */
   fallback?: { target: string; title: string; body: string };
+  /** Round 4: a step that only makes sense on a CT / MR volume. Never shown on a chest film. */
+  volumetric?: boolean;
 };
 
 export const STEPS: Step[] = [
@@ -25,6 +27,12 @@ export const STEPS: Step[] = [
     id: 'film', target: '[data-tour="film"]',
     title: 'Look over the whole film first',
     body: 'Scroll the wheel to zoom and drag to pan; double-click resets the view. Brightness, contrast and invert are in the bar under the film.',
+  },
+  {
+    // Volumes only (after the film step): the slice scroller. Target: the viewer's slice control.
+    id: 'slices', target: '[data-tour="slices"]', volumetric: true,
+    title: 'Scroll through the slices',
+    body: 'A study is a stack of slices. Scroll the wheel over the image, press ↑ ↓, or drag the slider to move through it. A finding is only on the slices that hold it, so look at all of them.',
   },
   {
     id: 'magnifier', target: '[data-tour="magnifier"]',
@@ -40,6 +48,12 @@ export const STEPS: Step[] = [
     id: 'confidence', target: '[data-tour="confidence"]',
     title: 'Say how sure you are',
     body: 'Each mark asks “How sure are you?”, from 1 (guessing) to 5 (certain). Nothing is chosen for you, and the read cannot be submitted until you answer.',
+  },
+  {
+    // Volumes only: the measure tool, asked after a mass-like mark.
+    id: 'measure', target: '[data-tour="measure"]', volumetric: true,
+    title: 'Measure what you mark',
+    body: 'For a mass-like finding you are asked for its longest diameter on the slice where it looks biggest. Press the measure button, then click both ends. The reference is compared after you submit.',
   },
   {
     id: 'whole', target: '[data-tour="whole-normal"]',
@@ -59,9 +73,11 @@ export const STEPS: Step[] = [
   },
 ];
 
-/** The steps whose control is on the page right now (with the fallback where one is given). */
-export function availableSteps(has: (selector: string) => boolean, steps: Step[] = STEPS): Step[] {
+/** The steps whose control is on the page right now (with the fallback where one is given). Volumetric steps are
+ *  kept only on a CT / MR case (`volumetric`), and then only when their control is on the page too. */
+export function availableSteps(has: (selector: string) => boolean, steps: Step[] = STEPS, volumetric = false): Step[] {
   return steps.flatMap((st) => {
+    if (st.volumetric && !volumetric) return [];
     if (has(st.target)) return [st];
     if (st.fallback && has(st.fallback.target)) return [{ ...st, ...st.fallback, fallback: undefined }];
     return [];

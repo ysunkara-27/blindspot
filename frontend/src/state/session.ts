@@ -1,7 +1,7 @@
 // Session + display preferences. Session persists in sessionStorage (per tab), so a reload keeps your place.
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import type { Level, Mode } from '../types/contracts';
+import type { Level, Modality, Mode } from '../types/contracts';
 
 export type SessionInfo = {
   sessionId: string;
@@ -10,6 +10,8 @@ export type SessionInfo = {
   level: Level;
   mode: Mode;
   drillLabel?: string;
+  /** The scan type the set was started with (volumetric round); absent = Chest X-ray. */
+  modality?: Modality;
 };
 
 type Store = {

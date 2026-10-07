@@ -11,3 +11,16 @@
 .badges dt { margin: 0; }
 .badges dd { margin: 0; line-height: 1.4; font-size: var(--fs-1); }
 @media (max-width: 560px) { .badges { grid-template-columns: 1fr; } }
+
+/* Round 4: scan types and the provenance table. */
+.scans { display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; margin: 8px 0 12px; align-items: baseline; }
+.scans dt { margin: 0; font-weight: 700; }
+.scans dd { margin: 0; line-height: 1.45; font-size: var(--fs-1); }
+.tableWrap { overflow-x: auto; margin: 8px 0 10px; }
+.provTable { width: 100%; border-collapse: collapse; font-size: var(--fs-1); line-height: 1.4; }
+.provTable th { text-align: left; font-weight: 700; padding: 8px 10px 8px 0; border-bottom: 2px solid var(--report-ink); vertical-align: bottom; }
+.provTable td { padding: 9px 10px 9px 0; border-bottom: 1px solid var(--report-rule); vertical-align: top; }
+.provTable a { color: var(--report-ink); }
+.inst { display: block; color: var(--report-ink-muted); font-size: 13px; margin-top: 2px; }
+.inlinePill { display: inline-block; padding: 1px 8px; border: 1px solid var(--report-rule); border-radius: 999px; background: #f5f7f8; font-size: 13px; }
+@media (max-width: 560px) { .scans { grid-template-columns: 1fr; } }

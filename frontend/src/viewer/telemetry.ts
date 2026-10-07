@@ -1,5 +1,6 @@
-// Telemetry buffer (SPEC §5.4). Pointer moves (and pan) throttled to 33 ms; every other event is kept.
+// Telemetry buffer (SPEC §5.4). Pointer moves (and pan, and W/L drags) throttled to 33 ms; every other event is kept.
 // x/y are image px and only present while the pointer is over the image. Sent whole with the submit.
+// Volumes: every event also carries `plane` and `slice`; x/y are then in-plane voxel coords of that plane.
 import type { TelemetryEvent } from '../types/contracts';
 
 export const THROTTLE_MS = 33;
@@ -9,7 +10,7 @@ const JITTER_MS = 4;
 export const MAX_EVENTS = 20_000;
 
 type Kind = TelemetryEvent['kind'];
-export type Sample = { x?: number; y?: number; zoom: number; vp: [number, number, number, number]; loupe: boolean };
+export type Sample = { x?: number; y?: number; zoom: number; vp: [number, number, number, number]; loupe: boolean; plane?: TelemetryEvent['plane']; slice?: number | null };
 
 const r1 = (n: number) => Math.round(n * 10) / 10;
 
@@ -50,7 +51,7 @@ export class TelemetryBuffer {
   /** Returns true if the event was recorded. */
   push(kind: Kind, s: Sample): boolean {
     const t = this.now() - this.t0;
-    if (kind === 'move' || kind === 'pan') {
+    if (kind === 'move' || kind === 'pan' || kind === 'window') {
       if (t - this.lastThrottled < THROTTLE_MS - JITTER_MS) return false;
       this.lastThrottled = t;
     }
@@ -58,6 +59,10 @@ export class TelemetryBuffer {
     if (s.x !== undefined && s.y !== undefined) {
       e.x = r1(s.x);
       e.y = r1(s.y);
+    }
+    if (s.plane) {
+      e.plane = s.plane;
+      e.slice = s.slice ?? null;
     }
     this.events.push(e);
     // Keep memory bounded on very long reads; the final snapshot is downsampled to the cap anyway.

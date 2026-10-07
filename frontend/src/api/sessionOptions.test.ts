@@ -1,8 +1,9 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { enoughReads, MIN_READS, readsToGo } from '../dashboard/helpers';
 import {
-  forgetLearner, guardAttemptResult, learnerLabel, loadRemembered, looksLikeCode, markTestDone, needsTutorial, nextTest, parseRemembered, readPath,
-  remember, sameLearner, sampleSessionCreate, toSessionCreate, weakSpotsNote, weakSpotsReady, type Remembered, type StartForm,
+  addLocalReads, availableModalities, caseNoun, forgetLearner, guardAttemptResult, learnerLabel, loadLocalReads, loadModality, loadRemembered, looksLikeCode,
+  markTestDone, needsTutorial, nextTest, parseLocalReads, parseRemembered, readPath, readsFor, remember, sameLearner, sampleSessionCreate, saveModality,
+  testAvailable, toSessionCreate, weakSpotsNote, weakSpotsReady, type Remembered, type StartForm,
 } from './sessionOptions';
 
 const form = (over: Partial<StartForm> = {}): StartForm => ({ name: '', practice: 'mixed', finding: 'nodule', count: 10, ...over });
@@ -115,10 +116,83 @@ describe('guards', () => {
       ...base, case: { case_id: 'cxd_1', image_url: '/api/cases/cxd_1/image', width: 1024, height: 1024 },
       submitted: { marks: [{ mark_id: 'M1', x: 10, y: 20, label: 'nodule', confidence: 4 }, { x: 'bad' }], declared_normal: false },
     });
-    expect(full.film).toEqual({ case_id: 'cxd_1', image_url: '/api/cases/cxd_1/image', width: 1024, height: 1024 });
+    expect(full.film).toEqual({ case_id: 'cxd_1', image_url: '/api/cases/cxd_1/image', width: 1024, height: 1024, volume: null });
     expect(full.marks).toEqual([{ mark_id: 'M1', x: 10, y: 20, label: 'nodule', confidence: 4 }]);
     expect(full.declaredNormal).toBe(false);
+    expect(full.modality).toBeNull();
+    expect(full.provenance).toBeNull();
     expect(() => guardAttemptResult({ recorded: true })).toThrow();
+  });
+
+  it('a CT read carries its scan type, the reveal provenance and the case volume block through (round 4)', () => {
+    const prov = { dataset: 'Medical Segmentation Decathlon, Task07 Pancreas', segmented_by: 'an abdominal radiologist (single reader)' };
+    const vol = { shape: [16, 64, 64], spacing: [3, 1.5, 1.5], window: { wc: 50, ww: 400 }, data_url: '/api/cases/vol_001/volume' };
+    const r = guardAttemptResult({
+      score: 80, success: true, outcomes: [], facts_card: { headline: 'h', lines: [] },
+      reveal: { findings: [], modality: 'ct', provenance: prov, maskvol_url: '/api/attempts/a/maskvol' },
+      case: { case_id: 'vol_001', image_url: '/api/cases/vol_001/image', width: 64, height: 64, modality: 'ct', volume: vol },
+    });
+    expect(r.modality).toBe('ct');
+    expect(r.provenance).toEqual(prov);
+    expect(r.film?.volume).toEqual(vol);
+    expect(guardAttemptResult({ score: 1, success: true, outcomes: [], reveal: { findings: [] }, facts_card: { headline: '', lines: [] }, modality: 'mr' }).modality).toBe('mr');
+  });
+});
+
+describe('scan type (round 4)', () => {
+  const store = new Map<string, string>();
+  const fake = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v), removeItem: (k: string) => void store.delete(k) };
+  beforeEach(() => { vi.stubGlobal('localStorage', fake); });
+  afterEach(() => { store.clear(); vi.unstubAllGlobals(); });
+
+  it('a CT set says so and names the region; an X-ray body is unchanged', () => {
+    const ct = toSessionCreate(form({ modality: 'ct', count: 5 }), fresh);
+    expect(ct.settings).toEqual({ case_count: 5, selection: 'adaptive', modality: 'ct', body_region: 'abdomen' });
+    const mr = toSessionCreate(form({ modality: 'mr', practice: 'finding', finding: 'brain_tumour' }), fresh);
+    expect(mr.mode).toBe('drill');
+    expect(mr.settings).toMatchObject({ modality: 'mr', body_region: 'brain', label: 'brain_tumour' });
+    expect(toSessionCreate(form({ modality: 'cxr' }), fresh).settings).toEqual({ case_count: 10, selection: 'adaptive' });
+  });
+
+  it('the test sets are chest films only', () => {
+    expect(testAvailable('cxr')).toBe(true);
+    expect(testAvailable(undefined)).toBe(true);
+    expect(testAvailable('ct')).toBe(false);
+  });
+
+  it('films become studies off the X-ray', () => {
+    expect(caseNoun('cxr', 2)).toBe('films');
+    expect(caseNoun('ct')).toBe('study');
+    expect(caseNoun('mr', 3)).toBe('studies');
+    expect(weakSpotsNote(2, 'ct')).toBe('Opens after 5 studies of this scan type, so there is something to go on. You have read 2; 3 to go.');
+    expect(weakSpotsNote(5, 'mr')).toBe('Studies like the ones you have missed most.');
+    expect(weakSpotsNote(2)).toBe('Opens after 5 films, so there is something to go on. You have read 2; 3 to go.');
+  });
+
+  it('the chosen scan type is remembered on this device, and an unknown value is the chest film', () => {
+    expect(loadModality()).toBe('cxr');
+    saveModality('mr');
+    expect(loadModality()).toBe('mr');
+    localStorage.setItem('bs_modality', 'pet');
+    expect(loadModality()).toBe('cxr');
+  });
+
+  it('which scan types the library holds comes from health', () => {
+    expect(availableModalities(undefined)).toEqual(['cxr']);
+    expect(availableModalities({ cases_by_modality: { cxr: 500, ct: 12, mr: 0 } })).toEqual(['cxr', 'ct']);
+    expect(availableModalities({ cases_by_modality: null, modalities: ['mr', 'cxr'] })).toEqual(['cxr', 'mr']);
+  });
+
+  it('reads per scan type: the server count when it sends one, all reads for X-ray on an older server, the local estimate for CT / MR', () => {
+    expect(readsFor({ n_attempts: 9, n_by_modality: { cxr: 7, ct: 2 } }, 'ct', {})).toEqual({ n: 2, estimated: false });
+    expect(readsFor({ n_attempts: 9, n_by_modality: { cxr: 7 } }, 'mr', { mr: 4 })).toEqual({ n: 0, estimated: false });
+    expect(readsFor({ n_attempts: 9 }, 'cxr', { ct: 4 })).toEqual({ n: 9, estimated: false });
+    expect(readsFor({ n_attempts: 9 }, 'ct', { ct: 4 })).toEqual({ n: 4, estimated: true });
+    addLocalReads('ct', 5);
+    addLocalReads('ct', 5);
+    expect(loadLocalReads()).toEqual({ ct: 10 });
+    expect(parseLocalReads('{"ct": 3, "pet": 2, "mr": -1}')).toEqual({ ct: 3 });
+    expect(parseLocalReads('nope')).toEqual({});
   });
 });
 

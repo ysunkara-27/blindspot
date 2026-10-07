@@ -24,6 +24,27 @@ export const SHORTCUTS: [string, string, boolean][] = [
   ['?', 'Show this list', true],
 ];
 
+/** Extra rows for a CT / MR case (the slice, plane and caliper keys), shown above the shared list. */
+export const VOLUME_SHORTCUTS: [string, string, boolean][] = [
+  ['Mouse wheel', 'Move through the slices (over a grid pane: that pane only); Ctrl + wheel zooms', false],
+  ['Double-click a pane', 'Open that plane on its own; marking happens there', false],
+  ['↑  ↓', 'Previous or next slice', true],
+  ['PageUp  PageDown', 'Five slices back or forward', true],
+  ['C', 'Caliper: drag from edge to edge to measure (for a mass-like mark, this starts its size step)', true],
+  ['Enter (measuring)', 'Record the drawn measurement for the mark being measured', true],
+  ['Drag with W/L on', 'Window: sideways changes the width, up and down the level', false],
+];
+
+/** The list for the key sheet: the volume rows first on a CT / MR case. ← / → move the crosshair on a volume. */
+export function shortcutsFor(volume: boolean): [string, string, boolean][] {
+  if (!volume) return SHORTCUTS;
+  const base = SHORTCUTS.map(([k, what, isKey]): [string, string, boolean] =>
+    k === 'Mouse wheel' ? ['Ctrl + wheel', 'Zoom at the cursor (up to 6×)', false]
+    : k === 'Tab to the film, then arrow keys' ? ['Tab to the film, then ← →', 'Move a crosshair (Alt + ↑ ↓ for up and down); Space places a mark there', false]
+    : [k, what, isKey]);
+  return [...VOLUME_SHORTCUTS, ...base];
+}
+
 export function markKeysSeen() {
   try { localStorage.setItem(SEEN_KEY, '1'); } catch { /* storage blocked: it will show again next visit */ }
 }

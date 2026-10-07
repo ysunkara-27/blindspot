@@ -3,18 +3,33 @@
 //   2. Findings of the whole film — no single spot to click.
 //   3. Nothing abnormal — call it normal (turns 1 and 2 off until undone).
 //   then hints and Submit read. Every answer needs a confidence the learner chose; nothing is preselected.
+// Volumes (CT / MR): the same rail. The finding list is the scan type's; a mark row says which slice it sits on
+// ("M1 · axial 12") and jumps there; a mass-like mark gets the size step ("How big is it?": Measure → Record / Skip).
 import { useEffect, useRef, type Dispatch } from 'react';
-import { FOCAL_LABELS, labelDisplay, PATTERN_LABELS } from '../api/labels';
-import { submitBlockers, type ReadAction, type ReadState } from '../read/readState';
+import { FOCAL_LABELS_BY_MODALITY, isModality, labelDisplay, PATTERN_LABELS } from '../api/labels';
+import { needsSize, submitBlockers, type DraftMark, type ReadAction, type ReadState } from '../read/readState';
 import { InfoButton } from '../reference/ReferenceDrawer';
 import type { HintResponse } from '../types/contracts';
+import { fmtMm } from '../viewer/volume/dwell';
+import { markPlace } from '../viewer/volume/nav';
 import { ConfidenceChips } from './ConfidenceChips';
 import { plainText } from './copy';
 import s from './Rail.module.css';
 
 export type HintsUi = { enabled: boolean; remaining: number; list: HintResponse[]; pending: boolean; error: string | null; onHint: () => void };
 
-export function ReadRail({ read, dispatch, hints, confirmNormal, setConfirmNormal, onSubmit, submitting, submitError, alreadyRecorded, onNext }: {
+/** The size step (volumes): what the caliper holds right now and the three actions. */
+export type SizeUi = {
+  /** The mark being measured (Measure was pressed). */
+  forMark: string | null;
+  /** Length of the current caliper line in mm, when one is drawn. */
+  drawnMm: number | null;
+  onMeasure: (id: string) => void;
+  onRecord: (id: string) => void;
+  onSkip: (id: string) => void;
+};
+
+export function ReadRail({ read, dispatch, hints, confirmNormal, setConfirmNormal, onSubmit, submitting, submitError, alreadyRecorded, onNext, modality, onJump, size }: {
   read: ReadState;
   dispatch: Dispatch<ReadAction>;
   hints: HintsUi;
@@ -25,7 +40,16 @@ export function ReadRail({ read, dispatch, hints, confirmNormal, setConfirmNorma
   submitError: string | null;
   alreadyRecorded?: boolean;
   onNext?: () => void;
+  /** The scan type picks the finding lists (X-ray when absent). */
+  modality?: string | null;
+  /** Volumes: show the slice a mark sits on. */
+  onJump?: (m: DraftMark) => void;
+  /** Volumes: the size step. */
+  size?: SizeUi;
 }) {
+  const mod = isModality(modality) ? modality : 'cxr';
+  const focal = FOCAL_LABELS_BY_MODALITY[mod];
+  const patterns = mod === 'cxr' ? PATTERN_LABELS : [];
   const nPicked = read.marks.length + Object.keys(read.patterns).length;
   const blockers = submitBlockers(read);
   const off = read.declaredNormal;
@@ -49,7 +73,7 @@ export function ReadRail({ read, dispatch, hints, confirmNormal, setConfirmNorma
         <div data-tour="pick">
           <p className={s.sub} id="pick-h">What do you see?</p>
           <div className={s.pickGrid} role="group" aria-labelledby="pick-h">
-            {FOCAL_LABELS.map((l) => (
+            {focal.map((l) => (
               <span key={l.id} className={s.pickCell}>
                 <button type="button" className={`${s.pick} ${read.armed === l.id ? s.pickOn : ''}`} aria-pressed={read.armed === l.id}
                   disabled={off} onClick={() => dispatch({ type: 'arm', label: l.id })} data-testid={`arm-${l.id}`}>
@@ -78,15 +102,56 @@ export function ReadRail({ read, dispatch, hints, confirmNormal, setConfirmNorma
             <ul className={s.markList}>
               {read.marks.map((m) => {
                 const need = !m.label && m.confidence == null ? 'needs a label and a confidence' : !m.label ? 'needs a label' : m.confidence == null ? 'needs a confidence' : null;
+                const place = read.volumetric ? markPlace(m) : null;
+                const st = read.sizes[m.mark_id];
+                const askSize = read.volumetric && !!size && needsSize(m.label) && m.confidence != null;
+                const measuring = askSize && size!.forMark === m.mark_id;
                 return (
                   <li key={m.mark_id} className={`${s.markRow} ${read.selectedId === m.mark_id ? s.markRowOn : ''}`} data-testid={`mark-row-${m.mark_id}`}>
-                    <button type="button" className={s.markPick} onClick={() => dispatch({ type: 'select', id: m.mark_id, popover: true })} title="Change this mark">
+                    <button type="button" className={s.markPick} onClick={() => { onJump?.(m); dispatch({ type: 'select', id: m.mark_id, popover: true }); }} title={place ? `Change this mark (on ${place})` : 'Change this mark'}>
                       <span className={s.markId}>{m.mark_id}</span>
-                      <span>{m.label ? labelDisplay(m.label) : <em className={s.muted}>No label yet</em>}</span>
+                      <span>
+                        {m.label ? labelDisplay(m.label) : <em className={s.muted}>No label yet</em>}
+                        {place ? <span className={s.markPlace} data-testid={`mark-place-${m.mark_id}`}> · {place}</span> : null}
+                      </span>
                     </button>
                     <ConfidenceChips value={m.confidence} name={m.mark_id} needed onChange={(c) => dispatch({ type: 'confidence', id: m.mark_id, confidence: c })} />
                     <button type="button" className={s.x} aria-label={`Delete ${m.mark_id}`} onClick={() => dispatch({ type: 'delete', id: m.mark_id })}>×</button>
                     {need && <span className={s.need} data-testid={`mark-need-${m.mark_id}`}>{need}</span>}
+                    {askSize && (
+                      <div className={s.sizeStep} data-testid={`size-${m.mark_id}`} data-state={st?.kind ?? (measuring ? 'measuring' : 'pending')}>
+                        {st?.kind === 'recorded' ? (
+                          <>
+                            <span className={s.sizeLabel}>Size: <strong>{fmtMm(st.m.long_mm)} mm</strong></span>
+                            <button type="button" className={s.linkBtn} onClick={() => size!.onMeasure(m.mark_id)} data-testid={`remeasure-${m.mark_id}`}>Measure again</button>
+                          </>
+                        ) : st?.kind === 'skipped' ? (
+                          <>
+                            <span className={s.sizeLabel}>Size: <em className={s.muted}>skipped</em></span>
+                            <button type="button" className={s.linkBtn} onClick={() => size!.onMeasure(m.mark_id)} data-testid={`remeasure-${m.mark_id}`}>Measure</button>
+                          </>
+                        ) : (
+                          <>
+                            <span className={s.sizeLabel}>How big is it?</span>
+                            {measuring ? (
+                              <>
+                                <span className={s.sizeHint} aria-live="polite" data-testid={`size-readout-${m.mark_id}`}>
+                                  {size!.drawnMm != null ? `${fmtMm(size!.drawnMm)} mm` : 'Drag from edge to edge on the scan'}
+                                </span>
+                                <button type="button" className={s.btn} disabled={size!.drawnMm == null} onClick={() => size!.onRecord(m.mark_id)} data-testid={`record-${m.mark_id}`}>
+                                  Record <kbd className={s.kbd}>Enter</kbd>
+                                </button>
+                              </>
+                            ) : (
+                              <button type="button" className={s.btn} onClick={() => size!.onMeasure(m.mark_id)} data-testid={`measure-${m.mark_id}`} data-tour="measure">
+                                Measure <kbd className={s.kbd}>C</kbd>
+                              </button>
+                            )}
+                            <button type="button" className={s.linkBtn} onClick={() => size!.onSkip(m.mark_id)} data-testid={`skip-${m.mark_id}`}>Skip</button>
+                          </>
+                        )}
+                      </div>
+                    )}
                   </li>
                 );
               })}
@@ -101,8 +166,9 @@ export function ReadRail({ read, dispatch, hints, confirmNormal, setConfirmNorma
           <h3 id="global-h" className={s.h3}><span className={s.step}>2</span>Findings of the whole film</h3>
           <p className={s.help}>No single spot to click; tick it if the whole film shows it.</p>
           {offNote}
+          {patterns.length === 0 && <p className={s.mutedLine} data-testid="no-patterns">None for this scan type.</p>}
           <ul className={s.checkGrid}>
-            {PATTERN_LABELS.map((p) => (
+            {patterns.map((p) => (
               <li key={p.id} className={s.checkRow}>
                 <label className={s.check}>
                   <input type="checkbox" checked={p.id in read.patterns} disabled={off}
@@ -114,7 +180,7 @@ export function ReadRail({ read, dispatch, hints, confirmNormal, setConfirmNorma
             ))}
           </ul>
           {/* Each ticked finding asks how sure, on its own line under the list. */}
-          {PATTERN_LABELS.filter((p) => p.id in read.patterns).map((p) => (
+          {patterns.filter((p) => p.id in read.patterns).map((p) => (
             <div key={p.id} className={s.sureRow} data-testid={`sure-${p.id}`}>
               <span className={s.sureLabel}><strong>{p.display}</strong> · How sure?</span>
               <ConfidenceChips value={read.patterns[p.id]} name={p.id} needed captions onChange={(c) => dispatch({ type: 'patternConfidence', label: p.id, confidence: c })} />

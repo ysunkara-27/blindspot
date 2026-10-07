@@ -3,14 +3,20 @@
 // Round 3: an arrow is drawn only from one of the learner's own wrong marks. A missed finding with no such mark gets
 // a soft pulse on its outline instead (no arrow from the film centre, no detached label). Labels sit on solid dark
 // pills; identical arrow labels are written once; unvisited review areas get a thin dashed amber ring.
+// Volumes: a finding on the current slice comes with `rings` (marching-squares contours in display px) and, for the
+// brain case, `components_rings` drawn as three cyan tints under the outline.
 import type { Arrow, RevealFinding, RevealMark } from '../types/contracts';
 import type { DraftMark } from '../read/readState';
 import type { UnvisitedRing } from './anatomy';
 import { arrowGeometry, placeLabels, quadPoint, rayToBoxEdge, shortArrowText, type Box, type Pt } from './arrows';
+import type { Ring } from './volume/marching';
+import { ringsPath } from './volume/sliceReveal';
 import s from './Viewer.module.css';
 
+export type RevealViewFinding = RevealFinding & { rings?: Ring[]; components_rings?: { name: string; label_value: number; rings: Ring[]; opacity: number }[] };
+
 export type RevealView = {
-  findings: RevealFinding[];
+  findings: RevealViewFinding[];
   marks: RevealMark[];
   arrows: Arrow[];
   heatmapUrl: string | null;
@@ -142,11 +148,17 @@ export function RevealLayer({ reveal, width, height, k, strokePx, marks }: {
           const delay = { animationDelay: `${300 + i * 60}ms` };
           // A missed finding nobody pointed an arrow at: a soft halo pulses on the outline itself.
           const halo = miss && !pointedAt.has(f.finding_id);
-          const shape = (cls: string, strokeWidth: number, style?: React.CSSProperties, extra?: Record<string, string>) => pts
+          const shape = (cls: string, strokeWidth: number, style?: React.CSSProperties, extra?: Record<string, string>) => f.rings?.length
+            ? <path d={ringsPath(f.rings)} pathLength={1} className={cls} strokeWidth={strokeWidth} style={style} fillRule="evenodd" {...extra} />
+            : pts
             ? <polygon points={pts} pathLength={1} className={cls} strokeWidth={strokeWidth} style={style} {...extra} />
             : <rect x={x0} y={y0} width={x1 - x0} height={y1 - y0} pathLength={1} className={cls} strokeWidth={strokeWidth} style={style} {...extra} />;
           return (
             <g key={f.finding_id} data-testid={`outline-${f.finding_id}`} data-result={f.result ?? ''} data-halo={halo ? '1' : undefined}>
+              {f.components_rings?.map((c) => (
+                <path key={c.label_value} d={ringsPath(c.rings)} className={`${s.component} ${s.revealLabel}`} fillRule="evenodd" style={{ fillOpacity: c.opacity }}
+                  data-testid={`component-${f.finding_id}-${c.label_value}`} data-component={c.name} />
+              ))}
               {halo && shape(`${s.outlineHalo} ${s.revealHalo}`, sw * 3.5, undefined, { 'data-testid': `halo-${f.finding_id}` })}
               {shape(`${s.outline} ${s.revealOutline}`, sw, delay)}
             </g>

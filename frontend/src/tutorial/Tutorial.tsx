@@ -15,9 +15,12 @@ const rectOf = (el: Element | null): Rect | null => {
 };
 const same = (a: Rect | null, b: Rect | null) => a === b || (!!a && !!b && Math.abs(a.left - b.left) < 0.5 && Math.abs(a.top - b.top) < 0.5 && Math.abs(a.width - b.width) < 0.5 && Math.abs(a.height - b.height) < 0.5);
 
-/** `onClose(finished)`: finished = walked to the end; false = skipped. Either way it is remembered as done. */
-export function Tutorial({ onClose }: { onClose: (finished: boolean) => void }) {
-  const steps = useMemo<Step[]>(() => availableSteps((sel) => !!document.querySelector(sel)), []);
+/** `onClose(finished)`: finished = walked to the end; false = skipped. Either way it is remembered as done.
+ *  `modality` (round 4): 'ct' | 'mr' adds the slice and measure steps, whose controls the volume viewer marks with
+ *  data-tour="slices" and data-tour="measure"; a chest film (or no modality) gets the unchanged X-ray tour. */
+export function Tutorial({ onClose, modality }: { onClose: (finished: boolean) => void; modality?: string | null }) {
+  const volumetric = modality === 'ct' || modality === 'mr';
+  const steps = useMemo<Step[]>(() => availableSteps((sel) => !!document.querySelector(sel), undefined, volumetric), [volumetric]);
   const [i, setI] = useState(0);
   const [target, setTarget] = useState<Rect | null>(null);
   const [film, setFilm] = useState<Rect | null>(null);

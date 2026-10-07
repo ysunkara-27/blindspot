@@ -1,10 +1,13 @@
-// Display names mirror config/taxonomy.yaml (learner_focal_options / learner_pattern_options). Copy rules: SPEC §14.4.
-import type { Mark, OutcomeResult, PatternSelection } from '../types/contracts';
+// Display names mirror config/taxonomy.yaml (learner_focal_options / learner_focal_options_by_modality /
+// learner_pattern_options). Copy rules: SPEC §14.4.
+import type { Mark, Modality, OutcomeResult, PatternSelection } from '../types/contracts';
 
 export type FocalLabel = Exclude<Mark['label'], 'not_sure'>;
 export type PatternLabel = PatternSelection['label'];
+export type LabelOption<T extends string = string> = { id: T; display: string };
 
-export const FOCAL_LABELS: { id: FocalLabel; display: string }[] = [
+/** The X-ray focal findings (taxonomy `learner_focal_options`). */
+export const FOCAL_LABELS: LabelOption<FocalLabel>[] = [
   { id: 'pneumothorax', display: 'Pneumothorax' },
   { id: 'effusion', display: 'Pleural effusion' },
   { id: 'consolidation', display: 'Consolidation' },
@@ -16,6 +19,42 @@ export const FOCAL_LABELS: { id: FocalLabel; display: string }[] = [
   { id: 'pleural_thickening', display: 'Pleural thickening' },
 ];
 
+/** Volumetric (CT / MR) focal findings; organs are zones, not findings. */
+export const VOLUMETRIC_LABELS: LabelOption<FocalLabel>[] = [
+  { id: 'pancreatic_tumour', display: 'Pancreatic tumour' },
+  { id: 'liver_tumour', display: 'Liver tumour' },
+  { id: 'brain_tumour', display: 'Brain tumour' },
+  { id: 'lung_tumour', display: 'Lung tumour' },
+  { id: 'colon_tumour', display: 'Colon tumour' },
+];
+
+const byId = (ids: FocalLabel[]) => ids.map((id) => [...FOCAL_LABELS, ...VOLUMETRIC_LABELS].find((l) => l.id === id)!);
+
+/** Mirrors taxonomy `learner_focal_options_by_modality`: what a learner may mark on each scan type. */
+export const FOCAL_LABELS_BY_MODALITY: Record<Modality, LabelOption<FocalLabel>[]> = {
+  cxr: FOCAL_LABELS,
+  ct: byId(['pancreatic_tumour', 'liver_tumour', 'lung_tumour', 'colon_tumour']),
+  mr: byId(['brain_tumour']),
+};
+
+export const MODALITIES: Modality[] = ['cxr', 'ct', 'mr'];
+export const isModality = (v: unknown): v is Modality => typeof v === 'string' && (MODALITIES as string[]).includes(v);
+
+/** The findings a learner can choose or mark on this scan type: focal labels of the modality, plus the whole-film
+ *  patterns on an X-ray (CT / MR have no pattern findings). An unknown modality falls back to the X-ray list. */
+export function labelsFor(modality: Modality | string | null | undefined): LabelOption[] {
+  const m: Modality = isModality(modality) ? modality : 'cxr';
+  return m === 'cxr' ? [...FOCAL_LABELS, ...PATTERN_LABELS] : FOCAL_LABELS_BY_MODALITY[m];
+}
+
+/** Scan-type names as the learner sees them. */
+export const MODALITY_DISPLAY: Record<Modality, { short: string; long: string; region: 'chest' | 'abdomen' | 'brain' }> = {
+  cxr: { short: 'Chest X-ray', long: 'Chest X-ray', region: 'chest' },
+  ct: { short: 'CT', long: 'Abdominal CT', region: 'abdomen' },
+  mr: { short: 'MRI', long: 'Brain MRI', region: 'brain' },
+};
+export const modalityDisplay = (m: string | null | undefined, form: 'short' | 'long' = 'long') => (isModality(m) ? MODALITY_DISPLAY[m][form] : MODALITY_DISPLAY.cxr[form]);
+
 export const PATTERN_LABELS: { id: PatternLabel; display: string }[] = [
   { id: 'cardiomegaly', display: 'Cardiomegaly' },
   { id: 'emphysema', display: 'Emphysema' },
@@ -24,7 +63,7 @@ export const PATTERN_LABELS: { id: PatternLabel; display: string }[] = [
 ];
 
 const ALL: Record<string, string> = Object.fromEntries(
-  [...FOCAL_LABELS, ...PATTERN_LABELS].map((l) => [l.id, l.display]),
+  [...FOCAL_LABELS, ...VOLUMETRIC_LABELS, ...PATTERN_LABELS].map((l) => [l.id, l.display]),
 );
 ALL.not_sure = 'Not sure';
 
@@ -54,6 +93,8 @@ export const OUTCOME_COPY: Record<OutcomeResult, { text: string; tone: OutcomeTo
   false_positive: { text: "Called something that isn't there", tone: 'overcall', missType: 'overcall' },
   pattern_false: { text: "Called something that isn't there", tone: 'overcall', missType: 'overcall' },
   duplicate: { text: 'Second mark on the same finding', tone: 'neutral' },
+  // CT / MR: public reference sets are not exhaustive, so a mark the reference does not label is reported, never penalised.
+  unmatched: { text: 'Not in the reference', tone: 'neutral' },
 };
 
 export const PROXY_TOOLTIP = 'Based on your cursor, magnifier and zoom — a proxy for where you looked.';

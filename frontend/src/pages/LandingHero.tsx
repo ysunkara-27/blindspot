@@ -1,6 +1,9 @@
 // The dark hero band shared by the landing and the access gate: what Blindspot is, the three-line promise, and the
 // drawn key to the colour logic. The caller supplies the actions under the promise.
 import type { ReactNode } from 'react';
+import { apiMode } from '../api/client';
+import { availableModalities } from '../api/sessionOptions';
+import { useHealth } from '../tutor/health';
 import { HeroFilm } from './HeroFilm';
 import l from './Landing.module.css';
 
@@ -13,8 +16,20 @@ export function ThreeLines() {
       <p>Mark what you see. We'll show you how you looked.</p>
       <p>Each chest film has expert outlines behind it. After you submit, your search appears over the film.</p>
       <p>Miss types are based on your cursor, magnifier and zoom — a proxy for where you looked.</p>
+      <ScanTypesLine />
     </div>
   );
+}
+
+/** One more line once the library holds volumes too. Nothing is shown while the library is chest films only. */
+function ScanTypesLine() {
+  const health = useHealth();
+  if (apiMode().mode === 'mock') return null;
+  const have = availableModalities(health.data);
+  if (!have.includes('ct') && !have.includes('mr')) return null;
+  const parts = ['Chest X-ray', have.includes('ct') ? 'abdominal CT' : '', have.includes('mr') ? 'brain MRI' : ''].filter(Boolean);
+  const text = parts.length === 3 ? `${parts[0]}, ${parts[1]} and ${parts[2]}.` : `${parts[0]} and ${parts[1]}.`;
+  return <p data-testid="scan-types-line">{text}</p>;
 }
 
 export function LandingHero({ children, headingId = 'landing-h' }: { children?: ReactNode; headingId?: string }) {

@@ -120,3 +120,11 @@
 .pipText { color: var(--report-ink-muted); font-size: 14px; margin: 0 0 20px; font-variant-numeric: tabular-nums; }
 .comingUpHead { margin: 22px 0 0; font-size: var(--fs-1); font-weight: 700; }
 .comingUp { margin: 6px 0 0; padding: 0 0 0 20px; color: var(--report-ink-muted); font-size: var(--fs-1); line-height: 1.6; }
+
+/* Round 4: the scan-type switch under the reading-log header. Segmented like the 5/10/20 row on the start screen. */
+.scopeRow { display: inline-flex; border: 1px solid #b9c2ca; border-radius: var(--radius); overflow: hidden; background: #fff; margin: 10px 0 0; }
+.scopeBtn { font: inherit; font-size: var(--fs-1); padding: 7px 14px; border: none; border-left: 1px solid #b9c2ca; background: transparent; color: var(--report-ink); cursor: pointer; }
+.scopeBtn:first-child { border-left: none; }
+.scopeBtn:focus-visible { outline: 2px solid var(--grease-amber); outline-offset: -2px; }
+.scopeOn { background: var(--report-ink); color: #fff; font-weight: 700; }
+.scopeN { font-weight: 400; opacity: 0.8; font-variant-numeric: tabular-nums; }

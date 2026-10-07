@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { clampView, clientToImage, fitView, imageToScreen, screenToImage, visibleRect, zoomAt } from './coords';
+import { clampView, clientToImage, clientToPlane, displayToPlane, fitView, imageToScreen, planeToScreen, screenToImage, visibleRect, zoomAt } from './coords';
+import { planeGeom } from './volume/planes';
 
 describe('coords', () => {
   const v = { originX: 100, originY: 20, scale: 0.75 };
@@ -62,5 +63,39 @@ describe('fit and clamp', () => {
     const c = clampView({ originX: -5000, originY: 5000, scale: 1 }, 800, 600, 1024, 1024, 80);
     expect(c.originX).toBe(80 - 1024);
     expect(c.originY).toBe(600 - 80);
+  });
+});
+
+describe('volumes: a click on a slice becomes a 3-D mark through the same transform', () => {
+  const meta = { shape: [16, 64, 64], spacing: [3, 1.5, 1.5] };
+  const stage = { left: 24, top: 56 };
+  it('axial: in-plane coords are x, y and the voxel carries the slice', () => {
+    const g = planeGeom(meta, 'axial');
+    const view = fitView(870, 776, g.W, g.H, 16);
+    const target = imageToScreen(24.5, 36.25, view);
+    const p = clientToPlane(target.x + stage.left, target.y + stage.top, stage, view, g, 8);
+    expect(p.x).toBeCloseTo(24.5, 6);
+    expect(p.y).toBeCloseTo(36.25, 6);
+    expect(p.voxel[0]).toBeCloseTo(24.5, 6);
+    expect(p.voxel[1]).toBeCloseTo(36.25, 6);
+    expect(p.voxel[2]).toBe(8);
+    expect(p.plane).toBe('axial');
+    const back = planeToScreen(p.x, p.y, g, view);
+    expect(back.x).toBeCloseTo(target.x, 6);
+    expect(back.y).toBeCloseTo(target.y, 6);
+  });
+  it('coronal: display px down are stretched by the slice spacing, in-plane y is z', () => {
+    const g = planeGeom(meta, 'coronal'); // 64 × 32 display px for 64 × 16 voxels
+    const view = fitView(870, 776, g.W, g.H, 16);
+    const target = imageToScreen(10, 20, view); // 20 display px down = z 10
+    const p = clientToPlane(target.x + stage.left, target.y + stage.top, stage, view, g, 33);
+    expect(p.x).toBeCloseTo(10, 6);
+    expect(p.y).toBeCloseTo(10, 6);
+    expect(p.voxel.map((n) => Math.round(n * 1e6) / 1e6)).toEqual([10, 33, 10]);
+    expect(displayToPlane(10, 20, g, 33).voxel).toEqual([10, 33, 10]);
+  });
+  it('sagittal: across is y, down is z, the slice is x', () => {
+    const g = planeGeom(meta, 'sagittal');
+    expect(displayToPlane(40, 6, g, 12).voxel).toEqual([12, 40, 3]);
   });
 });

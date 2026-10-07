@@ -3,7 +3,7 @@
 // Two modes: 'full' (what is it? + how sure?) for a click with nothing armed, and 'confidence' (the label came from the
 // finding picked in the rail; only "How sure are you?" is asked, and choosing closes it).
 import { useEffect, useLayoutEffect, useRef, useState, type Dispatch } from 'react';
-import { FOCAL_LABELS, labelDisplay } from '../api/labels';
+import { FOCAL_LABELS_BY_MODALITY, isModality, labelDisplay } from '../api/labels';
 import type { DraftMark, PopoverMode, ReadAction } from '../read/readState';
 import type { Confidence } from '../types/contracts';
 import { ConfidenceChips } from '../rail/ConfidenceChips';
@@ -14,12 +14,15 @@ import s from './Viewer.module.css';
 const W_FULL = 384;
 const W_SHORT = 304;
 
-export function MarkPopover({ mark, mode, x, y, stageW, stageH, clear, dispatch }: {
+export function MarkPopover({ mark, mode, x, y, stageW, stageH, clear, dispatch, modality }: {
   mark: DraftMark; mode: PopoverMode; x: number; y: number; stageW: number; stageH: number;
   /** Radius around the mark to keep uncovered: the lens radius when the magnifier is on, else the mark ring. */
   clear: number;
   dispatch: Dispatch<ReadAction>;
+  /** The scan type picks the finding list (X-ray when absent). */
+  modality?: string | null;
 }) {
+  const labels = FOCAL_LABELS_BY_MODALITY[isModality(modality) ? modality : 'cxr'];
   const ref = useRef<HTMLDivElement>(null);
   const short = mode === 'confidence' && !!mark.label;
   const w = short ? W_SHORT : W_FULL;
@@ -86,7 +89,7 @@ export function MarkPopover({ mark, mode, x, y, stageW, stageH, clear, dispatch 
               <span>What is it?</span>
             </div>
             <div className={s.popLabels}>
-              {FOCAL_LABELS.map((l, i) => (
+              {labels.map((l, i) => (
                 <span key={l.id} className={s.popLabelRow}>
                   <button type="button" className={`${s.popLabel} ${mark.label === l.id ? s.popLabelOn : ''}`}
                     aria-pressed={mark.label === l.id}

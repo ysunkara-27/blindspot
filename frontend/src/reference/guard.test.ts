@@ -47,3 +47,41 @@ describe('uiTerms', () => {
     expect(uiTerms('Use the loupe on the apices. Loupe off.')).toBe('Use the magnifier on the apices. Magnifier off.');
   });
 });
+
+describe('guardReference — volumetric examples (round 4)', () => {
+  it('reads a CT example with its volume block, the measure slice and the finding values', () => {
+    const r = guardReference({ labels: [{
+      label: 'pancreatic_tumour', display: 'Pancreatic tumour', kind: 'focal',
+      examples: [{
+        case_id: 'vol_001', image_url: '/api/cases/vol_001/image', width: 64, height: 64, modality: 'ct',
+        volume_url: '/api/cases/vol_001/volume', mask_url: '/api/cases/vol_001/maskvol', shape: [16, 64, 64], spacing: [3, 1.5, 1.5], window: { wc: 50, ww: 400 },
+        provenance: { dataset: 'Medical Segmentation Decathlon, Task07 Pancreas', segmented_by: 'an abdominal radiologist (single reader)' },
+        finding: { finding_id: 'vol_001#F1', bbox: [20, 32, 29, 41], relative_location: 'middle slices of the volume', slice_range: [6, 10], measure: { long_mm: 13.5, slice: 8 }, label_values: [2] },
+      }],
+    }] });
+    const l = r.labels[0];
+    expect(l.modality).toBe('ct');
+    const ex = l.examples[0];
+    expect(ex.modality).toBe('ct');
+    expect(ex.volume).toEqual({ volume_url: '/api/cases/vol_001/volume', mask_url: '/api/cases/vol_001/maskvol', shape: [16, 64, 64], spacing: [3, 1.5, 1.5], window: { wc: 50, ww: 400 }, slice: 8, label_values: [2] });
+    expect(ex.finding?.slice_range).toEqual([6, 10]);
+    expect(ex.provenance).toMatchObject({ dataset: 'Medical Segmentation Decathlon, Task07 Pancreas' });
+  });
+  it('a volume example without a preview image still renders (the slice is drawn from the voxels); a broken volume block is dropped', () => {
+    const r = guardReference({ labels: [{ label: 'brain_tumour', examples: [
+      { case_id: 'v', volume_url: '/v.gz', mask_url: '/m.gz', shape: [8, 32, 32] },
+      { case_id: 'w', volume_url: '/v.gz', shape: [8, 32, 32] },
+    ] }] });
+    expect(r.labels[0].modality).toBe('mr');
+    expect(r.labels[0].examples).toHaveLength(1);
+    const ex = r.labels[0].examples[0];
+    expect(ex.volume?.slice).toBe(4);
+    expect(ex.volume?.spacing).toEqual([1, 1, 1]);
+    expect(ex.volume?.window.ww).toBe(1000);
+  });
+  it('an X-ray example without a modality stays cxr and carries no volume', () => {
+    const r = guardReference({ labels: [{ label: 'nodule', examples: [{ case_id: 'c', image_url: '/i.png', width: 10, height: 10 }] }] });
+    expect(r.labels[0].modality).toBe('cxr');
+    expect(r.labels[0].examples[0]).toMatchObject({ modality: 'cxr', volume: null, provenance: null });
+  });
+});

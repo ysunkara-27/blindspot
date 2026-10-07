@@ -2,8 +2,9 @@
 // stored result of one read for the review page. Pure functions first (unit-tested in sessionOptions.test.ts);
 // storage and fetch at the bottom. The finding library has its own module (api/reference.ts).
 import { enoughReads, MIN_READS } from '../dashboard/helpers';
-import type { Mode, SessionCreate, SubmitResult } from '../types/contracts';
+import type { Health, Modality, Mode, SessionCreate, SubmitResult } from '../types/contracts';
 import { request } from './client';
+import { isModality, MODALITIES, MODALITY_DISPLAY } from './labels';
 
 /** The backend serves the curated six-film set to this display name. Never shown to a learner. */
 export const SAMPLE_NAME = 'Demo';
@@ -15,7 +16,8 @@ export const TEST_FILMS = 20;
 
 /** What the learner picks under "What do you want to practice?". */
 export type Practice = 'mixed' | 'weak' | 'finding' | 'test';
-export type StartForm = { name: string; practice: Practice; finding: string; count: Count };
+/** `modality` is the scan type chosen first on the page; absent = Chest X-ray (the contract's default). */
+export type StartForm = { name: string; practice: Practice; finding: string; count: Count; modality?: Modality };
 export type TestSet = 'A' | 'B';
 /** Kept in localStorage so a returning learner resumes the same reading log on this device. */
 export type Remembered = { learnerId: string; name: string; tests: TestSet[] };
@@ -34,12 +36,24 @@ export function sameLearner(r: Remembered | null, name: string): r is Remembered
 /** "My weak spots" needs a history to draw on. */
 export const weakSpotsReady = (reads: number | null | undefined) => enoughReads(reads);
 
-export function weakSpotsNote(reads: number | null | undefined): string {
-  if (weakSpotsReady(reads)) return 'Films like the ones you have missed most.';
+/** What one case is called: an X-ray is a film; a CT or MR is a study. */
+export const caseNoun = (modality: Modality | string | null | undefined, n = 1): string => {
+  const w = modality == null || modality === 'cxr' ? 'film' : 'study';
+  return n === 1 ? w : w === 'film' ? 'films' : 'studies';
+};
+
+export function weakSpotsNote(reads: number | null | undefined, modality: Modality = 'cxr'): string {
+  const noun = caseNoun(modality, 2);
+  if (weakSpotsReady(reads)) return `${noun.charAt(0).toUpperCase() + noun.slice(1)} like the ones you have missed most.`;
   const n = Math.max(0, Math.floor(reads ?? 0));
   const left = MIN_READS - n;
-  return `Opens after ${MIN_READS} films, so there is something to go on. You have read ${n}; ${left} to go.`;
+  const scope = modality === 'cxr' ? '' : ' of this scan type';
+  return `Opens after ${MIN_READS} ${noun}${scope}, so there is something to go on. You have read ${n}; ${left} to go.`;
 }
+
+/** "Test myself" exists for chest films only: the fixed test sets are X-ray sets. */
+export const testAvailable = (modality: Modality | undefined) => modality == null || modality === 'cxr';
+export const TEST_UNAVAILABLE = 'Not yet available for this scan type.';
 
 /** The test sets come in order: A first, then B. With both taken, A comes round again. */
 export function nextTest(done: readonly TestSet[]): { mode: Extract<Mode, 'assess_A' | 'assess_B'>; set: TestSet; repeat: boolean } {
@@ -62,6 +76,8 @@ function identity(name: string, ctx: StartContext): Pick<SessionCreate, 'display
 export function toSessionCreate(form: StartForm, ctx: StartContext): SessionCreate {
   const { learner_id, ...who } = identity(form.name, ctx);
   const base: Record<string, unknown> = { ...(ctx.projector ? { projector: true } : {}), ...(learner_id ? { learner_id } : {}) };
+  // Chest X-ray is the contract's default and the X-ray body stays byte-identical; CT / MR say so and name the region.
+  if (form.modality && form.modality !== 'cxr') Object.assign(base, { modality: form.modality, body_region: MODALITY_DISPLAY[form.modality].region });
   if (form.practice === 'test') {
     const done = sameLearner(ctx.remembered, form.name) ? ctx.remembered.tests : [];
     return { ...who, level: 'other', mode: nextTest(done).mode, settings: base };
@@ -140,13 +156,82 @@ export function needsTutorial(): boolean {
 
 export const readPath = () => (needsTutorial() ? '/read?tutorial=1' : '/read');
 
+/** Scan types the library holds right now (health `cases_by_modality`); an older server has chest films only. */
+export function availableModalities(h: { cases_by_modality?: Record<string, number> | null; modalities?: Modality[] | null } | null | undefined): Modality[] {
+  const by = h?.cases_by_modality;
+  if (by) return MODALITIES.filter((m) => (by[m] ?? 0) > 0);
+  if (h?.modalities?.length) return MODALITIES.filter((m) => h.modalities!.includes(m));
+  return ['cxr'];
+}
+
+/** "Library: 520 chest films with radiologist outlines." or, with volumes, "…, 12 abdominal CT and 6 brain MRI studies, with expert outlines." */
+export function libraryLine(h: Health): string {
+  const by = h.cases_by_modality;
+  const ct = by?.ct ?? 0;
+  const mr = by?.mr ?? 0;
+  if (!by || (!ct && !mr)) return `Library: ${h.cases.toLocaleString()} chest films with radiologist outlines.`;
+  const cxr = by.cxr ?? Math.max(0, h.cases - ct - mr);
+  const vols = [ct ? `${ct.toLocaleString()} abdominal CT` : '', mr ? `${mr.toLocaleString()} brain MRI` : ''].filter(Boolean).join(' and ');
+  return `Library: ${cxr.toLocaleString()} chest films, ${vols} ${ct + mr === 1 ? 'study' : 'studies'}, with expert outlines.`;
+}
+
+// ---------- the scan type remembered on this device ----------
+const MODALITY_KEY = 'bs_modality';
+export function loadModality(): Modality {
+  try { const v = localStorage.getItem(MODALITY_KEY); return isModality(v) ? v : 'cxr'; } catch { return 'cxr'; }
+}
+export function saveModality(m: Modality) {
+  try { localStorage.setItem(MODALITY_KEY, m); } catch { /* storage blocked */ }
+}
+
+// Until the reading log counts reads per scan type (dashboard `n_by_modality`), CT / MR reads are counted on this
+// device: the studies of every CT / MR set started here. An estimate, and the start screen says so.
+const LOCAL_READS_KEY = 'bs_reads_by_modality';
+export type LocalReads = Partial<Record<Modality, number>>;
+export function parseLocalReads(raw: string | null): LocalReads {
+  if (!raw) return {};
+  try {
+    const o: unknown = JSON.parse(raw);
+    if (!isObj(o)) return {};
+    return Object.fromEntries(Object.entries(o).filter(([k, v]) => isModality(k) && num(v) && v >= 0).map(([k, v]) => [k, Math.floor(v as number)]));
+  } catch {
+    return {};
+  }
+}
+export function loadLocalReads(): LocalReads {
+  try { return parseLocalReads(localStorage.getItem(LOCAL_READS_KEY)); } catch { return {}; }
+}
+export function addLocalReads(m: Modality, n: number) {
+  const cur = loadLocalReads();
+  try { localStorage.setItem(LOCAL_READS_KEY, JSON.stringify({ ...cur, [m]: (cur[m] ?? 0) + n })); } catch { /* storage blocked */ }
+}
+
+/** Reads of one scan type: the server's per-modality count when it sends one; an X-ray log without one is all
+ *  X-ray (every case before the volumetric round was a chest film); CT / MR fall back to the local estimate. */
+export function readsFor(dash: unknown, modality: Modality, local: LocalReads): { n: number; estimated: boolean } {
+  const d = isObj(dash) ? dash : {};
+  const by = isObj(d.n_by_modality) ? d.n_by_modality : null;
+  if (by && num(by[modality])) return { n: by[modality] as number, estimated: false };
+  if (by) return { n: 0, estimated: false };
+  if (modality === 'cxr') return { n: num(d.n_attempts) ? (d.n_attempts as number) : 0, estimated: false };
+  return { n: local[modality] ?? 0, estimated: true };
+}
+
 // ---------- stored result for one read (GET /attempts/{aid}/result) ----------
 export type ReviewMark = { mark_id: string; x: number; y: number; label: string; confidence: number };
-export type ReviewFilm = { case_id: string; image_url: string | null; width: number | null; height: number | null };
+export type ReviewFilm = {
+  case_id: string; image_url: string | null; width: number | null; height: number | null;
+  /** The NextCase-shaped `volume` block (shape, spacing, window, data_url) when the read was a CT / MR; passed through as sent. */
+  volume: Record<string, unknown> | null;
+};
 export type AttemptReview = {
   result: SubmitResult;
   /** Which film it was, when the server says so. */
   film: ReviewFilm | null;
+  /** cxr | ct | mr, from the result, the reveal or the case block; null on an older server (an X-ray). */
+  modality: Modality | null;
+  /** The '___ by ___' block, when the server sends one (reveal.provenance or case.provenance). */
+  provenance: unknown;
   /** Where the learner marked; null when the server does not send the submitted read. */
   marks: ReviewMark[] | null;
   patterns: { label: string; confidence: number }[];
@@ -173,10 +258,13 @@ export function guardAttemptResult(v: unknown): AttemptReview {
   } as unknown as SubmitResult;
   const c = isObj(v.case) ? v.case : null;
   const sub = isObj(v.submitted) ? v.submitted : null;
+  const mod = [v.modality, reveal.modality, c?.modality].find(isModality) ?? null;
   return {
     result,
+    modality: mod,
+    provenance: isObj(reveal.provenance) ? reveal.provenance : isObj(c?.provenance) ? c.provenance : null,
     film: c && typeof c.case_id === 'string' && c.case_id
-      ? { case_id: c.case_id, image_url: str(c.image_url), width: num(c.width) ? c.width : null, height: num(c.height) ? c.height : null }
+      ? { case_id: c.case_id, image_url: str(c.image_url), width: num(c.width) ? c.width : null, height: num(c.height) ? c.height : null, volume: isObj(c.volume) ? c.volume : null }
       : null,
     marks: marksOf(sub?.marks) ?? marksOf(v.marks),
     patterns: arr(sub?.patterns ?? v.patterns).flatMap((p) => (isObj(p) && typeof p.label === 'string' ? [{ label: p.label, confidence: num(p.confidence) ? p.confidence : 3 }] : [])),

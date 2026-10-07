@@ -1,26 +1,38 @@
 // /progress — the Reading log (SPEC §10.1). Real reads only (practice sets; test sets are excluded by the API).
 // Before the fifth film there are no headline numbers at all: with n that small a percentage misleads. From five on,
 // every section states its n. In mock mode the log is not shown: synthetic data never appears on a dashboard (§10.3).
+// Round 4: a scan-type switch (All · Chest X-ray · CT · MRI) filters every chart through `?modality=`; the chest
+// blind-spot map is drawn for chest films only, CT / MR get a list of misses by zone.
 import { useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, apiMode, ApiError } from '../api/client';
-import { isSampleName, learnerLabel, loadRemembered } from '../api/sessionOptions';
+import { isModality, MODALITY_DISPLAY } from '../api/labels';
+import { caseNoun, isSampleName, learnerLabel, loadRemembered } from '../api/sessionOptions';
 import { PageShell } from '../app/Shell';
 import { useTitle } from '../app/useTitle';
 import { BlindSpotMap } from '../dashboard/charts/BlindSpotMap';
+import { ZoneMissList } from '../dashboard/charts/ZoneMissList';
+import { useHealth } from '../tutor/health';
+import type { Modality } from '../types/contracts';
 import { Calibration } from '../dashboard/charts/Calibration';
 import { Froc } from '../dashboard/charts/Froc';
 import { LearningCurve } from '../dashboard/charts/LearningCurve';
 import { MissTypeMix } from '../dashboard/charts/MissTypeMix';
 import { ReviewAreaHabit } from '../dashboard/charts/ReviewAreaHabit';
 import { SummaryStats } from '../dashboard/charts/SummaryStats';
-import { enoughReads, MIN_READS, readsToGo } from '../dashboard/helpers';
-import { guardLearnerDashboard } from '../dashboard/types';
+import { enoughReads, MIN_READS, readsToGo, showScopeSwitch } from '../dashboard/helpers';
+import { guardLearnerDashboard, zoneMissesFromMap } from '../dashboard/types';
 import { useSession } from '../state/session';
 import d from '../dashboard/Dashboard.module.css';
 import s from './Pages.module.css';
 
 const films = (n: number) => `${n} film${n === 1 ? '' : 's'}`;
+
+type Scope = 'all' | Modality;
+const SCOPES: { id: Scope; text: string }[] = [
+  { id: 'all', text: 'All' }, { id: 'cxr', text: 'Chest X-ray' }, { id: 'ct', text: 'CT' }, { id: 'mr', text: 'MRI' },
+];
+
 
 /** Fewer than five films: progress toward the first numbers, and what will appear. No percentages. */
 function EarlyLog({ n }: { n: number }) {
@@ -50,19 +62,33 @@ function EarlyLog({ n }: { n: number }) {
 export function ProgressPage() {
   useTitle('Reading log');
   const session = useSession((st) => st.session);
-  const [params] = useSearchParams();
+  const [params, setParams] = useSearchParams();
   // ?learner=<id> opens a specific learner's log (the cohort table links here); otherwise the learner of the open set,
   // otherwise the learner this browser remembers.
   const lid = params.get('learner') ?? session?.learnerId ?? loadRemembered()?.learnerId ?? null;
   const mock = apiMode().mode === 'mock';
+  // ?modality=ct|mr|cxr scopes every chart; anything else is "All".
+  const scope: Scope = isModality(params.get('modality')) ? (params.get('modality') as Modality) : 'all';
+  const qs = scope === 'all' ? '' : `?modality=${scope}`;
+  const health = useHealth();
 
   const q = useQuery({
-    queryKey: ['learner-dashboard', lid],
-    queryFn: async () => guardLearnerDashboard(await api.learnerDashboard(lid!)),
+    queryKey: ['learner-dashboard', lid, scope],
+    queryFn: async () => guardLearnerDashboard(await api.learnerDashboard(lid!, qs)),
     enabled: !!lid && !mock,
   });
   const n = q.data?.n_attempts ?? 0;
   const sample = isSampleName(q.data?.learner?.display_name);
+  const switcher = showScopeSwitch(health.data, q.data);
+  // The server says which scope it applied; an older server shows every read whatever was asked.
+  const applied = scope === 'all' || q.data?.modality === scope;
+  const volumetric = scope === 'ct' || scope === 'mr';
+  const noun = (k: number) => `${k} ${caseNoun(scope === 'all' ? 'cxr' : scope, k)}`;
+  const setScope = (sc: Scope) => {
+    const next = new URLSearchParams(params);
+    if (sc === 'all') next.delete('modality'); else next.set('modality', sc);
+    setParams(next, { replace: true });
+  };
 
   return (
     <PageShell>
@@ -71,9 +97,22 @@ export function ProgressPage() {
         {q.data?.learner && <p className={d.who} data-testid="learner-name">{learnerLabel(q.data.learner.display_name)}</p>}
         {q.data && (
           <p className={d.scope} data-testid="dashboard-n">
-            n = {films(n)} from practice sets. Test sets are scored separately.
+            n = {scope === 'all' ? films(n) : noun(n)} from practice sets{scope !== 'all' && applied ? ` (${MODALITY_DISPLAY[scope].long})` : ''}. Test sets are scored separately.
             {sample && ' The sample set is shared by everyone who tries it; start your own set to keep a personal log.'}
           </p>
+        )}
+        {switcher && !mock && (
+          <div className={d.scopeRow} role="radiogroup" aria-label="Scan type" data-testid="log-scope">
+            {SCOPES.map((sc) => (
+              <button key={sc.id} type="button" role="radio" aria-checked={scope === sc.id} className={`${d.scopeBtn} ${scope === sc.id ? d.scopeOn : ''}`}
+                onClick={() => setScope(sc.id)} data-testid={`log-scope-${sc.id}`}>
+                {sc.text}{q.data?.n_by_modality && sc.id !== 'all' ? <span className={d.scopeN}> {q.data.n_by_modality[sc.id] ?? 0}</span> : null}
+              </button>
+            ))}
+          </div>
+        )}
+        {switcher && !mock && scope !== 'all' && q.data && !applied && (
+          <p className={s.notice} data-testid="log-scope-unfiltered">The reading log does not yet separate scan types, so every read is shown.</p>
         )}
       </header>
 
@@ -94,11 +133,13 @@ export function ProgressPage() {
       ) : !enoughReads(n) ? (
         <div data-testid={n === 0 ? 'dashboard-empty' : 'dashboard-few'}><EarlyLog n={n} /></div>
       ) : (
-        <div data-testid="learner-dashboard">
+        <div data-testid="learner-dashboard" data-scope={scope}>
           <SummaryStats st={q.data.summary} />
           <LearningCurve lc={q.data.learning_curve} nCases={n} />
           <MissTypeMix mix={q.data.miss_type_mix} />
-          <BlindSpotMap map={q.data.blindspot_map} />
+          {volumetric && applied
+            ? <ZoneMissList zones={q.data.misses_by_zone ?? zoneMissesFromMap(q.data.blindspot_map)} scan={scope === 'ct' ? 'abdominal CT' : 'brain MRI'} />
+            : <BlindSpotMap map={q.data.blindspot_map} />}
           <ReviewAreaHabit habit={q.data.review_area_habit} />
           <Calibration cal={q.data.calibration} />
           <Froc froc={q.data.froc} />

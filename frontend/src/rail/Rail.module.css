@@ -313,3 +313,10 @@
 
 /* Tutor status banner at the top of the rail (TutorNotice). */
 .tutorNotice { margin: 12px 0 2px; }
+
+/* Volumes: where a mark sits, and the size step under a mass-like mark. */
+.markPlace { font-weight: 400; color: var(--report-ink-muted); font-size: 13px; white-space: nowrap; }
+.sizeStep { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 4px 0 2px calc(2em + 8px); font-size: 14px; }
+.sizeLabel { font-weight: 700; }
+.sizeHint { color: var(--report-ink-muted); font-variant-numeric: tabular-nums; }
+.sizeVerdict { grid-column: 1 / -1; font-size: 13px; color: var(--report-ink-muted); padding-left: calc(2em + 8px); }

@@ -8,8 +8,26 @@ import { MOCK_CASES } from './cases';
 import { dwellMs, REVIEW_AREAS, reviewAreaBox, scoreAttempt, templateDebrief } from './scoring';
 import { mockReference } from './reference';
 import type { MockCase } from './types';
+import { MOCK_VOL_CASES } from './volCases';
+import { scoreVolumeAttempt, volumeAnatomy, volumeCase } from './volScoring';
+import type { MockVolCase } from './volTypes';
 
 type Session = { id: string; learner: string; mode: SessionCreate['mode']; order: string[]; pos: number; attempts: string[]; total: number | null };
+// Volumetric (CT / MR) sessions: `settings.modality` picks the synthetic volumes. E2E seam: `?modality=ct` in the page
+// address does the same when the start form does not send one.
+const VOL_ORDER: Record<'ct' | 'mr', string[]> = { ct: ['vol_001', 'vol_002', 'vol_004'], mr: ['vol_003'] };
+const byVolId = (id: string): MockVolCase | undefined => MOCK_VOL_CASES.find((c) => c.case_id === id);
+const isVolId = (id: string) => !!byVolId(id);
+function wantedModality(settings: unknown): 'ct' | 'mr' | null {
+  const m = (settings as { modality?: unknown } | undefined)?.modality;
+  if (m === 'ct' || m === 'mr') return m;
+  if (m === 'cxr') return null;
+  try {
+    const q = new URLSearchParams(location.search).get('modality');
+    if (q === 'ct' || q === 'mr') return q;
+  } catch { /* no location */ }
+  return null;
+}
 type Attempt = {
   id: string; sid: string; caseId: string; hints: number; asks: number; polls: number;
   result?: SubmitResult; recorded?: boolean; submit?: AttemptSubmit;
@@ -39,7 +57,7 @@ export async function mockRequest(method: string, path: string, body: unknown): 
   // Generic teaching material (never about the case being read): available at any time.
   if (method === 'GET' && p === '/reference') return mockReference();
 
-  if (method === 'GET' && p === '/health') return { ok: true, offline: true, cases: MOCK_CASES.length, version: 'mock-synthetic' };
+  if (method === 'GET' && p === '/health') return { ok: true, offline: true, cases: MOCK_CASES.length + MOCK_VOL_CASES.length, version: 'mock-synthetic', modalities: ['cxr', 'ct', 'mr'], cases_by_modality: { cxr: MOCK_CASES.length, ct: VOL_ORDER.ct.length, mr: VOL_ORDER.mr.length } };
 
   if (method === 'POST' && p === '/sessions') {
     const b = body as SessionCreate;
@@ -58,6 +76,8 @@ export async function mockRequest(method: string, path: string, body: unknown): 
     // Round 3: a set has a length. `case_count` (3–50) fixes it; the sample learner ("Demo") gets the first six.
     const st = (b.settings ?? {}) as { case_count?: unknown; learner_id?: unknown };
     const assessMode = b.mode === 'assess_A' || b.mode === 'assess_B';
+    const modality = wantedModality(b.settings);
+    if (modality) order = VOL_ORDER[modality];
     const sample = !assessMode && b.display_name.trim().toLowerCase() === 'demo' && !b.participant_code;
     const count = sample ? 6 : typeof st.case_count === 'number' && Number.isInteger(st.case_count) ? st.case_count : null;
     if (count != null && !sample && (count < 3 || count > 50)) throw new MockHttpError(422, 'case_count must be 3 to 50');
@@ -80,13 +100,19 @@ export async function mockRequest(method: string, path: string, body: unknown): 
       else if (!assess) return { attempt_id: '', case: { case_id: '', image_url: '', width: 0, height: 0 }, index: submittedCount(s), total: s.total, hints_enabled: false, done: true } satisfies NextCase;
       else return { attempt_id: '', case: { case_id: '', image_url: '', width: 0, height: 0 }, index: s.pos, total: s.order.length, done: true } satisfies NextCase;
     }
-    const c = byId(s.order[s.pos++]);
-    const a: Attempt = { id: uid('att'), sid: s.id, caseId: c.case_id, hints: 0, asks: 0, polls: 0 };
+    const cid = s.order[s.pos++];
+    const a: Attempt = { id: uid('att'), sid: s.id, caseId: cid, hints: 0, asks: 0, polls: 0 };
     attempts.set(a.id, a);
     s.attempts.push(a.id);
+    const vc = byVolId(cid);
+    if (vc) {
+      // Volumes: voxels only. The mask URL appears in the reveal, after submit.
+      return { attempt_id: a.id, case: volumeCase(vc), index: s.attempts.length, total: s.total, hints_enabled: !assess, done: false } satisfies NextCase;
+    }
+    const c = byId(cid);
     return {
       attempt_id: a.id,
-      case: { case_id: c.case_id, image_url: `/mock/${c.case_id}.png`, width: c.width, height: c.height },
+      case: { case_id: c.case_id, image_url: `/mock/${c.case_id}.png`, width: c.width, height: c.height, modality: 'cxr' },
       index: s.attempts.length, total: s.total, hints_enabled: !assess, done: false,
     } satisfies NextCase;
   }
@@ -97,6 +123,13 @@ export async function mockRequest(method: string, path: string, body: unknown): 
     if (s.mode.startsWith('assess')) throw new MockHttpError(403, 'hints are disabled in assessment');
     if (a.hints >= 3) throw new MockHttpError(409, 'no hints left');
     a.hints++;
+    if (isVolId(a.caseId)) {
+      const vc = byVolId(a.caseId)!;
+      const f = vc.findings[0];
+      const text = a.hints === 1 ? 'Scroll through every slice once before you decide; findings hide in the slices you skip.'
+        : a.hints === 2 && f ? `Look again around slices ${f.slice_range[0] + 1} to ${f.slice_range[1] + 1}.` : 'Compare each structure with its neighbours on the same slice.';
+      return { level: a.hints, text, remaining: 3 - a.hints };
+    }
     const c = byId(a.caseId);
     const req = body as HintRequest;
     let text: string;
@@ -125,7 +158,7 @@ export async function mockRequest(method: string, path: string, body: unknown): 
       a.recorded = true;
       return { recorded: true, index: s.pos, total: s.order.length };
     }
-    a.result = scoreAttempt(byId(a.caseId), a.submit);
+    a.result = scoreAny(a.caseId, a.submit);
     return a.result;
   }
 
@@ -133,7 +166,7 @@ export async function mockRequest(method: string, path: string, body: unknown): 
     const a = need(attempts.get(m[1]));
     // A finished test set unlocks its debriefs (round 3): score the stored read on first request.
     const ds = sessions.get(a.sid);
-    if (!a.result && a.submit && ds && ds.mode.startsWith('assess') && submittedCount(ds) >= ds.order.length) a.result = scoreAttempt(byId(a.caseId), a.submit);
+    if (!a.result && a.submit && ds && ds.mode.startsWith('assess') && submittedCount(ds) >= ds.order.length) a.result = scoreAny(a.caseId, a.submit);
     if (!a.result) throw new MockHttpError(409, 'not submitted');
     a.polls++;
     if (a.polls < 3) return { status: 'pending' } satisfies DebriefResponse;
@@ -156,24 +189,26 @@ export async function mockRequest(method: string, path: string, body: unknown): 
     if (!a.submit) throw new MockHttpError(409, 'not submitted');
     const s = need(sessions.get(a.sid));
     if (s.mode.startsWith('assess') && submittedCount(s) < s.order.length) throw new MockHttpError(409, 'assessment in progress');
-    const c = byId(a.caseId);
-    a.result ??= scoreAttempt(c, a.submit);
+    a.result ??= scoreAny(a.caseId, a.submit);
+    const vc = byVolId(a.caseId);
+    const c = vc ? null : byId(a.caseId);
     return {
       ...a.result,
-      case: { case_id: c.case_id, image_url: `/mock/${c.case_id}.png`, width: c.width, height: c.height },
-      submitted: { marks: a.submit.marks, patterns: a.submit.patterns, declared_normal: a.submit.declared_normal, normal_confidence: a.submit.normal_confidence ?? null },
+      case: vc ? volumeCase(vc) : { case_id: c!.case_id, image_url: `/mock/${c!.case_id}.png`, width: c!.width, height: c!.height, modality: 'cxr' },
+      submitted: { marks: a.submit.marks, patterns: a.submit.patterns, declared_normal: a.submit.declared_normal, normal_confidence: a.submit.normal_confidence ?? null, measurements: a.submit.measurements ?? [] },
     };
   }
 
   if (method === 'GET' && (m = p.match(/^\/attempts\/([^/]+)\/anatomy$/))) {
     const a = need(attempts.get(m[1]));
     if (!a.result) throw new MockHttpError(409, 'not submitted');
-    return mockAnatomy(byId(a.caseId));
+    const vc = byVolId(a.caseId);
+    return vc ? volumeAnatomy(vc) : mockAnatomy(byId(a.caseId));
   }
 
   if (method === 'GET' && (m = p.match(/^\/sessions\/([^/]+)\/summary$/))) {
     const s = need(sessions.get(m[1]));
-    const scored = s.attempts.map((id) => attempts.get(id)!).filter((a) => a.submit).map((a) => ({ a, r: scoreAttempt(byId(a.caseId), a.submit!) }));
+    const scored = s.attempts.map((id) => attempts.get(id)!).filter((a) => a.submit).map((a) => ({ a, r: scoreAny(a.caseId, a.submit!) }));
     const abn = scored.filter((x) => !x.r.reveal.is_normal);
     const nor = scored.filter((x) => x.r.reveal.is_normal);
     const mix: Record<string, number> = {};
@@ -207,6 +242,7 @@ export async function mockRequest(method: string, path: string, body: unknown): 
 }
 
 const submittedCount = (s: Session) => s.attempts.filter((id) => attempts.get(id)?.submit).length;
+const scoreAny = (caseId: string, body: AttemptSubmit): SubmitResult => { const vc = byVolId(caseId); return vc ? scoreVolumeAttempt(vc, body) : scoreAttempt(byId(caseId), body); };
 
 const MISS_OF: Record<string, string> = {
   missed_search: 'search', missed_recognition: 'recognition', missed_decision: 'decision', mislabeled: 'interpretation',

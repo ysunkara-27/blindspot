@@ -8,6 +8,13 @@
 
 .entry { border-top: 1px solid var(--report-rule); padding: 24px 0 18px; scroll-margin-top: 12px; }
 .entry:first-of-type { border-top: none; }
+/* Round 4: one group per scan type, headed by the scan's name; the entries keep their rules. */
+.scan { scroll-margin-top: 12px; }
+.scan + .scan { margin-top: 10px; }
+.scanHead { border-top: 3px solid var(--report-ink); padding: 18px 0 6px; }
+.scanTitle { font-size: var(--fs-3); font-weight: 700; margin: 0; }
+.scanNote { color: var(--report-ink-muted); font-size: var(--fs-1); margin: 4px 0 0; }
+.filmCap span { margin-left: 2px; }
 .entryHead { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin: 0 0 6px; }
 .h2 { font-size: var(--fs-4); font-weight: 700; margin: 0; }
 .kind { color: var(--report-ink-muted); font-size: var(--fs-1); }

@@ -153,7 +153,8 @@ export const api = {
   rate: (body: ReviewRating) => post<{ ok: boolean }>('/review/ratings', body),
   summary: (sid: string) => request<AssessmentSummary>(`/sessions/${sid}/summary`),
   /** Dashboard payloads are loosely typed by the API; pages pass them through src/dashboard/types.ts guards. */
-  learnerDashboard: (lid: string) => request<unknown>(`/learners/${encodeURIComponent(lid)}/dashboard`),
+  /** `qs` e.g. "?modality=ct" (round 4): the reading log filtered to one scan type; the server echoes `modality`. */
+  learnerDashboard: (lid: string, qs = '') => request<unknown>(`/learners/${encodeURIComponent(lid)}/dashboard${qs}`),
   cohortDashboard: (qs = '') => request<unknown>(`/cohort/dashboard${qs}`),
   /** Review queue (SPEC §11.1); shapes guarded in src/review/types.ts. */
   reviewItems: (type: 'debrief' | 'card', limit = 50) => request<unknown>(`/review/items?type=${type}&limit=${limit}`),

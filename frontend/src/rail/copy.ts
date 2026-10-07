@@ -55,6 +55,8 @@ export function whyLine(result: OutcomeResult, o?: Pick<Outcome, 'dwell_ms' | 'l
       return o?.matched ? `A second mark on ${o.matched}.` : 'A second mark on a finding you had already marked.';
     case 'true_negative':
       return 'No findings, and you called it normal.';
+    case 'unmatched':
+      return 'The reference does not label this spot; it is neither counted for nor against you.';
   }
 }
 
@@ -65,12 +67,23 @@ export function scoreSentence(isNormal: boolean | undefined): string {
     : 'Out of 100: 70 for marking each finding in the right place, 20 for naming it, 10 for whole-film findings, minus points for each extra mark.';
 }
 
-/** Search summary lines from the computed search facts. */
-export function searchLines(search: SubmitResult['reveal']['search']): { coverage: string; areas: string } {
+/** Search summary lines from the computed search facts. Volumes add the slices line and say "scan", not "lungs". */
+export function searchLines(search: SubmitResult['reveal']['search'], volumetric = false): { coverage: string; areas: string } {
   const pct = Math.max(0, Math.min(100, Math.round(search.lung_coverage_pct)));
   const un = search.unvisited_review_areas.map(zoneDisplay);
-  return {
-    coverage: `Your cursor covered about ${pct}% of the lungs.`,
+  const out: { coverage: string; areas: string } = {
+    coverage: volumetric ? `Your cursor covered about ${pct}% of the scan.` : `Your cursor covered about ${pct}% of the lungs.`,
     areas: un.length ? `Review areas you did not visit: ${un.join(', ')}.` : 'You visited every review area.',
   };
+  if (volumetric) {
+    // Review areas are an X-ray idea; on a scan the second line is about slices.
+    const sp = search.slices_viewed_pct;
+    const seen = search.finding_slices_viewed ?? {};
+    const missed = Object.entries(seen).filter(([, v]) => !v).map(([k]) => k);
+    const parts: string[] = [];
+    if (typeof sp === 'number' && Number.isFinite(sp)) parts.push(`You scrolled through about ${Math.max(0, Math.min(100, Math.round(sp)))}% of the slices.`);
+    if (Object.keys(seen).length) parts.push(missed.length ? `The slices holding ${missed.join(', ')} were never on screen long enough to see.` : 'Every finding\'s slices were on screen.');
+    out.areas = parts.join(' ') || (un.length ? out.areas : 'No slice times were recorded.');
+  }
+  return out;
 }

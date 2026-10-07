@@ -3,8 +3,14 @@
 // Uses GET /api/about when available; falls back to the same text built in.
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { api } from '../api/client';
+import { api, apiMode } from '../api/client';
+import { MODALITY_DISPLAY } from '../api/labels';
+import { availableModalities } from '../api/sessionOptions';
+import { guardProvenance, MSD_CITATION, PROVENANCE_DATASETS, provenanceText, type Provenance } from '../app/provenance';
+import { ProvenanceBadge } from '../app/ProvenanceBadge';
 import { DISCLAIMER, PageShell } from '../app/Shell';
+import { useHealth } from '../tutor/health';
+import type { Modality } from '../types/contracts';
 import rail from '../rail/Rail.module.css';
 import { PROVENANCE, SOURCE } from '../rail/debriefCopy';
 import { useTitle } from '../app/useTitle';
@@ -12,7 +18,15 @@ import a from './About.module.css';
 import s from './Pages.module.css';
 
 type Source = { name: string; role?: string; citation?: string; acknowledgment?: string; url?: string; license?: string };
-type About = { tutor?: string; datasets: Source[]; limitations: string[]; privacy?: string; links: { name: string; note?: string; url?: string }[] };
+/** One row of "Where the reference truth comes from": a provenance block plus the scan type it labels. */
+type ProvRow = Provenance & { key: string; modality: Modality | null };
+type About = {
+  tutor?: string; datasets: Source[]; limitations: string[]; privacy?: string; links: { name: string; note?: string; url?: string }[];
+  /** From GET /api/about `provenance` (config/provenance.yaml) when the server sends it; else the static copy. */
+  provenance: ProvRow[]; provenanceFromServer: boolean;
+};
+
+const STATIC_PROVENANCE: ProvRow[] = Object.entries(PROVENANCE_DATASETS).map(([key, d]) => ({ ...d, key }));
 
 // Licence/terms lines for the sources we use, shown when the API entry has no `license` field yet.
 export const REPO_URL = 'https://github.com/ysunkara-27/blindspot';
@@ -36,7 +50,11 @@ const FALLBACK: About = {
     'Pixel spacing is unknown for these images, so sizes are never given in centimetres.',
   ],
   links: [{ name: 'Radiopaedia', note: 'Linked from teaching cards only; no content is copied.' }],
+  provenance: STATIC_PROVENANCE,
+  provenanceFromServer: false,
 };
+
+const MODALITY_OF_KEY: Record<string, Modality> = Object.fromEntries(Object.entries(PROVENANCE_DATASETS).map(([k, d]) => [k, d.modality]));
 
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -52,12 +70,26 @@ function guard(v: unknown): About {
     .filter((x): x is string => typeof x === 'string' && !/^pilot\b/i.test(x.trim()))
     .map((x) => x.replace(/\bloupe\b/g, 'magnifier'));
   const links = (Array.isArray(v.links) ? v.links : []).flatMap((l) => (isObj(l) && typeof l.name === 'string' ? [{ name: l.name, note: str(l.note), url: str(l.url) }] : []));
+  // `provenance`: either the YAML map {key: block} or a list of blocks (with `key` / `id`).
+  const pv = v.provenance;
+  const provEntries: [string, unknown][] = Array.isArray(pv)
+    ? pv.map((b, i) => [isObj(b) ? str(b.key) ?? str(b.id) ?? String(i) : String(i), b])
+    : isObj(pv) ? Object.entries(isObj(pv.datasets) ? pv.datasets : pv) : [];
+  const provenance = provEntries.flatMap(([key, b]) => {
+    const g = guardProvenance(b);
+    if (!g) return [];
+    const m = isObj(b) && typeof b.modality === 'string' ? b.modality : MODALITY_OF_KEY[key];
+    const modality: Modality | null = m === 'cxr' || m === 'ct' || m === 'mr' ? m : null;
+    return [{ ...g, key, modality }];
+  });
   return {
     tutor: str(v.tutor),
     datasets: datasets.length ? datasets : FALLBACK.datasets,
     limitations: limitations.length ? limitations : FALLBACK.limitations,
     privacy: str(v.privacy),
     links: links.length ? links : FALLBACK.links,
+    provenance: provenance.length ? provenance : STATIC_PROVENANCE,
+    provenanceFromServer: provenance.length > 0,
   };
 }
 
@@ -65,14 +97,62 @@ export function AboutPage() {
   useTitle('About');
   const q = useQuery({ queryKey: ['about'], queryFn: api.about, retry: false });
   const about = guard(q.data);
+  const health = useHealth();
+  const have = apiMode().mode === 'mock' ? (['cxr'] as Modality[]) : availableModalities(health.data);
+  const volumes = have.includes('ct') || have.includes('mr');
   return (
     <PageShell>
       <h1 className={s.h1}>About Blindspot</h1>
       <p className={s.lede}>
-        A chest X-ray perception trainer for medical students and anyone curious about how films are read. You mark what
-        you see; Blindspot scores your marks against radiologist outlines, replays where you looked, and explains each
+        A {volumes ? 'radiology' : 'chest X-ray'} perception trainer for medical students and anyone curious about how {volumes ? 'scans' : 'films'} are read. You mark what
+        you see; Blindspot scores your marks against expert outlines, replays where you looked, and explains each
         miss from facts the software computed.
       </p>
+
+      <section className={s.ruled} data-testid="about-scans">
+        <h2 className={s.h2}>Scan types</h2>
+        <p>
+          {volumes
+            ? 'You choose the scan type on the start screen. The reading room works the same way for each: pick what you see, click where it is, say how sure you are, submit, then see the expert reference and how you looked.'
+            : 'Chest X-rays today. Abdominal CT and brain MRI are built and will appear on the start screen once their studies are loaded; the reading room works the same way for each.'}
+        </p>
+        <dl className={a.scans}>
+          <dt>{MODALITY_DISPLAY.cxr.long}</dt>
+          <dd>Frontal chest radiographs. Findings are outlined by three board-certified radiologists (ChestX-Det). About half the films are normal.</dd>
+          <dt>{MODALITY_DISPLAY.ct.long}</dt>
+          <dd>Axial slabs from contrast CT, cropped around one lesion from the Medical Segmentation Decathlon (pancreas, liver). You scroll the slices, mark on the slice where you see the lesion, and may be asked for its size. Organs in the reference masks become zones, not findings.</dd>
+          <dt>{MODALITY_DISPLAY.mr.long}</dt>
+          <dd>Axial slabs of post-contrast T1 brain MRI from the same collection (BraTS). The reference segmentation has oedema, core and enhancing parts; marking any part of the tumour counts.</dd>
+        </dl>
+        <p className={s.mutedSmall} data-testid="about-slab-caveat">
+          A "normal" CT or MR study here is a slab where the dataset labelled no lesion; not certified normal by a radiologist.
+          Public segmentation sets are not exhaustive either, so a mark the reference does not label is reported as "not in the reference" and never penalised.
+        </p>
+      </section>
+
+      <section className={s.ruled} data-testid="about-provenance">
+        <h2 className={s.h2}>Where the reference truth comes from</h2>
+        <p>Every case carries a badge saying who made its reference labels. These are the datasets behind the badges{about.provenanceFromServer ? '' : ' (a copy of the configuration; the server did not send its own list)'}.</p>
+        <div className={a.tableWrap}>
+          <table className={a.provTable} data-testid="provenance-table">
+            <thead><tr><th scope="col">Scan type</th><th scope="col">Dataset</th><th scope="col">Labels made by</th><th scope="col">Readers</th><th scope="col">Licence</th></tr></thead>
+            <tbody>
+              {about.provenance.map((d) => (
+                <tr key={d.key} data-testid="provenance-row" data-key={d.key}>
+                  <td>{d.modality ? MODALITY_DISPLAY[d.modality].short : '—'}</td>
+                  <td>{d.url ? <a href={d.url} target="_blank" rel="noreferrer">{d.dataset}</a> : d.dataset}{d.institution && <span className={a.inst}>{d.institution}</span>}</td>
+                  <td>{d.segmented_by}<span className={a.inst}>{d.grade === 'radiologist' ? 'Radiologist-grade' : d.grade === 'clinician' ? 'Clinician-grade' : d.grade === 'model' ? 'Model output' : 'Grade unknown'}</span></td>
+                  <td>{d.readers ?? '—'}</td>
+                  <td>{d.license ?? '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className={s.mutedSmall}>On a case the badge reads, for example, <ProvenanceBadge modality="cxr" /> or <span className={a.inlinePill}>{provenanceText({ ...PROVENANCE_DATASETS.Task07_Pancreas })}</span>.</p>
+        <p className={a.citation} data-testid="msd-citation">{MSD_CITATION}</p>
+        {about.provenance.filter((d) => d.citation && d.modality !== 'cxr').map((d) => <p key={d.key} className={a.citation}>{d.citation}</p>)}
+      </section>
 
       <section className={s.ruled} data-testid="about-how">
         <h2 className={s.h2}>How the feedback works</h2>
@@ -137,7 +217,11 @@ export function AboutPage() {
 
       <section className={s.ruled} data-testid="about-limits">
         <h2 className={s.h2}>Limitations</h2>
-        <ul className={s.list}>{about.limitations.map((l) => <li key={l}>{l}</li>)}</ul>
+        <ul className={s.list}>
+          {about.limitations.map((l) => <li key={l}>{l}</li>)}
+          <li>CT and MR studies are cropped slabs around one lesion, not whole scans, and their "normal" slabs are only lesion-free by the dataset's labels.</li>
+          <li>CT and MR reference segmentations mostly come from a single reader; a mark the reference does not label is reported, not scored.</li>
+        </ul>
       </section>
 
       <section className={s.ruled} data-testid="about-privacy">
@@ -155,8 +239,8 @@ export function AboutPage() {
         <h2 className={s.h2}>What's next</h2>
         <p>These are plans, not promises, and nothing here has a date.</p>
         <ul className={s.list}>
-          <li>More finding types, and more example films for each one in the finding library.</li>
-          <li>Limb films and other radiographs beyond the chest.</li>
+          <li>More finding types, and more example films and studies for each one in the finding library.</li>
+          <li>More CT and MR regions (liver, lung, colon) from the same collection, and limb films beyond the chest.</li>
         </ul>
       </section>
 

@@ -11,6 +11,7 @@ import { labelDisplay } from '../api/labels';
 import type { ReferenceExample, ReferenceFilm, ReferenceLabel } from './guard';
 import { uiTerms } from './guard';
 import { openReference, useReference } from './store';
+import { VolumeExample } from './VolumeExample';
 import s from './Reference.module.css';
 
 const REVIEW: Record<string, string> = {
@@ -66,6 +67,10 @@ function Film({ film, finding, caption, showOutline, alt, small = false }: {
 function Card({ card, normals }: { card: ReferenceLabel; normals: ReferenceFilm[] }) {
   const [outlines, setOutlines] = useState(true);
   const examples = card.examples.slice(0, 3);
+  const volumetric = card.modality !== 'cxr';
+  const scan = card.modality === 'mr' ? 'brain MRI' : 'abdominal CT';
+  // Normal chest films are the comparison for a chest finding only; CT / MR normals of the same scan type, when sent.
+  const normalsHere = normals.filter((n) => n.modality === card.modality);
   const cap = (e: ReferenceExample) => {
     const where = e.finding?.relative_location ?? '';
     return where ? where.charAt(0).toUpperCase() + where.slice(1) : card.display;
@@ -110,8 +115,8 @@ function Card({ card, normals }: { card: ReferenceLabel; normals: ReferenceFilm[
 
       <section className={s.section} data-testid="reference-examples">
         <div className={s.row}>
-          <h3 className={s.h3}>Example films</h3>
-          {examples.some((e) => e.finding?.polygon || e.finding?.bbox) && (
+          <h3 className={s.h3}>{volumetric ? 'Example studies' : 'Example films'}</h3>
+          {examples.some((e) => e.finding?.polygon || e.finding?.bbox || e.volume) && (
             <button type="button" className={s.link} aria-pressed={outlines} onClick={() => setOutlines((v) => !v)}>
               {outlines ? 'Hide outlines' : 'Show outlines'}
             </button>
@@ -119,24 +124,26 @@ function Card({ card, normals }: { card: ReferenceLabel; normals: ReferenceFilm[
         </div>
         <p className={s.note} data-testid="reference-note">{EXAMPLES_NOTE}</p>
         {examples.length === 0 ? (
-          <p className={s.muted} data-testid="reference-no-examples">No example films for this finding yet.</p>
+          <p className={s.muted} data-testid="reference-no-examples">No example {volumetric ? 'studies' : 'films'} for this finding yet.</p>
         ) : (
           <>
-            {examples.map((e) => (
-              <Film key={e.case_id || e.image_url} film={e} finding={e.finding} caption={cap(e)} showOutline={outlines}
+            {examples.map((e) => (e.volume
+              ? <VolumeExample key={e.case_id || e.volume.volume_url} ex={e} outline={outlines} alt={`Example ${scan} with ${card.display.toLowerCase()}${outlines ? ' outlined' : ''}`} />
+              : <Film key={e.case_id || e.image_url} film={e} finding={e.finding} caption={cap(e)} showOutline={outlines}
                 alt={`Example chest radiograph with ${card.display.toLowerCase()}${outlines ? ' outlined' : ''}`} />
             ))}
-            <p className={s.key}><span className={s.keyCyan} /> Expert outline · patient right is on the image left</p>
+            <p className={s.key}><span className={s.keyCyan} /> {volumetric ? 'Reference segmentation · scroll the slider to move through the slices' : 'Expert outline · patient right is on the image left'}</p>
           </>
         )}
       </section>
 
-      {normals.length > 0 && (
+      {normalsHere.length > 0 && (
         <section className={s.section} data-testid="reference-normals">
-          <h3 className={s.h3}>Normal chest, for comparison</h3>
+          <h3 className={s.h3}>{volumetric ? 'No lesion, for comparison' : 'Normal chest, for comparison'}</h3>
           <div className={s.normals}>
-            {normals.slice(0, 3).map((n, i) => (
-              <Film key={n.case_id || n.image_url} film={n} caption="" showOutline={false} alt={`Normal chest radiograph, example ${i + 1}`} small />
+            {normalsHere.slice(0, 3).map((n, i) => (n.volume
+              ? <VolumeExample key={n.case_id || n.volume.volume_url} ex={{ ...n, finding: null }} outline={false} alt={`${scan} with no labelled lesion, example ${i + 1}`} small />
+              : <Film key={n.case_id || n.image_url} film={n} caption="" showOutline={false} alt={`Normal chest radiograph, example ${i + 1}`} small />
             ))}
           </div>
         </section>
