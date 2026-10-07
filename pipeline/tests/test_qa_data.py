@@ -85,7 +85,8 @@ def test_taxonomy_labels_and_kinds(raw):
             assert f["label"] in kinds, f["label"]
             assert f["kind"] == kinds[f["label"]]
             c[f["label"]] += 1
-    assert set(c) == set(kinds)  # all 13 labels present
+    cxr_labels = {x["id"] for x in tax["labels"] if "chestx-det" in (x.get("sources") or {})}
+    assert set(c) == cxr_labels  # all 13 X-ray labels present (volumetric labels live in cases_msd.jsonl)
 
 
 def test_splits_disjoint_complete_and_forms(raw):
