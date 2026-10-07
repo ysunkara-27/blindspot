@@ -52,7 +52,18 @@ def fetch_data(processed: Path) -> None:
         local_dir=str(processed),
         token=token,
         max_workers=8,
-        allow_patterns=["cases.jsonl", "splits.json", "*.json", "images/*", "masks/*", "zones/*"],
+        allow_patterns=[
+            "cases.jsonl",
+            "cases_msd.jsonl",
+            "splits.json",
+            "*.json",
+            "images/*",
+            "masks/*",
+            "zones/*",
+            "volumes/*",
+            "zones3d/*",
+            "previews/*",
+        ],
     )
     n = sum(1 for _ in (processed / "cases.jsonl").open()) if (processed / "cases.jsonl").exists() else 0
     log(f"data ready: {n} cases in {time.time() - t0:.0f} s")
