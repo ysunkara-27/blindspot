@@ -522,6 +522,7 @@ function ReadingRoom({ session, next, header, loupe, setLoupe, showSearch, toggl
     mask: maskQ.data ?? null,
     maskNames,
     sliceDwell: submitResult ? (submitResult.reveal.search.slice_dwell ?? null) : undefined,
+    findingSlicesViewed: submitResult?.reveal.search.finding_slices_viewed ?? null,
     submittedTelemetry: submitResult ? submittedTel : undefined,
   } : undefined;
   // Rings are markers at each area's centre: between 2.5% and 8% of the film width.
@@ -551,7 +552,7 @@ function ReadingRoom({ session, next, header, loupe, setLoupe, showSearch, toggl
             armed={read.armed}
             dispatch={dispatch}
             canMark={!result && !read.declaredNormal}
-            markBlockedReason={read.declaredNormal ? 'You called this film normal. Undo the normal call in the rail to add marks.' : undefined}
+            markBlockedReason={read.declaredNormal ? `You called this ${vmeta ? 'scan' : 'film'} normal. Undo the normal call in the rail to add marks.` : undefined}
             loupe={loupe}
             onToggleLoupe={() => setLoupe(!loupe)}
             projector={projector}

@@ -8,8 +8,9 @@ export const DWELL_GAP_CAP_MS = 1500;
 /** Below this, summed over a finding's slices, the finding counts as never seen (config/scoring.yaml volumetric;
  *  mirrored for the mock). */
 export const SEEN_MS = 800;
-/** Below this a single slice of the finding gets the "not visited" tag on the dwell bar (a glance is 150 ms). */
-export const NOT_SEEN_MS = 150;
+/** A finding's slice counts as seen on the dwell bar when it was on screen at least this long (the backend's per-slice
+ *  threshold); below it the slice gets the "not visited" tag. */
+export const NOT_SEEN_MS = 300;
 
 export type SliceDwell = NonNullable<SearchSummary['slice_dwell']>[number];
 
@@ -49,6 +50,20 @@ export function dwellCells(dwell: SliceDwell[] | null | undefined, plane: Plane,
     cells.push({ slice: s, ms, frac: max > 0 ? ms / max : 0, hasFinding, findingIds: d?.finding_ids ?? [], notVisited: hasFinding && ms < seenMs });
   }
   return cells;
+}
+
+/** The caption under the dwell bar, from the server's slice_dwell (per-slice ≥ 300 ms) and its finding_slices_viewed
+ *  verdict: never "every" unless every finding slice was seen and the server does not say otherwise. */
+export function dwellCaption(cells: DwellCell[], findingSlicesViewed?: Record<string, boolean> | null): string {
+  const onFinding = cells.filter((c) => c.hasFinding);
+  if (!cells.some((c) => c.ms > 0 || c.hasFinding)) return 'No slice times were recorded.';
+  if (onFinding.length === 0) return 'No finding on these slices.';
+  const seen = onFinding.filter((c) => !c.notVisited).length;
+  const serverSaysNo = !!findingSlicesViewed && Object.values(findingSlicesViewed).some((v) => v === false);
+  const m = onFinding.length;
+  if (seen === 0) return `You never paused on the ${m === 1 ? 'slice' : `${m} slices`} the finding is on.`;
+  if (seen === m && !serverSaysNo) return m === 1 ? 'You saw the one slice the finding is on.' : `You saw every one of the ${m} slices the finding is on.`;
+  return `You saw ${seen} of the ${m} slice${m === 1 ? '' : 's'} the finding is on${serverSaysNo ? ', not long enough to count' : ''}.`;
 }
 
 /** The server's slice_dwell for the mock: dwell per slice plus which slices hold which findings. */

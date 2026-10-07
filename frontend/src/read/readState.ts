@@ -147,6 +147,7 @@ export function pendingSizes(s: ReadState): DraftMark[] {
 }
 
 export const NOTHING_YET = 'Mark a finding, tick a whole-film one, or call it normal.';
+const NOTHING_YET_SCAN = 'Mark a finding, tick a whole-scan one, or call it normal.';
 
 /** Everything that still stands between this read and "Submit read", in the order the rail shows it.
  *  Empty = ready. Each line names exactly what is missing ("M2 needs a confidence"). */
@@ -162,7 +163,7 @@ export function submitBlockers(s: ReadState): string[] {
   for (const [label, conf] of Object.entries(s.patterns)) {
     if (conf == null) out.push(`${labelDisplay(label)} needs a confidence`);
   }
-  if (out.length === 0 && s.marks.length === 0 && Object.keys(s.patterns).length === 0) out.push(NOTHING_YET);
+  if (out.length === 0 && s.marks.length === 0 && Object.keys(s.patterns).length === 0) out.push(s.volumetric ? NOTHING_YET_SCAN : NOTHING_YET);
   return out;
 }
 

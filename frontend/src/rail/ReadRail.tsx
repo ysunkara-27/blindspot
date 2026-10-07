@@ -50,10 +50,11 @@ export function ReadRail({ read, dispatch, hints, confirmNormal, setConfirmNorma
   const mod = isModality(modality) ? modality : 'cxr';
   const focal = FOCAL_LABELS_BY_MODALITY[mod];
   const patterns = mod === 'cxr' ? PATTERN_LABELS : [];
+  const film = mod === 'cxr' ? 'film' : 'scan'; // X-ray copy stays byte-identical; a CT / MR study is "the scan"
   const nPicked = read.marks.length + Object.keys(read.patterns).length;
   const blockers = submitBlockers(read);
   const off = read.declaredNormal;
-  const offNote = off ? <p className={s.offNote}>Off while the film is called normal.</p> : null;
+  const offNote = off ? <p className={s.offNote}>Off while the {film} is called normal.</p> : null;
   // What the learner just asked for must be on screen: the normal call's "How sure?" and the newest hint sit low in
   // the rail, behind the sticky Submit bar on a laptop.
   const normalRef = useRef<HTMLDivElement>(null);
@@ -68,7 +69,7 @@ export function ReadRail({ read, dispatch, hints, confirmNormal, setConfirmNorma
       {/* 1 — findings you can point to */}
       <section className={`${s.section} ${off ? s.groupOff : ''}`} aria-labelledby="point-h" data-testid="group-point">
         <h3 id="point-h" className={s.h3}><span className={s.step}>1</span>Findings you can point to</h3>
-        <p className={s.help}>Pick what you see, then click where it is on the film.</p>
+        <p className={s.help}>Pick what you see, then click where it is on the {film}.</p>
         {offNote}
         <div data-tour="pick">
           <p className={s.sub} id="pick-h">What do you see?</p>
@@ -90,7 +91,7 @@ export function ReadRail({ read, dispatch, hints, confirmNormal, setConfirmNorma
             </span>
           </div>
           <p className={s.armedLine} aria-live="polite" data-testid="armed-line">
-            {read.armed ? <><strong>{labelDisplay(read.armed)}</strong> picked. Now click the film where you see it.</> : 'Or click the film first and name it there.'}
+            {read.armed ? <><strong>{labelDisplay(read.armed)}</strong> picked. Now click the {film} where you see it.</> : `Or click the ${film} first and name it there.`}
           </p>
         </div>
 
@@ -163,8 +164,8 @@ export function ReadRail({ read, dispatch, hints, confirmNormal, setConfirmNorma
       <div data-tour="whole-normal">
         {/* 2 — findings of the whole film */}
         <section className={`${s.section} ${off ? s.groupOff : ''}`} aria-labelledby="global-h" data-testid="group-whole">
-          <h3 id="global-h" className={s.h3}><span className={s.step}>2</span>Findings of the whole film</h3>
-          <p className={s.help}>No single spot to click; tick it if the whole film shows it.</p>
+          <h3 id="global-h" className={s.h3}><span className={s.step}>2</span>Findings of the whole {film}</h3>
+          <p className={s.help}>No single spot to click; tick it if the whole {film} shows it.</p>
           {offNote}
           {patterns.length === 0 && <p className={s.mutedLine} data-testid="no-patterns">None for this scan type.</p>}
           <ul className={s.checkGrid}>
@@ -194,7 +195,7 @@ export function ReadRail({ read, dispatch, hints, confirmNormal, setConfirmNorma
           <p className={s.help}>Use this only if you see no findings at all.</p>
           {read.declaredNormal ? (
             <div className={s.normalOn} data-testid="normal-called" ref={normalRef}>
-              <p className={s.normalText}>You called this film normal.</p>
+              <p className={s.normalText}>You called this {film} normal.</p>
               <div className={s.sureRow}>
                 <span className={s.sureLabel}>How sure?</span>
                 <ConfidenceChips value={read.normalConfidence} name="normal" needed captions onChange={(c) => dispatch({ type: 'normalConfidence', confidence: c })} />

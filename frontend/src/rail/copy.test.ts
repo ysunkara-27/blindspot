@@ -52,3 +52,18 @@ describe('score and search copy', () => {
     expect(searchLines({ lung_coverage_pct: 80, unvisited_review_areas: [] }).areas).toBe('You visited every review area.');
   });
 });
+
+describe('volumes: miss lines come from the outcome, not the search flag', () => {
+  it('words the three miss types from result + dwell_ms', () => {
+    expect(whyLine('missed_search', { dwell_ms: 0 }, true)).toBe('Its slices were never on screen long enough to see.');
+    expect(whyLine('missed_recognition', { dwell_ms: 1200 }, true)).toBe('On screen for about 1.2 s; your cursor passed over it without stopping.');
+    expect(whyLine('missed_decision', { dwell_ms: 2100 }, true)).toBe('You paused on it for about 2.1 s and left it unmarked.');
+    expect(whyLine('found', null, true)).toBe('You marked it and named it.');
+    expect(whyLine('missed_recognition', { dwell_ms: 1200 })).toBe('Your cursor passed through: about 1.2 s there.'); // X-ray unchanged
+  });
+  it('the volume search lines never read finding_slices_viewed', () => {
+    const l = searchLines({ lung_coverage_pct: 31, unvisited_review_areas: [], slices_viewed_pct: 31, finding_slices_viewed: { F1: false } }, true);
+    expect(l.areas).toBe('You scrolled through about 31% of the slices; the bar under the scan shows which.');
+    expect(l.coverage).toBe('Your cursor covered about 31% of the scan.');
+  });
+});

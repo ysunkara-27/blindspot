@@ -35,7 +35,7 @@ export function ResultSummary({ result, settle = true }: { result: SubmitResult;
               onClick={() => setInfo((v) => !v)} data-testid="score-info-btn">i</button>
           </span>
         </div>
-        {info && <p className={s.scoreNote} id="score-info" data-testid="score-info">{scoreSentence(result.reveal.is_normal)}</p>}
+        {info && <p className={s.scoreNote} id="score-info" data-testid="score-info">{scoreSentence(result.reveal.is_normal, volumetric)}</p>}
         <p className={s.factsHead} data-testid="facts-headline">{result.facts_card.headline}</p>
         <ul className={s.outcomeList}>
           {findings.map((f) => {
@@ -51,7 +51,7 @@ export function ResultSummary({ result, settle = true }: { result: SubmitResult;
                 </span>
                 <InfoButton label={f.label} display={f.display} />
                 {res && <span className={s.outcomeChipCell}><OutcomeChip result={res} /></span>}
-                {res && <span className={s.why}>{whyLine(res, { dwell_ms: o?.dwell_ms ?? f.dwell_ms, learner_label: o?.learner_label, matched: o?.matched })}</span>}
+                {res && <span className={s.why}>{whyLine(res, { dwell_ms: o?.dwell_ms ?? f.dwell_ms, learner_label: o?.learner_label, matched: o?.matched }, volumetric)}</span>}
                 {f.size_verdict && (
                   <span className={s.sizeVerdict} data-testid={`size-verdict-${f.finding_id}`} data-ok={f.size_verdict.ok ? '1' : '0'}>{sizeVerdictText(f.size_verdict)}</span>
                 )}
@@ -73,7 +73,7 @@ export function ResultSummary({ result, settle = true }: { result: SubmitResult;
           {patternFalse.map((o) => (
             <li key={o.target} className={s.outcomeRow} data-testid={`outcome-${o.target}`}>
               <span className={s.markId}>—</span>
-              <span className={s.outcomeWhat}>{labelDisplay(o.learner_label ?? o.target)}<span className={s.muted}> · whole film</span></span>
+              <span className={s.outcomeWhat}>{labelDisplay(o.learner_label ?? o.target)}<span className={s.muted}> · whole {volumetric ? 'scan' : 'film'}</span></span>
               <span />
               <span className={s.outcomeChipCell}><OutcomeChip result="pattern_false" /></span>
               <span className={s.why}>{whyLine('pattern_false')}</span>
@@ -82,13 +82,13 @@ export function ResultSummary({ result, settle = true }: { result: SubmitResult;
           {tn && (
             <li className={s.outcomeRow} data-testid="outcome-normal">
               <span className={s.fid}>—</span>
-              <span className={s.outcomeWhat}>Normal film</span>
+              <span className={s.outcomeWhat}>Normal {volumetric ? 'scan' : 'film'}</span>
               <span />
               <span className={s.outcomeChipCell}><OutcomeChip result="true_negative" /></span>
               <span className={s.why}>{whyLine('true_negative')}</span>
             </li>
           )}
-          {findings.length === 0 && !tn && fps.length === 0 && patternFalse.length === 0 && <li className={s.muted}>This film is normal.</li>}
+          {findings.length === 0 && !tn && fps.length === 0 && patternFalse.length === 0 && <li className={s.muted}>This {volumetric ? 'scan' : 'film'} is normal.</li>}
         </ul>
       </section>
 

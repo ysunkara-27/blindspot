@@ -70,6 +70,7 @@ export type VolumeUi = {
   mask?: MaskVolume | null;
   maskNames?: Record<string, string>;
   sliceDwell?: SliceDwell[] | null;
+  findingSlicesViewed?: Record<string, boolean> | null;
   /** The telemetry that was submitted, for the cursor splats on each slice. */
   submittedTelemetry?: TelemetryEvent[];
 };
@@ -721,7 +722,7 @@ export function Viewer(p: ViewerProps) {
             </span>
           ) : !p.reveal && p.armed && p.canMark ? (
             <span className={s.stripArmed} data-testid="armed-prompt">
-              <strong>{armedName}</strong> — {gridMode ? 'double-click a pane, then click where you see it' : 'click the film where you see it'}
+              <strong>{armedName}</strong> — {gridMode ? 'double-click a pane, then click where you see it' : vol ? 'click the scan where you see it' : 'click the film where you see it'}
               <button type="button" className={s.stripLink} onClick={() => p.dispatch({ type: 'disarm' })}>Cancel <kbd className={s.kbdTool}>Esc</kbd></button>
             </span>
           ) : loaded && (canPlace || gridMode) && !p.reveal && !p.readOnly && (p.marks.length === 0 || !zoomed) ? (
@@ -972,7 +973,7 @@ export function Viewer(p: ViewerProps) {
             {!nav.grid && geom && (
               <span className={s.sliceGroup} data-tour="slices">
                 {p.reveal && vol.sliceDwell !== undefined && (
-                  <DwellBar dwell={vol.sliceDwell} plane={geom.plane} n={geom.n} current={slice} onPick={(sl) => navTo((n) => setSlice(n, vol.meta, geom.plane, sl))} />
+                  <DwellBar dwell={vol.sliceDwell} plane={geom.plane} n={geom.n} current={slice} findingSlicesViewed={vol.findingSlicesViewed} onPick={(sl) => navTo((n) => setSlice(n, vol.meta, geom.plane, sl))} />
                 )}
                 <label className={s.slider}>
                   <span data-testid="slice-readout">{sliceLabel}</span>
@@ -1041,7 +1042,7 @@ export function Viewer(p: ViewerProps) {
             </button>
             {tip && (
               <span className={s.tip} role="tooltip" id="magnifier-tip" data-testid="magnifier-tip">
-                The magnifier is a 2.5× lens that follows your cursor over the film. Use it for fine detail; press <kbd className={s.kbdTool}>M</kbd> to put it away.
+                The magnifier is a 2.5× lens that follows your cursor over the {vol ? 'scan' : 'film'}. Use it for fine detail; press <kbd className={s.kbdTool}>M</kbd> to put it away.
               </span>
             )}
           </span>

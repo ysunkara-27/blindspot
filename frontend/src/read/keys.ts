@@ -40,8 +40,8 @@ export function shortcutsFor(volume: boolean): [string, string, boolean][] {
   if (!volume) return SHORTCUTS;
   const base = SHORTCUTS.map(([k, what, isKey]): [string, string, boolean] =>
     k === 'Mouse wheel' ? ['Ctrl + wheel', 'Zoom at the cursor (up to 6×)', false]
-    : k === 'Tab to the film, then arrow keys' ? ['Tab to the film, then ← →', 'Move a crosshair (Alt + ↑ ↓ for up and down); Space places a mark there', false]
-    : [k, what, isKey]);
+    : k === 'Tab to the film, then arrow keys' ? ['Tab to the scan, then ← →', 'Move a crosshair (Alt + ↑ ↓ for up and down); Space places a mark there', false]
+    : [k.replace(/\bfilm\b/g, 'scan'), what.replace(/\bfilm\b/g, 'scan'), isKey]);
   return [...VOLUME_SHORTCUTS, ...base];
 }
 

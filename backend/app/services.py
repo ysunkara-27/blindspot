@@ -1043,6 +1043,21 @@ def anatomy(aid: str) -> dict[str, Any]:
             raise HTTPException(status_code=409, detail="attempt not submitted")
         if assessment_locked(con, repo, a):
             raise HTTPException(status_code=409, detail="available after the assessment summary")
-    if repo.get(a["case_id"]) is None:
+    case = repo.get(a["case_id"])
+    if case is None:
         raise _404("case")
+    if case.volume is not None:
+        # Volumes: the viewer tints organ zones from the label volume (maskvol, post-submit); no 2-D outlines exist.
+        anatomy_labels = {
+            v: name for v, name in case.volume.labels.items() if name not in {f.label for f in case.findings}
+        }
+        return {
+            "attempt_id": aid,
+            "case_id": a["case_id"],
+            "volumetric": True,
+            "zones": [],
+            "midline_x": None,
+            "approximate": False,
+            "labels": anatomy_labels,
+        }
     return {"attempt_id": aid, "case_id": a["case_id"], **_outlines_cached(str(repo.root), a["case_id"])}

@@ -101,7 +101,7 @@ export function VolumeReview({ result, volume, marks }: { result: SubmitResult; 
           <input type="range" min={0} max={g.n - 1} value={slice} aria-label="Axial slice" data-testid="slice-slider" onChange={(e) => setSlice(Number(e.target.value))} />
         </label>
         {result.reveal.search.slice_dwell && (
-          <span className={c.dwellWrap}><DwellBar dwell={result.reveal.search.slice_dwell} plane="axial" n={g.n} current={slice} onPick={setSlice} /></span>
+          <span className={c.dwellWrap}><DwellBar dwell={result.reveal.search.slice_dwell} plane="axial" n={g.n} current={slice} onPick={setSlice} findingSlicesViewed={result.reveal.search.finding_slices_viewed} /></span>
         )}
       </div>
       <figcaption className={c.caption}>

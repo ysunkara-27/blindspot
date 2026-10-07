@@ -175,7 +175,7 @@ describe('slice dwell', () => {
     expect(rows[7]).toMatchObject({ slice: 7, ms: 200, has_finding: true, finding_ids: ['F1'] });
     const cells = dwellCells(rows, 'axial', 10);
     expect(cells[2].frac).toBe(1);
-    expect(cells[7]).toMatchObject({ hasFinding: true, notVisited: false }); // 200 ms: glanced at
+    expect(cells[7]).toMatchObject({ hasFinding: true, notVisited: true }); // 200 ms is under the 300 ms per-slice threshold
     expect(cells[6]).toMatchObject({ hasFinding: true, ms: 0, notVisited: true });
     expect(cells[8]).toMatchObject({ hasFinding: true, ms: 0, notVisited: true });
     expect(cells[0]).toMatchObject({ hasFinding: false, notVisited: false, frac: 0 });
@@ -187,5 +187,22 @@ describe('slice dwell', () => {
     expect(sizeVerdictText({ your_mm: 50, reference_mm: 37.9, diff_pct: 31.9, ok: false }))
       .toBe('You measured 50 mm; reference 37.9 mm, 32 % larger — off by 12.1 mm.');
     expect(sizeVerdictText(null)).toBeNull();
+  });
+});
+
+describe('dwell caption (backend thresholds, never contradicts finding_slices_viewed)', () => {
+  const row = (slice: number, ms: number, has: boolean) => ({ plane: 'axial', slice, ms, has_finding: has, finding_ids: has ? ['F1'] : [] });
+  it('counts finding slices seen ≥ 300 ms', async () => {
+    const { dwellCaption, dwellCells } = await import('./dwell');
+    const rows = [row(0, 900, false), row(1, 1200, true), row(2, 250, true), row(3, 0, true)];
+    const cells = dwellCells(rows, 'axial', 4);
+    expect(cells.map((c) => c.notVisited)).toEqual([false, false, true, true]);
+    expect(dwellCaption(cells, { F1: true })).toBe('You saw 1 of the 3 slices the finding is on.');
+    expect(dwellCaption(cells, { F1: false })).toBe('You saw 1 of the 3 slices the finding is on, not long enough to count.');
+    expect(dwellCaption(dwellCells([row(1, 100, true), row(2, 0, true)], 'axial', 3), {})).toBe('You never paused on the 2 slices the finding is on.');
+    const all = dwellCells([row(1, 400, true), row(2, 300, true)], 'axial', 3);
+    expect(dwellCaption(all, { F1: true })).toBe('You saw every one of the 2 slices the finding is on.');
+    expect(dwellCaption(all, { F1: false })).toBe('You saw 2 of the 2 slices the finding is on, not long enough to count.');
+    expect(dwellCaption(dwellCells(null, 'axial', 3), null)).toBe('No slice times were recorded.');
   });
 });

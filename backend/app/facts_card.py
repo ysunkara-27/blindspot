@@ -102,6 +102,25 @@ def slices_text(f: Finding, nz: int, seen: int | None) -> str:
     return out
 
 
+def secs_text(ms: float | None) -> str:
+    """'about 1.2 s' (one decimal, half-up)."""
+    return f"about {_half_up(float(ms or 0.0) / 1000.0, 1):.1f} s"
+
+
+def slice_search_line(fid: str, result: str, dwell_ms: float | None, near_ms: float | None) -> str | None:
+    """One sentence on how the learner's scrolling met a MISSED finding on a volume (the only wording the rail
+    should use): never on screen (search) / on screen but passed over (recognition) / paused on it (decision)."""
+    if result == "missed_search":
+        return f"The slices holding {fid} were never on screen long enough to see."
+    if result == "missed_recognition":
+        how = "your cursor passed over it without stopping" if (near_ms or 0) > 0 else "your cursor never came near it"
+        return f"The slices holding {fid} were on screen for {secs_text(dwell_ms)}; {how}."
+    if result == "missed_decision":
+        on, paused = secs_text(dwell_ms), secs_text(near_ms)
+        return f"The slices holding {fid} were on screen for {on}; you paused on it for {paused}."
+    return None
+
+
 def build_facts_card(
     case: Case,
     outcomes: Sequence[Outcome],
@@ -110,6 +129,7 @@ def build_facts_card(
     search: FactsSearch,
     declared_normal: bool,
     seen_slices: dict[str, int] | None = None,
+    near_ms: dict[str, float] | None = None,
 ) -> FactsCard:
     by_f = {f.short_id: f for f in case.findings}
     finding_outs = sorted((o for o in outcomes if o.target in by_f), key=lambda o: _id_order(o.target))
@@ -157,6 +177,10 @@ def build_facts_card(
             chip += f" ({dwell_text(o.dwell_ms)})"
         where = _where(f) + (slices_text(f, nz, (seen_slices or {}).get(o.target)) if vol else "")
         lines.append(f"{o.target} {display(f.label)} — {where}: {chip}.{size_verdict_text(o.size_verdict)}")
+        if vol:
+            sl = slice_search_line(o.target, o.result, o.dwell_ms, (near_ms or {}).get(o.target))
+            if sl:
+                lines.append(sl)
     for o in fps:
         lines.append(f"{o.target} ({zone_human(o.zone) if o.zone else 'outside the lungs'}): {FP_LINE}.")
     for o in unmatched:

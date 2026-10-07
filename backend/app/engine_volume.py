@@ -372,7 +372,9 @@ def evaluate_volume(case: Case, submit: AttemptSubmit, repo: CaseRepository, hin
         modality=case.modality,
         provenance=provenance_badge(case),
     )
-    card = build_facts_card(case, outs, score, success, facts_search, submit.declared_normal, seen_slices=seen_n)
+    card = build_facts_card(
+        case, outs, score, success, facts_search, submit.declared_normal, seen_slices=seen_n, near_ms=near
+    )
     finding_results = [
         (f.label, 1.0 if by_target[f.short_id].result in ("found", "mislabeled") else 0.0) for f in focal
     ]

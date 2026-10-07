@@ -26,8 +26,15 @@ export function plainText(text: string): string {
 
 const cap = (t: string) => (t ? t.charAt(0).toUpperCase() + t.slice(1) : t);
 
-/** One line of "why" for an outcome, from the outcome alone. */
-export function whyLine(result: OutcomeResult, o?: Pick<Outcome, 'dwell_ms' | 'learner_label' | 'matched'> | null): string {
+/** One line of "why" for an outcome, from the outcome alone (`result` + `dwell_ms`; never from a search-summary flag).
+ *  On a volume the misses are worded as the backend's facts card words them: on-screen time of the finding's slices. */
+export function whyLine(result: OutcomeResult, o?: Pick<Outcome, 'dwell_ms' | 'learner_label' | 'matched'> | null, volumetric = false): string {
+  if (volumetric) {
+    const t = dwellText(o?.dwell_ms).replace(/ there$/, '');
+    if (result === 'missed_search') return 'Its slices were never on screen long enough to see.';
+    if (result === 'missed_recognition') return `On screen for ${t}; your cursor passed over it without stopping.`;
+    if (result === 'missed_decision') return `You paused on it for ${t} and left it unmarked.`;
+  }
   switch (result) {
     case 'found':
     case 'true_positive':
@@ -61,10 +68,11 @@ export function whyLine(result: OutcomeResult, o?: Pick<Outcome, 'dwell_ms' | 'l
 }
 
 /** The "i" next to the score, in one sentence. Hints do not change it. */
-export function scoreSentence(isNormal: boolean | undefined): string {
-  return isNormal
+export function scoreSentence(isNormal: boolean | undefined, volumetric = false): string {
+  const s = isNormal
     ? 'Out of 100: a normal film starts at 100 and loses points for each mark or whole-film finding you called.'
     : 'Out of 100: 70 for marking each finding in the right place, 20 for naming it, 10 for whole-film findings, minus points for each extra mark.';
+  return volumetric ? s.replace(/\bfilm\b/g, 'scan') : s;
 }
 
 /** Search summary lines from the computed search facts. Volumes add the slices line and say "scan", not "lungs". */
@@ -76,14 +84,12 @@ export function searchLines(search: SubmitResult['reveal']['search'], volumetric
     areas: un.length ? `Review areas you did not visit: ${un.join(', ')}.` : 'You visited every review area.',
   };
   if (volumetric) {
-    // Review areas are an X-ray idea; on a scan the second line is about slices.
+    // Review areas are an X-ray idea; on a scan the second line is about slices. Per-finding search verdicts come
+    // from `outcomes[].result` (whyLine) and the dwell bar, never from the `finding_slices_viewed` flag.
     const sp = search.slices_viewed_pct;
-    const seen = search.finding_slices_viewed ?? {};
-    const missed = Object.entries(seen).filter(([, v]) => !v).map(([k]) => k);
-    const parts: string[] = [];
-    if (typeof sp === 'number' && Number.isFinite(sp)) parts.push(`You scrolled through about ${Math.max(0, Math.min(100, Math.round(sp)))}% of the slices.`);
-    if (Object.keys(seen).length) parts.push(missed.length ? `The slices holding ${missed.join(', ')} were never on screen long enough to see.` : 'Every finding\'s slices were on screen.');
-    out.areas = parts.join(' ') || (un.length ? out.areas : 'No slice times were recorded.');
+    out.areas = typeof sp === 'number' && Number.isFinite(sp)
+      ? `You scrolled through about ${Math.max(0, Math.min(100, Math.round(sp)))}% of the slices; the bar under the scan shows which.`
+      : un.length ? out.areas : 'No slice times were recorded.';
   }
   return out;
 }

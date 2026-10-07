@@ -483,3 +483,27 @@ def test_about_provenance_is_the_yaml_keyed_with_a_modality(api_env):
 def test_reference_labels_carry_their_modality(api_env):
     labels = {e["label"]: e["modality"] for e in api_env().get("/api/reference").json()["labels"]}
     assert labels["nodule"] == "cxr" and labels["pancreatic_tumour"] == "ct" and labels["brain_tumour"] == "mr"
+
+
+def test_anatomy_endpoint_on_a_volume_returns_labels_not_outlines(api_env):
+    """/anatomy must not crash on a volumetric case; it reports the anatomy label map and no 2-D zones."""
+    c = api_env()
+    sid = _session(c, modality="ct", selection="random")["session_id"]
+    nxt = c.get(f"/api/sessions/{sid}/next").json()
+    aid = nxt["attempt_id"]
+    assert c.get(f"/api/attempts/{aid}/anatomy").status_code == 409
+    body = {
+        "marks": [],
+        "patterns": [],
+        "declared_normal": True,
+        "normal_confidence": 3,
+        "telemetry": [],
+        "hints_used": 0,
+        "client_timing": {"shown_at": "2026-10-07T00:00:00Z", "submitted_at": "2026-10-07T00:00:10Z"},
+        "measurements": [],
+    }
+    assert c.post(f"/api/attempts/{aid}/submit", json=body).status_code == 200
+    r = c.get(f"/api/attempts/{aid}/anatomy")
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert d["volumetric"] is True and d["zones"] == [] and isinstance(d["labels"], dict)

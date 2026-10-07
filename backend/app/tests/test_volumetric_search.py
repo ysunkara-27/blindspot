@@ -119,7 +119,40 @@ def test_never_on_the_slices_is_missed_search(repo):
     e, o = _missed(repo, scroll([0, 1, 2, 3], 1000, x=24, y=36))
     assert o.result == "missed_search" and o.dwell_ms == 0.0 and o.slices_viewed is False
     assert e.reveal.search.finding_slices_viewed == {"F1": False}
+    assert e.facts_card.lines[1] == "The slices holding F1 were never on screen long enough to see."
     assert "slices 7–11 of 16 (you viewed 0 of them): Never looked there (no time spent there)" in e.facts_card.lines[0]
+
+
+def test_fast_scroll_through_the_slices_is_search_and_not_viewed_per_slice_rule(repo):
+    # 100 ms on each of the 5 finding slices: 500 ms on screen (< 800 → search) and no slice reached 300 ms, so the
+    # viewer's caption rule (finding_slices_viewed: some finding slice ≥ 300 ms) says "not viewed" as well
+    e, o = _missed(repo, scroll([6, 7, 8, 9, 10], 100, x=24, y=36))
+    assert o.result == "missed_search" and o.dwell_ms == 500.0 and o.slices_viewed is False
+    assert e.facts_card.lines[1] == "The slices holding F1 were never on screen long enough to see."
+
+
+def test_recognition_wording_says_on_screen_and_passed_over(repo):
+    e, o = _missed(repo, scroll([7, 8], 600, x=24, y=36))  # 1.2 s on its slices, cursor over it, < 2 s
+    assert o.result == "missed_recognition" and o.slices_viewed is True
+    assert (
+        e.facts_card.lines[1]
+        == "The slices holding F1 were on screen for about 1.2 s; your cursor passed over it without stopping."
+    )
+    e, o = _missed(repo, scroll([6, 7, 8, 9, 10], 600, x=60, y=60))  # 3 s on its slices, cursor never near
+    assert o.result == "missed_recognition"
+    assert (
+        e.facts_card.lines[1] == "The slices holding F1 were on screen for about 3.0 s; your cursor never came near it."
+    )
+
+
+def test_decision_wording_says_how_long_the_cursor_paused(repo):
+    e, o = _missed(repo, scroll([6, 7, 8, 9, 10], 600, x=24, y=36))
+    assert o.result == "missed_decision"
+    assert (
+        e.facts_card.lines[1]
+        == "The slices holding F1 were on screen for about 3.0 s; you paused on it for about 3.0 s."
+    )
+    assert "long enough to see" not in " ".join(e.facts_card.lines)
 
 
 def test_brief_on_the_slices_is_missed_search_then_recognition(repo):
