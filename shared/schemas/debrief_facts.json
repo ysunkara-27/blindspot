@@ -161,6 +161,17 @@
                   "type": "string"
                 },
                 "default": null
+              },
+              "signs_drawn": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "default": null,
+                "items": {
+                  "type": "string"
+                },
+                "description": "names of signs drawn on the reveal for this finding; the debrief may tell the reader to look at them"
               }
             }
           }
@@ -260,6 +271,13 @@
               "slice": {
                 "type": [
                   "integer",
+                  "null"
+                ],
+                "default": null
+              },
+              "tool": {
+                "type": [
+                  "string",
                   "null"
                 ],
                 "default": null

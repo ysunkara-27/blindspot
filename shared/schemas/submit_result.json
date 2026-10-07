@@ -312,6 +312,16 @@
               "default": null
             }
           }
+        },
+        "signs": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "default": null,
+          "items": {
+            "$ref": "#/$defs/Sign"
+          }
         }
       }
     },
@@ -370,6 +380,35 @@
           "type": [
             "integer",
             "null"
+          ],
+          "default": null
+        },
+        "polygon": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "default": null,
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 2,
+            "maxItems": 2
+          }
+        },
+        "outline_verdict": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "on_target",
+            "partly",
+            "too_broad",
+            "off",
+            null
           ],
           "default": null
         }
@@ -549,6 +588,90 @@
           },
           "default": null,
           "description": "finding short id \u2192 whether any slice holding it was on screen \u2265 the threshold"
+        }
+      }
+    },
+    "Sign": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "text",
+        "geometry"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string",
+          "description": "e.g. 'Visceral pleural line'"
+        },
+        "text": {
+          "type": "string",
+          "description": "what to look for, one sentence, from the teaching card"
+        },
+        "geometry": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "points"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "polyline",
+                "polygon",
+                "circle",
+                "arrow",
+                "segment",
+                "band"
+              ]
+            },
+            "points": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                },
+                "minItems": 2,
+                "maxItems": 2
+              }
+            },
+            "radius": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "default": null
+            },
+            "plane": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            },
+            "slice": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "default": null
+            }
+          }
+        },
+        "schematic": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "id of a generic sign schematic (content/signs) when the sign cannot be drawn from the mask"
         }
       }
     }

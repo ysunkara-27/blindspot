@@ -247,6 +247,8 @@ class Mark(_Strict):
     plane: Plane | None = None
     slice: int | None = None
     voxel: tuple[float, float, float] | None = None
+    polygon: list[XY] | None = None
+    tool: Literal["point", "draw"] | None = None
 
 
 class Measurement(_Strict):
@@ -291,6 +293,22 @@ class Outcome(_Strict):
     slices_viewed: bool | None = None
 
 
+class SignGeometry(_Strict):
+    kind: Literal["polyline", "polygon", "circle", "arrow", "segment", "band"]
+    points: list[XY]
+    radius: float | None = None
+    plane: str | None = None
+    slice: int | None = None
+
+
+class Sign(_Strict):
+    id: str
+    name: str
+    text: str
+    geometry: SignGeometry
+    schematic: str | None = None
+
+
 class SizeVerdict(_Strict):
     your_mm: float
     reference_mm: float
@@ -328,6 +346,7 @@ class RevealFinding(_Strict):
     components: list[Component] | None = None
     measure: Measure | None = None
     size_verdict: SizeVerdict | None = None
+    signs: list[Sign] | None = None
 
 
 class RevealMark(_Strict):
@@ -338,6 +357,8 @@ class RevealMark(_Strict):
     voxel: list[float] | None = None
     plane: str | None = None
     slice: int | None = None
+    polygon: list[XY] | None = None
+    outline_verdict: Literal["on_target", "partly", "too_broad", "off"] | None = None
 
 
 class Arrow(_Strict):
@@ -414,6 +435,7 @@ class FactsFinding(_Strict):
     slice_range: list[int] | None = None
     size_mm: float | None = None
     components: list[str] | None = None
+    signs_drawn: list[str] | None = None
 
 
 class FactsCase(_Strict):
@@ -434,6 +456,7 @@ class FactsMark(_Strict):
     zone: str | None
     plane: str | None = None
     slice: int | None = None
+    tool: str | None = None
 
 
 class FactsMeasurement(_Strict):
@@ -668,6 +691,17 @@ class ReviewRating(_Strict):
     safety_flag: bool
     comment: str | None = None
     card_edits: dict[str, Any] | None = None
+
+
+class SignSchematic(_Strict):
+    id: str
+    name: str
+    description: str
+    labels: list[str]
+    modality: str | None = None
+    svg: str
+    radiopaedia_url: str | None = None
+    review_status: str = "ai_draft"
 
 
 class SusSubmit(_Strict):

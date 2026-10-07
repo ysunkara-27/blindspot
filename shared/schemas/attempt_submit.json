@@ -100,6 +100,34 @@
           "maxItems": 3,
           "default": null,
           "description": "[x, y, z] in volume index space (floats). Required for volumetric cases; x,y then hold the in-plane view coords for display."
+        },
+        "polygon": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "default": null,
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "description": "free-drawn outline in image px (x,y is its centroid); graded by overlap with the finding"
+        },
+        "tool": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "point",
+            "draw",
+            null
+          ],
+          "default": null
         }
       }
     },

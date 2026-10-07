@@ -134,6 +134,11 @@ export interface Mark {
    * @maxItems 3
    */
   voxel?: [number, number, number] | null;
+  /**
+   * free-drawn outline in image px (x,y is its centroid); graded by overlap with the finding
+   */
+  polygon?: [number, number][] | null;
+  tool?: "point" | "draw" | null;
 }
 
 export interface TelemetryEvent {
@@ -220,6 +225,20 @@ export interface SusSubmit {
 
 export interface SusResult {
   score: number;
+}
+
+export interface SignSchematic {
+  id: string;
+  name: string;
+  description: string;
+  labels: string[];
+  modality?: string | null;
+  /**
+   * inline SVG markup, viewBox 0 0 200 200, cyan/amber/graticule only
+   */
+  svg: string;
+  radiopaedia_url?: string | null;
+  review_status?: string;
 }
 
 export type Confidence = 1 | 2 | 3 | 4 | 5;
@@ -456,6 +475,10 @@ export interface DebriefFacts {
        */
       size_mm?: number | null;
       components?: string[] | null;
+      /**
+       * names of signs drawn on the reveal for this finding; the debrief may tell the reader to look at them
+       */
+      signs_drawn?: string[] | null;
     }[];
     modality?: "cxr" | "ct" | "mr";
     body_region?: string | null;
@@ -477,6 +500,7 @@ export interface DebriefFacts {
       zone: string | null;
       plane?: string | null;
       slice?: number | null;
+      tool?: string | null;
     }[];
     pattern_selections: {
       label: string;
@@ -693,6 +717,30 @@ export interface RevealFinding {
     ok: boolean;
     plane?: string | null;
   } | null;
+  signs?: Sign[] | null;
+}
+
+export interface Sign {
+  id: string;
+  /**
+   * e.g. 'Visceral pleural line'
+   */
+  name: string;
+  /**
+   * what to look for, one sentence, from the teaching card
+   */
+  text: string;
+  geometry: {
+    kind: "polyline" | "polygon" | "circle" | "arrow" | "segment" | "band";
+    points: [number, number][];
+    radius?: number | null;
+    plane?: string | null;
+    slice?: number | null;
+  };
+  /**
+   * id of a generic sign schematic (content/signs) when the sign cannot be drawn from the mask
+   */
+  schematic?: string | null;
 }
 
 export interface RevealMark {
@@ -703,6 +751,8 @@ export interface RevealMark {
   voxel?: number[] | null;
   plane?: string | null;
   slice?: number | null;
+  polygon?: [number, number][] | null;
+  outline_verdict?: "on_target" | "partly" | "too_broad" | "off" | null;
 }
 
 export interface Arrow {

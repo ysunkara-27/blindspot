@@ -615,6 +615,56 @@
         "ct",
         "mr"
       ]
+    },
+    "SignSchematic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "description",
+        "labels",
+        "svg"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "labels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "modality": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "svg": {
+          "type": "string",
+          "description": "inline SVG markup, viewBox 0 0 200 200, cyan/amber/graticule only"
+        },
+        "radiopaedia_url": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "review_status": {
+          "type": "string",
+          "default": "ai_draft"
+        }
+      }
     }
   }
 }
