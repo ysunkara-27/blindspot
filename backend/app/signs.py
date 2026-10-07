@@ -814,7 +814,29 @@ def load_schematics(directory: Path | None = None) -> dict[str, SignSchematic]:
     return dict(_load_schematics(str(d), _signature(d)))
 
 
+# The sign a learner should know first for each label; it leads the list (the rest follow in file order).
+PRIMARY_SCHEMATIC: dict[str, str] = {
+    "pneumothorax": "visceral_pleural_line",
+    "effusion": "meniscus_sign",
+    "consolidation": "silhouette_sign",
+    "atelectasis": "silhouette_sign",
+    "cardiomegaly": "cardiothoracic_ratio",
+    "nodule": "mass_vs_nodule",
+    "mass": "mass_vs_nodule",
+    "fracture": "rib_fracture_cortex",
+    "pleural_thickening": "pleural_thickening_band",
+    "pancreatic_tumour": "ct_hypoenhancing_mass",
+    "liver_tumour": "ct_hypoenhancing_mass",
+    "brain_tumour": "mr_ring_enhancement",
+}
+
+
 def schematics_for_label(label: str, schematics: dict[str, SignSchematic] | None = None) -> list[str]:
-    """Schematic ids whose `labels` include this label, in file order."""
+    """Schematic ids whose `labels` include this label: the label's primary sign first, then file order."""
     sch = schematics if schematics is not None else load_schematics()
-    return [sid for sid, s in sch.items() if label in s.labels]
+    ids = [sid for sid, s in sch.items() if label in s.labels]
+    primary = PRIMARY_SCHEMATIC.get(label)
+    if primary in ids:
+        ids.remove(primary)
+        ids.insert(0, primary)
+    return ids

@@ -311,7 +311,7 @@ def test_schematic_yaml_validates_against_contract():
         assert must in seen
     sch = load_schematics()
     assert sch["bat_wing"].labels == [] and sch["bat_wing"].modality == "cxr"
-    assert schematics_for_label("pneumothorax") == ["deep_sulcus", "visceral_pleural_line"]
+    assert schematics_for_label("pneumothorax") == ["visceral_pleural_line", "deep_sulcus"]
     assert schematics_for_label("brain_tumour") == ["mr_ring_enhancement", "mr_vasogenic_oedema"]
 
 
@@ -334,7 +334,7 @@ def test_signs_endpoints_and_reference_signs(api_env):
         assert ref.status_code == 200 and ref.json()["signs"] == ["meniscus_sign"]
         bank = c.get("/api/reference").json()
         by = {lab["label"]: lab["signs"] for lab in bank["labels"]}
-        assert by["pneumothorax"] == ["deep_sulcus", "visceral_pleural_line"] and by["calcification"] == []
+        assert by["pneumothorax"] == ["visceral_pleural_line", "deep_sulcus"] and by["calcification"] == []
 
 
 # ------------------------------------------------------------------ 5. Radiopaedia links on the cards

@@ -57,8 +57,18 @@ export function guardSigns(v: unknown): SignSchematic[] {
 export const fetchSigns = async (): Promise<SignSchematic[]> => guardSigns(await request<unknown>('/signs'));
 
 /** The schematics for one finding type, the on-film ones (`first`, schematic ids) listed first. */
+/** The sign to know first per finding type (mirrors PRIMARY_SCHEMATIC in backend/app/signs.py). */
+export const PRIMARY_SIGN: Record<string, string> = {
+  pneumothorax: 'visceral_pleural_line', effusion: 'meniscus_sign', consolidation: 'silhouette_sign', atelectasis: 'silhouette_sign',
+  cardiomegaly: 'cardiothoracic_ratio', nodule: 'mass_vs_nodule', mass: 'mass_vs_nodule', fracture: 'rib_fracture_cortex',
+  pleural_thickening: 'pleural_thickening_band', pancreatic_tumour: 'ct_hypoenhancing_mass', liver_tumour: 'ct_hypoenhancing_mass',
+  brain_tumour: 'mr_ring_enhancement',
+};
+
+/** Signs for a label: the ones drawn on the film just read (`first`) lead, then the label's primary sign, then the rest in API order. */
 export function signsForLabel(all: SignSchematic[], label: string, first: string[] = []): SignSchematic[] {
   const mine = all.filter((s) => s.labels.includes(label) || first.includes(s.id));
-  const rank = (s: SignSchematic) => { const i = first.indexOf(s.id); return i < 0 ? first.length : i; };
+  const primary = PRIMARY_SIGN[label];
+  const rank = (s: SignSchematic) => { const i = first.indexOf(s.id); return i >= 0 ? i : s.id === primary ? first.length : first.length + 1; };
   return [...mine].sort((a, b) => rank(a) - rank(b));
 }

@@ -737,8 +737,8 @@ test('anatomy overlay: dark lines on a light casing, names on hover, a compact l
   await expect(page.getByTestId('anatomy-legend')).toContainText('Zone');
   await expect(page.getByTestId('anatomy-legend')).toContainText('Review area');
   const last = zones.last();
-  const box = (await last.boundingBox())!;
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  // A zone's bounding-box centre can lie outside a ring-shaped zone or under a legend chip; hover the element itself.
+  await last.dispatchEvent('pointerover');
   await expect(page.getByTestId('zone-name')).not.toContainText('Point at a zone');
   await expect(page.getByTestId('zone-name')).not.toBeEmpty();
   await shot(page, '14-anatomy-overlay');
