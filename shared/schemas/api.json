@@ -112,6 +112,26 @@
               "description": "hour, day, total limits"
             }
           }
+        },
+        "modalities": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/Modality"
+          },
+          "default": null
+        },
+        "cases_by_modality": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "default": null
         }
       }
     },
@@ -146,7 +166,7 @@
           "type": "object",
           "additionalProperties": true,
           "default": {},
-          "description": "drill: {label}; practice: {prevalence_abnormal}; any: {projector: bool}"
+          "description": "drill: {label}; practice: {prevalence_abnormal}; any: {projector: bool}; modality: cxr|ct|mr (default cxr); body_region"
         }
       }
     },
@@ -204,6 +224,108 @@
             },
             "height": {
               "type": "integer"
+            },
+            "modality": {
+              "$ref": "#/$defs/Modality",
+              "default": "cxr"
+            },
+            "body_region": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            },
+            "volume": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "default": null,
+              "additionalProperties": false,
+              "required": [
+                "shape",
+                "spacing",
+                "window",
+                "data_url"
+              ],
+              "description": "NO ground truth: voxels only. The label volume is never sent before submit.",
+              "properties": {
+                "shape": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer"
+                  }
+                },
+                "spacing": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  }
+                },
+                "window": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "wc",
+                    "ww"
+                  ],
+                  "properties": {
+                    "wc": {
+                      "type": "number"
+                    },
+                    "ww": {
+                      "type": "number"
+                    }
+                  }
+                },
+                "data_url": {
+                  "type": "string"
+                },
+                "sequence": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "default": null
+                },
+                "presets": {
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "default": null,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "name",
+                      "wc",
+                      "ww"
+                    ],
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "wc": {
+                        "type": "number"
+                      },
+                      "ww": {
+                        "type": "number"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "provenance": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "default": null,
+              "additionalProperties": true,
+              "description": "the '___ by ___' badge; not ground truth"
             }
           }
         },
@@ -485,6 +607,14 @@
           "type": "number"
         }
       }
+    },
+    "Modality": {
+      "type": "string",
+      "enum": [
+        "cxr",
+        "ct",
+        "mr"
+      ]
     }
   }
 }

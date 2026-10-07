@@ -28,7 +28,8 @@
         "true_positive",
         "duplicate",
         "false_positive",
-        "true_negative"
+        "true_negative",
+        "unmatched"
       ]
     },
     "Outcome": {
@@ -71,6 +72,21 @@
         "learner_label": {
           "type": [
             "string",
+            "null"
+          ],
+          "default": null
+        },
+        "size_verdict": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "default": null,
+          "additionalProperties": true
+        },
+        "slices_viewed": {
+          "type": [
+            "boolean",
             "null"
           ],
           "default": null
@@ -177,6 +193,118 @@
             "null"
           ],
           "default": null
+        },
+        "slice_range": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "integer"
+          },
+          "default": null
+        },
+        "centroid3": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "default": null
+        },
+        "label_values": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "integer"
+          },
+          "default": null
+        },
+        "components": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "default": null,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "label_value"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "label_value": {
+                "type": "integer"
+              }
+            }
+          }
+        },
+        "measure": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "default": null,
+          "additionalProperties": false,
+          "required": [
+            "long_mm",
+            "slice"
+          ],
+          "properties": {
+            "long_mm": {
+              "type": "number"
+            },
+            "slice": {
+              "type": "integer"
+            }
+          }
+        },
+        "size_verdict": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "default": null,
+          "additionalProperties": false,
+          "required": [
+            "your_mm",
+            "reference_mm",
+            "diff_mm",
+            "diff_pct",
+            "ok"
+          ],
+          "properties": {
+            "your_mm": {
+              "type": "number"
+            },
+            "reference_mm": {
+              "type": "number"
+            },
+            "diff_mm": {
+              "type": "number"
+            },
+            "diff_pct": {
+              "type": "number"
+            },
+            "ok": {
+              "type": "boolean"
+            },
+            "plane": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            }
+          }
         }
       }
     },
@@ -209,6 +337,30 @@
         "zone": {
           "type": [
             "string",
+            "null"
+          ],
+          "default": null
+        },
+        "voxel": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "default": null
+        },
+        "plane": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "slice": {
+          "type": [
+            "integer",
             "null"
           ],
           "default": null
@@ -330,6 +482,65 @@
             "null"
           ],
           "default": null
+        },
+        "slice_dwell": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "default": null,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "plane",
+              "slice",
+              "ms",
+              "has_finding"
+            ],
+            "properties": {
+              "plane": {
+                "type": "string"
+              },
+              "slice": {
+                "type": "integer"
+              },
+              "ms": {
+                "type": "number"
+              },
+              "has_finding": {
+                "type": "boolean"
+              },
+              "finding_ids": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": "string"
+                },
+                "default": null
+              }
+            }
+          }
+        },
+        "slices_viewed_pct": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "default": null
+        },
+        "finding_slices_viewed": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {
+            "type": "boolean"
+          },
+          "default": null,
+          "description": "finding short id \u2192 whether any slice holding it was on screen \u2265 the threshold"
         }
       }
     }
@@ -394,6 +605,31 @@
         "zones_approximate": {
           "type": "boolean",
           "default": false
+        },
+        "maskvol_url": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "gzipped uint8 label volume, served only after submit"
+        },
+        "modality": {
+          "type": "string",
+          "enum": [
+            "cxr",
+            "ct",
+            "mr"
+          ],
+          "default": "cxr"
+        },
+        "provenance": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "default": null,
+          "additionalProperties": true
         }
       }
     },

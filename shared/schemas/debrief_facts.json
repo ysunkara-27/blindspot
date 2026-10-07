@@ -5,97 +5,462 @@
   "description": "Deterministic facts built by code. The only thing Claude is allowed to believe. All human-readable strings are produced by code.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "case", "learner", "outcomes", "spatial_relations", "search", "history", "teaching_cards"],
+  "required": [
+    "schema",
+    "case",
+    "learner",
+    "outcomes",
+    "spatial_relations",
+    "search",
+    "history",
+    "teaching_cards"
+  ],
   "properties": {
-    "schema": {"type": "string", "const": "debrief_facts.v1"},
+    "schema": {
+      "type": "string",
+      "const": "debrief_facts.v1"
+    },
     "case": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["case_id", "is_normal", "projection", "findings"],
+      "required": [
+        "case_id",
+        "is_normal",
+        "projection",
+        "findings"
+      ],
       "properties": {
-        "case_id": {"type": "string"},
-        "is_normal": {"type": "boolean"},
-        "projection": {"type": "string"},
-        "pixel_spacing_mm": {"type": ["number", "null"], "default": null},
-        "findings": {"type": "array", "items": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["id", "label", "display", "kind"],
-          "properties": {
-            "id": {"type": "string", "pattern": "^F[0-9]+$"},
-            "label": {"type": "string"},
-            "display": {"type": "string"},
-            "kind": {"type": "string", "enum": ["focal", "pattern"]},
-            "side": {"type": ["string", "null"], "default": null},
-            "primary_zone": {"type": ["string", "null"], "default": null},
-            "zones": {"type": "array", "items": {"type": "string"}, "default": []},
-            "relative_location": {"type": ["string", "null"], "default": null},
-            "size": {"type": ["string", "null"], "default": null},
-            "difficulty": {"type": ["string", "null"], "enum": ["easy", "moderate", "hard", null], "default": null},
-            "zones_approximate": {"type": "boolean", "default": false},
-            "ctr": {"type": ["number", "null"], "default": null}
+        "case_id": {
+          "type": "string"
+        },
+        "is_normal": {
+          "type": "boolean"
+        },
+        "projection": {
+          "type": "string"
+        },
+        "pixel_spacing_mm": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "default": null
+        },
+        "findings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "label",
+              "display",
+              "kind"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^F[0-9]+$"
+              },
+              "label": {
+                "type": "string"
+              },
+              "display": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "focal",
+                  "pattern"
+                ]
+              },
+              "side": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "default": null
+              },
+              "primary_zone": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "default": null
+              },
+              "zones": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": []
+              },
+              "relative_location": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "default": null
+              },
+              "size": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "default": null
+              },
+              "difficulty": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "easy",
+                  "moderate",
+                  "hard",
+                  null
+                ],
+                "default": null
+              },
+              "zones_approximate": {
+                "type": "boolean",
+                "default": false
+              },
+              "ctr": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "default": null
+              },
+              "slice_range": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": "integer"
+                },
+                "default": null
+              },
+              "size_mm": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "default": null,
+                "description": "reference longest diameter; only present when measurable"
+              },
+              "components": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": "string"
+                },
+                "default": null
+              }
+            }
           }
-        }}
+        },
+        "modality": {
+          "type": "string",
+          "enum": [
+            "cxr",
+            "ct",
+            "mr"
+          ],
+          "default": "cxr"
+        },
+        "body_region": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "provenance": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "human sentence: 'Reference segmented by an abdominal radiologist (MSD Task07, MSKCC)'"
+        }
       }
     },
     "learner": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["level", "declared_normal", "hints_used", "time_to_submit_s", "marks", "pattern_selections"],
+      "required": [
+        "level",
+        "declared_normal",
+        "hints_used",
+        "time_to_submit_s",
+        "marks",
+        "pattern_selections"
+      ],
       "properties": {
-        "level": {"type": "string"},
-        "declared_normal": {"type": "boolean"},
-        "normal_confidence": {"type": ["integer", "null"], "default": null},
-        "hints_used": {"type": "integer"},
-        "time_to_submit_s": {"type": "number"},
-        "marks": {"type": "array", "items": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["id", "label", "confidence", "zone"],
-          "properties": {
-            "id": {"type": "string", "pattern": "^M[0-9]+$"},
-            "label": {"type": "string"},
-            "confidence": {"type": "integer"},
-            "zone": {"type": ["string", "null"]}
+        "level": {
+          "type": "string"
+        },
+        "declared_normal": {
+          "type": "boolean"
+        },
+        "normal_confidence": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "default": null
+        },
+        "hints_used": {
+          "type": "integer"
+        },
+        "time_to_submit_s": {
+          "type": "number"
+        },
+        "marks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "label",
+              "confidence",
+              "zone"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^M[0-9]+$"
+              },
+              "label": {
+                "type": "string"
+              },
+              "confidence": {
+                "type": "integer"
+              },
+              "zone": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "plane": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "default": null
+              },
+              "slice": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "default": null
+              }
+            }
           }
-        }},
-        "pattern_selections": {"type": "array", "items": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["label", "confidence"],
-          "properties": {"label": {"type": "string"}, "confidence": {"type": "integer"}}
-        }}
+        },
+        "pattern_selections": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "label",
+              "confidence"
+            ],
+            "properties": {
+              "label": {
+                "type": "string"
+              },
+              "confidence": {
+                "type": "integer"
+              }
+            }
+          }
+        },
+        "measurements": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "mark_id",
+              "long_mm",
+              "plane"
+            ],
+            "properties": {
+              "mark_id": {
+                "type": "string"
+              },
+              "long_mm": {
+                "type": "number"
+              },
+              "plane": {
+                "type": "string"
+              }
+            }
+          }
+        }
       }
     },
-    "outcomes": {"type": "array", "items": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["target", "result"],
-      "properties": {
-        "target": {"type": "string"},
-        "result": {"type": "string", "enum": ["found", "mislabeled", "missed_search", "missed_recognition", "missed_decision", "pattern_found", "pattern_missed", "pattern_false", "true_positive", "duplicate", "false_positive", "true_negative"]},
-        "dwell_ms": {"type": ["number", "null"], "default": null},
-        "zone": {"type": ["string", "null"], "default": null},
-        "learner_label": {"type": ["string", "null"], "default": null},
-        "matched": {"type": ["string", "null"], "default": null}
+    "outcomes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "target",
+          "result"
+        ],
+        "properties": {
+          "target": {
+            "type": "string"
+          },
+          "result": {
+            "type": "string",
+            "enum": [
+              "found",
+              "mislabeled",
+              "missed_search",
+              "missed_recognition",
+              "missed_decision",
+              "pattern_found",
+              "pattern_missed",
+              "pattern_false",
+              "true_positive",
+              "duplicate",
+              "false_positive",
+              "true_negative",
+              "unmatched"
+            ]
+          },
+          "dwell_ms": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "default": null
+          },
+          "zone": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "learner_label": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "matched": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "default": null
+          },
+          "size_verdict": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "default": null,
+            "additionalProperties": true
+          },
+          "slices_viewed": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "default": null
+          }
+        }
       }
-    }},
-    "spatial_relations": {"type": "array", "items": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["from", "to", "text"],
-      "properties": {"from": {"type": "string"}, "to": {"type": "string"}, "text": {"type": "string"}}
-    }},
+    },
+    "spatial_relations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "from",
+          "to",
+          "text"
+        ],
+        "properties": {
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "search": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["lung_coverage_pct", "unvisited_review_areas", "first_visits"],
+      "required": [
+        "lung_coverage_pct",
+        "unvisited_review_areas",
+        "first_visits"
+      ],
       "properties": {
-        "lung_coverage_pct": {"type": "number"},
-        "unvisited_review_areas": {"type": "array", "items": {"type": "string"}},
-        "first_visits": {"type": "array", "items": {"type": "string"}},
-        "zoom_used": {"type": "boolean", "default": false},
-        "loupe_used": {"type": "boolean", "default": false}
+        "lung_coverage_pct": {
+          "type": "number"
+        },
+        "unvisited_review_areas": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "first_visits": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "zoom_used": {
+          "type": "boolean",
+          "default": false
+        },
+        "loupe_used": {
+          "type": "boolean",
+          "default": false
+        },
+        "slices_viewed_pct": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "default": null
+        },
+        "finding_slices_viewed": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {
+            "type": "boolean"
+          },
+          "default": null
+        }
       }
     },
     "history": {
@@ -103,9 +468,19 @@
       "additionalProperties": true,
       "description": "Per-label {attempts, localized} plus recent_miss_types counts.",
       "properties": {
-        "recent_miss_types": {"type": "object", "additionalProperties": {"type": "integer"}}
+        "recent_miss_types": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          }
+        }
       }
     },
-    "teaching_cards": {"type": "array", "items": {"type": "string"}}
+    "teaching_cards": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
   }
 }

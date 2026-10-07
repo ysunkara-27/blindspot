@@ -70,3 +70,44 @@ zone_mimics:
     right_clavicle: [The rhomboid fossa (a normal notch under the clavicle), Overlap of the first rib and the clavicle, Soft tissue at the base of the neck]
     left_clavicle: [The rhomboid fossa (a normal notch under the clavicle), Overlap of the first rib and the clavicle, Soft tissue at the base of the neck]
     spine: [Overlapping edges of the vertebrae, The normal line of soft tissue beside the spine, Air in the trachea over the spine]
+
+# ---------------------------------------------------------------------------------------------
+# Volumetric zones (CT / MR). Zone ids name the PATIENT's side. Derived per case from the organ labels in the
+# reference mask plus the slab's extent: thirds along z (superior/mid/inferior) × left/right/midline.
+volumetric:
+  zones:
+    pancreas:            {human: "pancreas",                     hardness: 0.6, modality: ct, body_region: abdomen}
+    liver:               {human: "liver",                        hardness: 0.5, modality: ct, body_region: abdomen}
+    hepatic_vessels:     {human: "hepatic vessels",              hardness: 0.7, modality: ct, body_region: abdomen}
+    superior_slab:       {human: "upper slices of the volume",   hardness: 0.5}
+    mid_slab:            {human: "middle slices of the volume",  hardness: 0.3}
+    inferior_slab:       {human: "lower slices of the volume",   hardness: 0.5}
+    right_half:          {human: "patient's right side",         hardness: 0.3}
+    left_half:           {human: "patient's left side",          hardness: 0.3}
+    midline_volume:      {human: "midline",                      hardness: 0.4}
+    brain_left:          {human: "left cerebral hemisphere",     hardness: 0.4, modality: mr, body_region: brain}
+    brain_right:         {human: "right cerebral hemisphere",    hardness: 0.4, modality: mr, body_region: brain}
+    brain_midline:       {human: "midline structures",           hardness: 0.6, modality: mr, body_region: brain}
+  # Coverage targets per body region: the organ (when labelled) and every third of the slab.
+  review_areas:
+    abdomen: [pancreas, liver, superior_slab, mid_slab, inferior_slab]
+    chest:   [superior_slab, mid_slab, inferior_slab]
+    brain:   [brain_left, brain_right, superior_slab, mid_slab, inferior_slab]
+  adjacency:
+    superior_slab: [mid_slab]
+    mid_slab: [superior_slab, inferior_slab]
+    inferior_slab: [mid_slab]
+    pancreas: [mid_slab, inferior_slab, midline_volume]
+    liver: [superior_slab, mid_slab, right_half]
+    hepatic_vessels: [liver]
+    brain_left: [brain_midline]
+    brain_right: [brain_midline]
+  zone_mimics:
+    status: ai_draft
+    entries:
+      pancreas: [Unopacified bowel loops next to the pancreas, The splenic vein running along the pancreas, Normal lobulated pancreatic contour]
+      liver: [Hepatic veins and portal branches (tubular, branching), Focal fat next to the falciform ligament, Beam-hardening streaks from ribs]
+      hepatic_vessels: [Portal and hepatic veins seen end-on, Mixing of contrast in the hepatic veins]
+      brain_left: [Normal sulci and cortical gyri, Choroid plexus and calcified pineal]
+      brain_right: [Normal sulci and cortical gyri, Choroid plexus and calcified pineal]
+      brain_midline: [Normal ventricles, Septum pellucidum, Falx and tentorium]

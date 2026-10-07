@@ -2,17 +2,79 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://blindspot.local/schemas/telemetry_event.json",
   "title": "TelemetryEvent",
-  "description": "One viewer telemetry sample. t = ms since the case was shown. x,y in image px only while the pointer is over the image. vp = visible image rect [x0,y0,x1,y1] in image px. zoom 1 = fit.",
+  "description": "One viewer telemetry sample. t = ms since the case was shown. x,y in image px only while the pointer is over the image. vp = visible image rect [x0,y0,x1,y1] in image px. zoom 1 = fit. Volumetric cases add plane and slice; kind 'slice' = slice change, 'plane' = plane change, 'window' = window/level change.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["t", "kind", "zoom", "vp", "loupe"],
+  "required": [
+    "t",
+    "kind",
+    "zoom",
+    "vp",
+    "loupe"
+  ],
   "properties": {
-    "t": {"type": "number", "minimum": 0},
-    "kind": {"type": "string", "enum": ["move", "down", "up", "wheel", "enter", "leave", "loupe", "wl", "pan"]},
-    "x": {"type": "number"},
-    "y": {"type": "number"},
-    "zoom": {"type": "number", "minimum": 0},
-    "vp": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4},
-    "loupe": {"type": "boolean"}
+    "t": {
+      "type": "number",
+      "minimum": 0
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "move",
+        "down",
+        "up",
+        "wheel",
+        "enter",
+        "leave",
+        "loupe",
+        "wl",
+        "pan",
+        "slice",
+        "plane",
+        "window"
+      ]
+    },
+    "x": {
+      "type": "number"
+    },
+    "y": {
+      "type": "number"
+    },
+    "zoom": {
+      "type": "number",
+      "minimum": 0
+    },
+    "vp": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "minItems": 4,
+      "maxItems": 4
+    },
+    "loupe": {
+      "type": "boolean"
+    },
+    "plane": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "axial",
+        "coronal",
+        "sagittal",
+        null
+      ],
+      "default": null
+    },
+    "slice": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "default": null,
+      "description": "slice index in that plane"
+    }
   }
 }

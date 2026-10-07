@@ -5,26 +5,305 @@
   "description": "Canonical case record (one line of data/processed/cases.jsonl). Coordinates: pixel space of the canonical 1024 px PNG, origin top-left, x right, y down, floats. Sides and zone ids name the PATIENT's side.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["case_id", "source", "source_split", "split", "image_path", "width", "height", "is_normal", "findings", "license_tag", "attribution"],
+  "required": [
+    "case_id",
+    "source",
+    "source_split",
+    "split",
+    "image_path",
+    "width",
+    "height",
+    "is_normal",
+    "findings",
+    "license_tag",
+    "attribution"
+  ],
   "properties": {
-    "case_id": {"type": "string", "pattern": "^cxd_[A-Za-z0-9_]+$|^vdr_[A-Za-z0-9_]+$|^nih_[A-Za-z0-9_]+$|^syn_[A-Za-z0-9_]+$"},
-    "source": {"type": "string", "enum": ["chestx-det", "vindr-cxr", "nih-bbox", "synthetic"]},
-    "source_split": {"type": "string"},
-    "split": {"type": "string", "enum": ["practice", "assess_A", "assess_B", "bench", "holdout"]},
-    "image_path": {"type": "string"},
-    "width": {"type": "integer", "minimum": 1},
-    "height": {"type": "integer", "minimum": 1},
-    "pixel_spacing_mm": {"type": ["number", "null"], "default": null},
-    "is_normal": {"type": "boolean"},
-    "findings": {"type": "array", "items": {"$ref": "finding.json"}},
-    "anatomy_path": {"type": ["string", "null"], "default": null},
-    "zones_path": {"type": ["string", "null"], "default": null},
-    "zones_approximate": {"type": "boolean", "default": false},
-    "cardiothoracic_ratio": {"type": ["number", "null"], "default": null},
-    "difficulty_prior": {"type": "number", "default": 0.0},
-    "features": {"type": "object", "additionalProperties": {"type": "number"}, "default": {}},
-    "license_tag": {"type": "string"},
-    "attribution": {"type": "string"},
-    "qa_flags": {"type": "array", "items": {"type": "string"}, "default": []}
+    "case_id": {
+      "type": "string",
+      "pattern": "^cxd_[A-Za-z0-9_]+$|^vdr_[A-Za-z0-9_]+$|^nih_[A-Za-z0-9_]+$|^syn_[A-Za-z0-9_]+$"
+    },
+    "source": {
+      "type": "string",
+      "enum": [
+        "chestx-det",
+        "vindr-cxr",
+        "nih-bbox",
+        "synthetic",
+        "msd"
+      ]
+    },
+    "source_split": {
+      "type": "string"
+    },
+    "split": {
+      "type": "string",
+      "enum": [
+        "practice",
+        "assess_A",
+        "assess_B",
+        "bench",
+        "holdout"
+      ]
+    },
+    "image_path": {
+      "type": "string"
+    },
+    "width": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "height": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "pixel_spacing_mm": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "default": null
+    },
+    "is_normal": {
+      "type": "boolean"
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "$ref": "finding.json"
+      }
+    },
+    "anatomy_path": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": null
+    },
+    "zones_path": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": null
+    },
+    "zones_approximate": {
+      "type": "boolean",
+      "default": false
+    },
+    "cardiothoracic_ratio": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "default": null
+    },
+    "difficulty_prior": {
+      "type": "number",
+      "default": 0.0
+    },
+    "features": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "number"
+      },
+      "default": {}
+    },
+    "license_tag": {
+      "type": "string"
+    },
+    "attribution": {
+      "type": "string"
+    },
+    "qa_flags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "modality": {
+      "type": "string",
+      "enum": [
+        "cxr",
+        "ct",
+        "mr"
+      ],
+      "default": "cxr"
+    },
+    "body_region": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "chest",
+        "abdomen",
+        "brain",
+        null
+      ],
+      "default": null
+    },
+    "volume": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "default": null,
+      "additionalProperties": false,
+      "required": [
+        "shape",
+        "spacing",
+        "window",
+        "data_path",
+        "mask_path",
+        "labels"
+      ],
+      "description": "Volumetric cases only. data_path: gzipped int16 little-endian voxels, z,y,x contiguous (index 0 = most superior); mask_path: gzipped uint8 same shape; labels map voxel value \u2192 label id or anatomy name. Units: voxel index space; spacing in mm.",
+      "properties": {
+        "shape": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          },
+          "minItems": 3,
+          "maxItems": 3,
+          "description": "[nz, ny, nx]"
+        },
+        "spacing": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 3,
+          "maxItems": 3,
+          "description": "[sz, sy, sx] mm"
+        },
+        "window": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "wc",
+            "ww"
+          ],
+          "properties": {
+            "wc": {
+              "type": "number"
+            },
+            "ww": {
+              "type": "number"
+            }
+          }
+        },
+        "data_path": {
+          "type": "string"
+        },
+        "mask_path": {
+          "type": "string"
+        },
+        "labels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "voxel value (as string) \u2192 finding label id or anatomy id"
+        },
+        "sequence": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "MR sequence name, e.g. T1c, FLAIR"
+        },
+        "original_shape": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "integer"
+          },
+          "default": null
+        },
+        "crop_origin": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "integer"
+          },
+          "default": null,
+          "description": "[z0,y0,x0] of this slab in the original volume"
+        }
+      }
+    },
+    "provenance": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "default": null,
+      "additionalProperties": false,
+      "required": [
+        "dataset",
+        "segmented_by"
+      ],
+      "description": "The '___ by ___' badge: who made the reference labels.",
+      "properties": {
+        "dataset": {
+          "type": "string"
+        },
+        "segmented_by": {
+          "type": "string"
+        },
+        "readers": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "default": null
+        },
+        "institution": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "license": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "citation": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "url": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "grade": {
+          "type": "string",
+          "enum": [
+            "radiologist",
+            "clinician",
+            "model",
+            "unknown"
+          ],
+          "default": "unknown"
+        }
+      }
+    }
   }
 }

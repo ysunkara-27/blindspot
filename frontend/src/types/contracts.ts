@@ -5,6 +5,8 @@ export type Level = "MS1" | "MS2" | "MS3" | "MS4" | "intern" | "resident" | "PA/
 
 export type Mode = "practice" | "drill" | "assess_A" | "assess_B" | "review";
 
+export type Modality = "cxr" | "ct" | "mr";
+
 export interface Health {
   ok: boolean;
   offline: boolean;
@@ -30,6 +32,10 @@ export interface Health {
       [k: string]: number;
     } | null;
   } | null;
+  modalities?: Modality[] | null;
+  cases_by_modality?: {
+    [k: string]: number;
+  } | null;
 }
 
 export interface SessionCreate {
@@ -38,7 +44,7 @@ export interface SessionCreate {
   participant_code?: string | null;
   mode: Mode;
   /**
-   * drill: {label}; practice: {prevalence_abnormal}; any: {projector: bool}
+   * drill: {label}; practice: {prevalence_abnormal}; any: {projector: bool}; modality: cxr|ct|mr (default cxr); body_region
    */
   settings?: {
     [k: string]: unknown;
@@ -58,6 +64,34 @@ export interface NextCase {
     image_url: string;
     width: number;
     height: number;
+    modality?: "cxr" | "ct" | "mr";
+    body_region?: string | null;
+    /**
+     * NO ground truth: voxels only. The label volume is never sent before submit.
+     */
+    volume?: {
+      shape: number[];
+      spacing: number[];
+      window: {
+        wc: number;
+        ww: number;
+      };
+      data_url: string;
+      sequence?: string | null;
+      presets?:
+        | {
+            name: string;
+            wc: number;
+            ww: number;
+          }[]
+        | null;
+    } | null;
+    /**
+     * the '___ by ___' badge; not ground truth
+     */
+    provenance?: {
+      [k: string]: unknown;
+    } | null;
   };
   index: number;
   total?: number | null;
@@ -84,13 +118,27 @@ export interface Mark {
     | "calcification"
     | "fracture"
     | "pleural_thickening"
+    | "pancreatic_tumour"
+    | "liver_tumour"
+    | "brain_tumour"
+    | "lung_tumour"
+    | "colon_tumour"
     | "not_sure";
   confidence: 1 | 2 | 3 | 4 | 5;
+  plane?: "axial" | "coronal" | "sagittal" | null;
+  slice?: number | null;
+  /**
+   * [x, y, z] in volume index space (floats). Required for volumetric cases; x,y then hold the in-plane view coords for display.
+   *
+   * @minItems 3
+   * @maxItems 3
+   */
+  voxel?: [number, number, number] | null;
 }
 
 export interface TelemetryEvent {
   t: number;
-  kind: "move" | "down" | "up" | "wheel" | "enter" | "leave" | "loupe" | "wl" | "pan";
+  kind: "move" | "down" | "up" | "wheel" | "enter" | "leave" | "loupe" | "wl" | "pan" | "slice" | "plane" | "window";
   x?: number;
   y?: number;
   zoom: number;
@@ -100,6 +148,11 @@ export interface TelemetryEvent {
    */
   vp: [number, number, number, number];
   loupe: boolean;
+  plane?: "axial" | "coronal" | "sagittal" | null;
+  /**
+   * slice index in that plane
+   */
+  slice?: number | null;
 }
 
 export interface HintResponse {
@@ -185,6 +238,7 @@ export interface AttemptSubmit {
     shown_at: string;
     submitted_at: string;
   };
+  measurements?: Measurement[];
 }
 
 export interface PatternSelection {
@@ -192,9 +246,18 @@ export interface PatternSelection {
   confidence: Confidence;
 }
 
+export interface Measurement {
+  mark_id: string;
+  long_mm: number;
+  plane: "axial" | "coronal" | "sagittal";
+  slice: number;
+  p0?: number[] | null;
+  p1?: number[] | null;
+}
+
 export interface Case {
   case_id: string;
-  source: "chestx-det" | "vindr-cxr" | "nih-bbox" | "synthetic";
+  source: "chestx-det" | "vindr-cxr" | "nih-bbox" | "synthetic" | "msd";
   source_split: string;
   split: "practice" | "assess_A" | "assess_B" | "bench" | "holdout";
   image_path: string;
@@ -214,6 +277,61 @@ export interface Case {
   license_tag: string;
   attribution: string;
   qa_flags?: string[];
+  modality?: "cxr" | "ct" | "mr";
+  body_region?: "chest" | "abdomen" | "brain" | null;
+  /**
+   * Volumetric cases only. data_path: gzipped int16 little-endian voxels, z,y,x contiguous (index 0 = most superior); mask_path: gzipped uint8 same shape; labels map voxel value → label id or anatomy name. Units: voxel index space; spacing in mm.
+   */
+  volume?: {
+    /**
+     * [nz, ny, nx]
+     *
+     * @minItems 3
+     * @maxItems 3
+     */
+    shape: [number, number, number];
+    /**
+     * [sz, sy, sx] mm
+     *
+     * @minItems 3
+     * @maxItems 3
+     */
+    spacing: [number, number, number];
+    window: {
+      wc: number;
+      ww: number;
+    };
+    data_path: string;
+    mask_path: string;
+    /**
+     * voxel value (as string) → finding label id or anatomy id
+     */
+    labels: {
+      [k: string]: string;
+    };
+    /**
+     * MR sequence name, e.g. T1c, FLAIR
+     */
+    sequence?: string | null;
+    original_shape?: number[] | null;
+    /**
+     * [z0,y0,x0] of this slab in the original volume
+     */
+    crop_origin?: number[] | null;
+  } | null;
+  /**
+   * The '___ by ___' badge: who made the reference labels.
+   */
+  provenance?: {
+    dataset: string;
+    segmented_by: string;
+    readers?: number | null;
+    institution?: string | null;
+    license?: string | null;
+    citation?: string | null;
+    url?: string | null;
+    grade?: "radiologist" | "clinician" | "model" | "unknown";
+  } | null;
 }
 
 export interface Finding {
@@ -231,7 +349,12 @@ export interface Finding {
     | "cardiomegaly"
     | "emphysema"
     | "fibrosis"
-    | "diffuse_nodule";
+    | "diffuse_nodule"
+    | "pancreatic_tumour"
+    | "liver_tumour"
+    | "brain_tumour"
+    | "lung_tumour"
+    | "colon_tumour";
   source_label: string;
   kind: "focal" | "pattern";
   geometry: {
@@ -268,6 +391,43 @@ export interface Finding {
   difficulty?: number | null;
   readers?: number | null;
   agreement?: number | null;
+  /**
+   * voxel value(s) of this finding in the mask volume; see label_values
+   */
+  label_value?: number | null;
+  label_values?: number[] | null;
+  /**
+   * [x, y, z] voxel index
+   *
+   * @minItems 3
+   * @maxItems 3
+   */
+  centroid3?: [number, number, number] | null;
+  /**
+   * [z0, z1] inclusive axial slices containing the finding
+   *
+   * @minItems 2
+   * @maxItems 2
+   */
+  slice_range?: [number, number] | null;
+  /**
+   * longest in-plane diameter on any axial slice (regionprops feret), from the reference mask
+   */
+  measure?: {
+    long_mm: number;
+    slice: number;
+    plane?: "axial";
+  } | null;
+  /**
+   * sub-structures (e.g. brain tumour: oedema, core, enhancing)
+   */
+  components?:
+    | {
+        name: string;
+        label_value: number;
+      }[]
+    | null;
+  volume_mm3?: number | null;
 }
 
 export interface DebriefFacts {
@@ -290,7 +450,19 @@ export interface DebriefFacts {
       difficulty?: "easy" | "moderate" | "hard" | null;
       zones_approximate?: boolean;
       ctr?: number | null;
+      slice_range?: number[] | null;
+      /**
+       * reference longest diameter; only present when measurable
+       */
+      size_mm?: number | null;
+      components?: string[] | null;
     }[];
+    modality?: "cxr" | "ct" | "mr";
+    body_region?: string | null;
+    /**
+     * human sentence: 'Reference segmented by an abdominal radiologist (MSD Task07, MSKCC)'
+     */
+    provenance?: string | null;
   };
   learner: {
     level: string;
@@ -303,10 +475,17 @@ export interface DebriefFacts {
       label: string;
       confidence: number;
       zone: string | null;
+      plane?: string | null;
+      slice?: number | null;
     }[];
     pattern_selections: {
       label: string;
       confidence: number;
+    }[];
+    measurements?: {
+      mark_id: string;
+      long_mm: number;
+      plane: string;
     }[];
   };
   outcomes: {
@@ -323,11 +502,16 @@ export interface DebriefFacts {
       | "true_positive"
       | "duplicate"
       | "false_positive"
-      | "true_negative";
+      | "true_negative"
+      | "unmatched";
     dwell_ms?: number | null;
     zone?: string | null;
     learner_label?: string | null;
     matched?: string | null;
+    size_verdict?: {
+      [k: string]: unknown;
+    } | null;
+    slices_viewed?: boolean | null;
   }[];
   spatial_relations: {
     from: string;
@@ -340,6 +524,10 @@ export interface DebriefFacts {
     first_visits: string[];
     zoom_used?: boolean;
     loupe_used?: boolean;
+    slices_viewed_pct?: number | null;
+    finding_slices_viewed?: {
+      [k: string]: boolean;
+    } | null;
   };
   /**
    * Per-label {attempts, localized} plus recent_miss_types counts.
@@ -372,6 +560,9 @@ export interface DebriefOutput {
   }[];
   overcalls: {
     mark_id: string;
+    /**
+     * For 'unmatched' marks on CT/MR say the reference does not label that spot; never call it wrong.
+     */
     explanation: string;
     possible_mimics: string[];
   }[];
@@ -405,7 +596,8 @@ export type OutcomeResult =
   | "true_positive"
   | "duplicate"
   | "false_positive"
-  | "true_negative";
+  | "true_negative"
+  | "unmatched";
 
 export interface SubmitResult {
   score: number;
@@ -419,6 +611,14 @@ export interface SubmitResult {
     ctr?: number | null;
     is_normal?: boolean;
     zones_approximate?: boolean;
+    /**
+     * gzipped uint8 label volume, served only after submit
+     */
+    maskvol_url?: string | null;
+    modality?: "cxr" | "ct" | "mr";
+    provenance?: {
+      [k: string]: unknown;
+    } | null;
   };
   facts_card: {
     headline: string;
@@ -440,6 +640,10 @@ export interface Outcome {
    */
   matched?: string | null;
   learner_label?: string | null;
+  size_verdict?: {
+    [k: string]: unknown;
+  } | null;
+  slices_viewed?: boolean | null;
 }
 
 export interface RevealFinding {
@@ -467,6 +671,27 @@ export interface RevealFinding {
   relative_location?: string | null;
   result?: OutcomeResult;
   dwell_ms?: number | null;
+  slice_range?: number[] | null;
+  centroid3?: number[] | null;
+  label_values?: number[] | null;
+  components?:
+    | {
+        name: string;
+        label_value: number;
+      }[]
+    | null;
+  measure?: {
+    long_mm: number;
+    slice: number;
+  } | null;
+  size_verdict?: {
+    your_mm: number;
+    reference_mm: number;
+    diff_mm: number;
+    diff_pct: number;
+    ok: boolean;
+    plane?: string | null;
+  } | null;
 }
 
 export interface RevealMark {
@@ -474,6 +699,9 @@ export interface RevealMark {
   result: "true_positive" | "duplicate" | "false_positive";
   matched_finding?: string | null;
   zone?: string | null;
+  voxel?: number[] | null;
+  plane?: string | null;
+  slice?: number | null;
 }
 
 export interface Arrow {
@@ -509,6 +737,22 @@ export interface SearchSummary {
   zoom_used?: boolean;
   loupe_used?: boolean;
   heatmap_png_b64?: string | null;
+  slice_dwell?:
+    | {
+        plane: string;
+        slice: number;
+        ms: number;
+        has_finding: boolean;
+        finding_ids?: string[] | null;
+      }[]
+    | null;
+  slices_viewed_pct?: number | null;
+  /**
+   * finding short id → whether any slice holding it was on screen ≥ the threshold
+   */
+  finding_slices_viewed?: {
+    [k: string]: boolean;
+  } | null;
 }
 
 export interface TeachingCard {

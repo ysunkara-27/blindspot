@@ -34,3 +34,22 @@ validator:
                     "\\b\\d+(\\.\\d+)?\\s?(cm|mm)\\b"]
 submit:
   max_marks: 50
+
+# ---------------------------------------------------------------------------------------------
+# Volumetric (CT / MR) grading — see docs/VOLUMETRIC_PLAN.md
+volumetric:
+  hit:
+    tolerance_frac: 0.02           # of the larger in-plane field-of-view dimension (mm)
+    slice_window: 2                # a mark within ±2 slices of the finding still counts
+    cross_label_rescue: false      # a mark squarely inside a DIFFERENT labelled structure is never rescued by the tolerance
+  dwell:
+    slice_search_ms: 800           # finding's slices on screen < 800 ms total → missed_search
+    slice_recognition_ms: 2000     # ≥ 800 and < 2000 ms, cursor never near it → missed_recognition; else decision
+    near_mm: 15                    # "cursor near it" = within 15 mm in-plane on a finding slice
+    visit_ms: 300                  # a zone counts as visited at ≥ 300 ms of its slices on screen with the cursor in it
+  size:
+    tolerance_mm: 3
+    tolerance_frac: 0.20           # the greater of 3 mm or 20 % is correct
+    ask_for_labels: [pancreatic_tumour, liver_tumour, brain_tumour, lung_tumour, colon_tumour]
+  unmatched:
+    note: "A mark that matches no reference label is reported as 'unmatched' (the reference does not label every lesion), not as a false positive, and does not reduce the score."

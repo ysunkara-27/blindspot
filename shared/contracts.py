@@ -25,6 +25,11 @@ Label = Literal[
     "emphysema",
     "fibrosis",
     "diffuse_nodule",
+    "pancreatic_tumour",
+    "liver_tumour",
+    "brain_tumour",
+    "lung_tumour",
+    "colon_tumour",
 ]
 FocalLabel = Literal[
     "pneumothorax",
@@ -36,7 +41,16 @@ FocalLabel = Literal[
     "calcification",
     "fracture",
     "pleural_thickening",
+    "pancreatic_tumour",
+    "liver_tumour",
+    "brain_tumour",
+    "lung_tumour",
+    "colon_tumour",
 ]
+Modality = Literal["cxr", "ct", "mr"]
+BodyRegion = Literal["chest", "abdomen", "brain"]
+Plane = Literal["axial", "coronal", "sagittal"]
+VOLUME_LABELS: tuple[str, ...] = ("pancreatic_tumour", "liver_tumour", "brain_tumour", "lung_tumour", "colon_tumour")
 PatternLabel = Literal["cardiomegaly", "emphysema", "fibrosis", "diffuse_nodule"]
 LearnerFocalLabel = Literal[
     "pneumothorax",
@@ -49,6 +63,11 @@ LearnerFocalLabel = Literal[
     "fracture",
     "pleural_thickening",
     "not_sure",
+    "pancreatic_tumour",
+    "liver_tumour",
+    "brain_tumour",
+    "lung_tumour",
+    "colon_tumour",
 ]
 Side = Literal["right", "left", "bilateral", "midline"]
 Kind = Literal["focal", "pattern"]
@@ -69,6 +88,7 @@ OutcomeResult = Literal[
     "duplicate",
     "false_positive",
     "true_negative",
+    "unmatched",
 ]
 DebriefFindingResult = Literal[
     "found",
@@ -99,6 +119,17 @@ class Geometry(_Strict):
     mask_path: str | None = None
 
 
+class Component(_Strict):
+    name: str
+    label_value: int
+
+
+class Measure(_Strict):
+    long_mm: float
+    slice: int
+    plane: Literal["axial"] = "axial"
+
+
 class Finding(_Strict):
     finding_id: str
     label: Label
@@ -107,6 +138,13 @@ class Finding(_Strict):
     geometry: Geometry
     centroid: XY
     area_frac: float = Field(ge=0, le=1)
+    label_value: int | None = None
+    label_values: list[int] | None = None
+    centroid3: tuple[float, float, float] | None = None
+    slice_range: tuple[int, int] | None = None
+    measure: Measure | None = None
+    components: list[Component] | None = None
+    volume_mm3: float | None = None
     side: Side | None = None
     zones: list[str] = []
     primary_zone: str | None = None
@@ -123,9 +161,45 @@ class Finding(_Strict):
         return self.finding_id.split("#", 1)[1]
 
 
+class Window(_Strict):
+    wc: float
+    ww: float
+
+
+class VolumeInfo(_Strict):
+    shape: tuple[int, int, int]
+    spacing: tuple[float, float, float]
+    window: Window
+    data_path: str
+    mask_path: str
+    labels: dict[str, str]
+    sequence: str | None = None
+    original_shape: list[int] | None = None
+    crop_origin: list[int] | None = None
+
+
+class Provenance(_Strict):
+    dataset: str
+    segmented_by: str
+    readers: int | None = None
+    institution: str | None = None
+    license: str | None = None
+    citation: str | None = None
+    url: str | None = None
+    grade: Literal["radiologist", "clinician", "model", "unknown"] = "unknown"
+
+    @property
+    def badge(self) -> str:
+        return f"Segmented by {self.segmented_by} ({self.dataset})"
+
+
 class Case(_Strict):
     case_id: str
-    source: Literal["chestx-det", "vindr-cxr", "nih-bbox", "synthetic"]
+    source: Literal["chestx-det", "vindr-cxr", "nih-bbox", "synthetic", "msd"]
+    modality: Modality = "cxr"
+    body_region: BodyRegion | None = None
+    volume: VolumeInfo | None = None
+    provenance: Provenance | None = None
     source_split: str
     split: Split
     image_path: str
@@ -157,6 +231,8 @@ class TelemetryEvent(_Strict):
     zoom: float = Field(ge=0)
     vp: BBox
     loupe: bool
+    plane: Plane | None = None
+    slice: int | None = None
 
 
 # --------------------------------------------------------------------------- attempt_submit.json
@@ -166,6 +242,18 @@ class Mark(_Strict):
     y: float
     label: LearnerFocalLabel
     confidence: Confidence
+    plane: Plane | None = None
+    slice: int | None = None
+    voxel: tuple[float, float, float] | None = None
+
+
+class Measurement(_Strict):
+    mark_id: str
+    long_mm: float = Field(ge=0)
+    plane: Plane
+    slice: int
+    p0: list[float] | None = None
+    p1: list[float] | None = None
 
 
 class PatternSelection(_Strict):
@@ -186,6 +274,7 @@ class AttemptSubmit(_Strict):
     telemetry: list[TelemetryEvent] = Field(max_length=20000)
     hints_used: int = Field(ge=0, le=3)
     client_timing: ClientTiming
+    measurements: list[Measurement] = []
 
 
 # --------------------------------------------------------------------------- submit_result.json
@@ -196,6 +285,25 @@ class Outcome(_Strict):
     zone: str | None = None
     matched: str | None = None
     learner_label: str | None = None
+    size_verdict: dict[str, Any] | None = None
+    slices_viewed: bool | None = None
+
+
+class SizeVerdict(_Strict):
+    your_mm: float
+    reference_mm: float
+    diff_mm: float
+    diff_pct: float
+    ok: bool
+    plane: str | None = None
+
+
+class SliceDwell(_Strict):
+    plane: str
+    slice: int
+    ms: float
+    has_finding: bool
+    finding_ids: list[str] | None = None
 
 
 class RevealFinding(_Strict):
@@ -212,13 +320,22 @@ class RevealFinding(_Strict):
     relative_location: str | None = None
     result: OutcomeResult | None = None
     dwell_ms: float | None = None
+    slice_range: list[int] | None = None
+    centroid3: list[float] | None = None
+    label_values: list[int] | None = None
+    components: list[Component] | None = None
+    measure: Measure | None = None
+    size_verdict: SizeVerdict | None = None
 
 
 class RevealMark(_Strict):
     mark_id: str
-    result: Literal["true_positive", "duplicate", "false_positive"]
+    result: Literal["true_positive", "duplicate", "false_positive", "unmatched"]
     matched_finding: str | None = None
     zone: str | None = None
+    voxel: list[float] | None = None
+    plane: str | None = None
+    slice: int | None = None
 
 
 class Arrow(_Strict):
@@ -240,6 +357,9 @@ class SearchSummary(_Strict):
     zoom_used: bool = False
     loupe_used: bool = False
     heatmap_png_b64: str | None = None
+    slice_dwell: list[SliceDwell] | None = None
+    slices_viewed_pct: float | None = None
+    finding_slices_viewed: dict[str, bool] | None = None
 
 
 class Reveal(_Strict):
@@ -250,6 +370,9 @@ class Reveal(_Strict):
     ctr: float | None = None
     is_normal: bool = False
     zones_approximate: bool = False
+    maskvol_url: str | None = None
+    modality: Modality = "cxr"
+    provenance: dict[str, Any] | None = None
 
 
 class FactsCard(_Strict):
@@ -286,6 +409,9 @@ class FactsFinding(_Strict):
     difficulty: Literal["easy", "moderate", "hard"] | None = None
     zones_approximate: bool = False
     ctr: float | None = None
+    slice_range: list[int] | None = None
+    size_mm: float | None = None
+    components: list[str] | None = None
 
 
 class FactsCase(_Strict):
@@ -294,6 +420,9 @@ class FactsCase(_Strict):
     projection: str
     pixel_spacing_mm: float | None = None
     findings: list[FactsFinding]
+    modality: Modality = "cxr"
+    body_region: str | None = None
+    provenance: str | None = None
 
 
 class FactsMark(_Strict):
@@ -301,6 +430,14 @@ class FactsMark(_Strict):
     label: str
     confidence: int
     zone: str | None
+    plane: str | None = None
+    slice: int | None = None
+
+
+class FactsMeasurement(_Strict):
+    mark_id: str
+    long_mm: float
+    plane: str
 
 
 class FactsPattern(_Strict):
@@ -316,6 +453,7 @@ class FactsLearner(_Strict):
     time_to_submit_s: float
     marks: list[FactsMark]
     pattern_selections: list[FactsPattern]
+    measurements: list[FactsMeasurement] = []
 
 
 class SpatialRelation(_Strict):
@@ -331,6 +469,8 @@ class FactsSearch(_Strict):
     first_visits: list[str]
     zoom_used: bool = False
     loupe_used: bool = False
+    slices_viewed_pct: float | None = None
+    finding_slices_viewed: dict[str, bool] | None = None
 
 
 class DebriefFacts(BaseModel):
@@ -423,6 +563,8 @@ class Health(_Strict):
     cases: int
     version: str | None = None
     tutor: TutorStatus | None = None
+    modalities: list[Modality] | None = None
+    cases_by_modality: dict[str, int] | None = None
 
 
 class SessionCreate(_Strict):
@@ -439,11 +581,32 @@ class SessionCreated(_Strict):
     mode: Mode
 
 
+class VolumePreset(_Strict):
+    name: str
+    wc: float
+    ww: float
+
+
+class NextCaseVolume(_Strict):
+    """Voxels only. The label volume is never sent before submit."""
+
+    shape: list[int]
+    spacing: list[float]
+    window: Window
+    data_url: str
+    sequence: str | None = None
+    presets: list[VolumePreset] | None = None
+
+
 class NextCaseCase(_Strict):
     case_id: str
     image_url: str
     width: int
     height: int
+    modality: Modality = "cxr"
+    body_region: str | None = None
+    volume: NextCaseVolume | None = None
+    provenance: dict[str, Any] | None = None
 
 
 class NextCase(_Strict):
@@ -536,5 +699,12 @@ GROUND_TRUTH_KEYS: frozenset[str] = frozenset(
         "outcomes",
         "reveal",
         "facts_card",
+        "maskvol_url",
+        "label_values",
+        "slice_range",
+        "measure",
+        "centroid3",
+        "components",
+        "mask_path",
     }
 )

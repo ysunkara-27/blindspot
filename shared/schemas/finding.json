@@ -5,34 +5,295 @@
   "description": "One radiologist-annotated finding instance. finding_id = '<case_id>#F<n>' (1-based).",
   "type": "object",
   "additionalProperties": false,
-  "required": ["finding_id", "label", "source_label", "kind", "geometry", "centroid", "area_frac"],
+  "required": [
+    "finding_id",
+    "label",
+    "source_label",
+    "kind",
+    "geometry",
+    "centroid",
+    "area_frac"
+  ],
   "properties": {
-    "finding_id": {"type": "string", "pattern": "^[A-Za-z0-9_]+#F[0-9]+$"},
-    "label": {"type": "string", "enum": ["pneumothorax", "effusion", "consolidation", "atelectasis", "nodule", "mass", "calcification", "fracture", "pleural_thickening", "cardiomegaly", "emphysema", "fibrosis", "diffuse_nodule"]},
-    "source_label": {"type": "string"},
-    "kind": {"type": "string", "enum": ["focal", "pattern"]},
+    "finding_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_]+#F[0-9]+$"
+    },
+    "label": {
+      "type": "string",
+      "enum": [
+        "pneumothorax",
+        "effusion",
+        "consolidation",
+        "atelectasis",
+        "nodule",
+        "mass",
+        "calcification",
+        "fracture",
+        "pleural_thickening",
+        "cardiomegaly",
+        "emphysema",
+        "fibrosis",
+        "diffuse_nodule",
+        "pancreatic_tumour",
+        "liver_tumour",
+        "brain_tumour",
+        "lung_tumour",
+        "colon_tumour"
+      ]
+    },
+    "source_label": {
+      "type": "string"
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "focal",
+        "pattern"
+      ]
+    },
     "geometry": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["kind", "bbox"],
+      "required": [
+        "kind",
+        "bbox"
+      ],
       "properties": {
-        "kind": {"type": "string", "enum": ["polygon", "bbox"]},
-        "bbox": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4, "description": "x0, y0, x1, y1 in image px"},
-        "polygon": {"type": ["array", "null"], "items": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2}, "default": null},
-        "mask_path": {"type": ["string", "null"], "default": null, "description": "0/255 PNG, same size as the image"}
+        "kind": {
+          "type": "string",
+          "enum": [
+            "polygon",
+            "bbox"
+          ]
+        },
+        "bbox": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "minItems": 4,
+          "maxItems": 4,
+          "description": "x0, y0, x1, y1 in image px"
+        },
+        "polygon": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "number"
+            },
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "default": null
+        },
+        "mask_path": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "0/255 PNG, same size as the image"
+        }
       }
     },
-    "centroid": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2},
-    "area_frac": {"type": "number", "minimum": 0, "maximum": 1},
-    "side": {"type": ["string", "null"], "enum": ["right", "left", "bilateral", "midline", null], "default": null},
-    "zones": {"type": "array", "items": {"type": "string"}, "default": []},
-    "primary_zone": {"type": ["string", "null"], "default": null},
-    "relative_location": {"type": ["string", "null"], "default": null},
-    "contrast": {"type": ["number", "null"], "default": null},
-    "model_prob": {"type": ["number", "null"], "default": null},
-    "edge_dist": {"type": ["number", "null"], "default": null},
-    "difficulty": {"type": ["number", "null"], "default": null, "description": "per-finding b0 (M2)"},
-    "readers": {"type": ["integer", "null"], "default": null},
-    "agreement": {"type": ["number", "null"], "default": null}
+    "centroid": {
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "area_frac": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "side": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "right",
+        "left",
+        "bilateral",
+        "midline",
+        null
+      ],
+      "default": null
+    },
+    "zones": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": []
+    },
+    "primary_zone": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": null
+    },
+    "relative_location": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": null
+    },
+    "contrast": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "default": null
+    },
+    "model_prob": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "default": null
+    },
+    "edge_dist": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "default": null
+    },
+    "difficulty": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "default": null,
+      "description": "per-finding b0 (M2)"
+    },
+    "readers": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "default": null
+    },
+    "agreement": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "default": null
+    },
+    "label_value": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "default": null,
+      "description": "voxel value(s) of this finding in the mask volume; see label_values"
+    },
+    "label_values": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "integer"
+      },
+      "default": null
+    },
+    "centroid3": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "number"
+      },
+      "minItems": 3,
+      "maxItems": 3,
+      "default": null,
+      "description": "[x, y, z] voxel index"
+    },
+    "slice_range": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "integer"
+      },
+      "minItems": 2,
+      "maxItems": 2,
+      "default": null,
+      "description": "[z0, z1] inclusive axial slices containing the finding"
+    },
+    "measure": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "default": null,
+      "additionalProperties": false,
+      "required": [
+        "long_mm",
+        "slice"
+      ],
+      "properties": {
+        "long_mm": {
+          "type": "number"
+        },
+        "slice": {
+          "type": "integer"
+        },
+        "plane": {
+          "type": "string",
+          "enum": [
+            "axial"
+          ],
+          "default": "axial"
+        }
+      },
+      "description": "longest in-plane diameter on any axial slice (regionprops feret), from the reference mask"
+    },
+    "components": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "default": null,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "label_value"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "label_value": {
+            "type": "integer"
+          }
+        }
+      },
+      "description": "sub-structures (e.g. brain tumour: oedema, core, enhancing)"
+    },
+    "volume_mm3": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "default": null
+    }
   }
 }

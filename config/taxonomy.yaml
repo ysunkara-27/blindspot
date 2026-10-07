@@ -16,6 +16,13 @@ labels:
   - {id: fibrosis,           display: Fibrosis,           kind: pattern, core: false, sources: {chestx-det: [Fibrosis], vindr-cxr: [Pulmonary fibrosis]}}
   - {id: diffuse_nodule,     display: Diffuse nodules,    kind: pattern, core: false, sources: {chestx-det: [Diffuse Nodule]}}
 
+  # --- volumetric (CT / MR) findings; source: Medical Segmentation Decathlon (msd). kind focal; modality-specific.
+  - {id: pancreatic_tumour,  display: Pancreatic tumour,  kind: focal, core: true,  modality: ct, body_region: abdomen, sources: {msd: [Task07_Pancreas:2]}}
+  - {id: liver_tumour,       display: Liver tumour,       kind: focal, core: true,  modality: ct, body_region: abdomen, sources: {msd: [Task08_HepaticVessel:2, Task03_Liver:2]}}
+  - {id: brain_tumour,       display: Brain tumour,       kind: focal, core: true,  modality: mr, body_region: brain,   sources: {msd: [Task01_BrainTumour:1+2+3]}}
+  - {id: lung_tumour,        display: Lung tumour,        kind: focal, core: false, modality: ct, body_region: chest,   sources: {msd: [Task06_Lung:1]}}
+  - {id: colon_tumour,       display: Colon tumour,       kind: focal, core: false, modality: ct, body_region: abdomen, sources: {msd: [Task10_Colon:1]}}
+
 # VinDr-only classes (P2) not in the core taxonomy. Decide per class before using VinDr: drop, or add a label.
 vindr_unmapped: [Aortic enlargement, ILD, Infiltration, Lung Opacity, Other lesion]
 # NIH bbox "Infiltrate" (P2 fallback) has no clean equivalent; drop it.
@@ -30,4 +37,15 @@ related_groups:
 
 # What the learner can choose.
 learner_focal_options: [pneumothorax, effusion, consolidation, atelectasis, nodule, mass, fracture, calcification, pleural_thickening]
+# Per-modality learner options for volumetric cases (the X-ray list above is for modality cxr).
+learner_focal_options_by_modality:
+  cxr: [pneumothorax, effusion, consolidation, atelectasis, nodule, mass, fracture, calcification, pleural_thickening]
+  ct: [pancreatic_tumour, liver_tumour, lung_tumour, colon_tumour]
+  mr: [brain_tumour]
+# Anatomy label values in MSD masks become ZONES, not findings (an organ is where you look, not what you find).
+anatomy_labels:
+  Task07_Pancreas: {1: pancreas}
+  Task08_HepaticVessel: {1: hepatic_vessels}
+  Task03_Liver: {1: liver}
+  Task02_Heart: {1: left_atrium}
 learner_pattern_options: [cardiomegaly, emphysema, fibrosis, diffuse_nodule]

@@ -5,46 +5,240 @@
   "description": "Body of POST /api/attempts/{id}/submit.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["marks", "patterns", "declared_normal", "telemetry", "hints_used", "client_timing"],
+  "required": [
+    "marks",
+    "patterns",
+    "declared_normal",
+    "telemetry",
+    "hints_used",
+    "client_timing"
+  ],
   "$defs": {
-    "Confidence": {"type": "integer", "enum": [1, 2, 3, 4, 5]},
+    "Confidence": {
+      "type": "integer",
+      "enum": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ]
+    },
     "Mark": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["mark_id", "x", "y", "label", "confidence"],
+      "required": [
+        "mark_id",
+        "x",
+        "y",
+        "label",
+        "confidence"
+      ],
       "properties": {
-        "mark_id": {"type": "string", "pattern": "^M[0-9]+$"},
-        "x": {"type": "number"},
-        "y": {"type": "number"},
-        "label": {"type": "string", "enum": ["pneumothorax", "effusion", "consolidation", "atelectasis", "nodule", "mass", "calcification", "fracture", "pleural_thickening", "not_sure"]},
-        "confidence": {"$ref": "#/$defs/Confidence"}
+        "mark_id": {
+          "type": "string",
+          "pattern": "^M[0-9]+$"
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        },
+        "label": {
+          "type": "string",
+          "enum": [
+            "pneumothorax",
+            "effusion",
+            "consolidation",
+            "atelectasis",
+            "nodule",
+            "mass",
+            "calcification",
+            "fracture",
+            "pleural_thickening",
+            "pancreatic_tumour",
+            "liver_tumour",
+            "brain_tumour",
+            "lung_tumour",
+            "colon_tumour",
+            "not_sure"
+          ]
+        },
+        "confidence": {
+          "$ref": "#/$defs/Confidence"
+        },
+        "plane": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "axial",
+            "coronal",
+            "sagittal",
+            null
+          ],
+          "default": null
+        },
+        "slice": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "default": null
+        },
+        "voxel": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "minItems": 3,
+          "maxItems": 3,
+          "default": null,
+          "description": "[x, y, z] in volume index space (floats). Required for volumetric cases; x,y then hold the in-plane view coords for display."
+        }
       }
     },
     "PatternSelection": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["label", "confidence"],
+      "required": [
+        "label",
+        "confidence"
+      ],
       "properties": {
-        "label": {"type": "string", "enum": ["cardiomegaly", "emphysema", "fibrosis", "diffuse_nodule"]},
-        "confidence": {"$ref": "#/$defs/Confidence"}
+        "label": {
+          "type": "string",
+          "enum": [
+            "cardiomegaly",
+            "emphysema",
+            "fibrosis",
+            "diffuse_nodule"
+          ]
+        },
+        "confidence": {
+          "$ref": "#/$defs/Confidence"
+        }
+      }
+    },
+    "Measurement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mark_id",
+        "long_mm",
+        "plane",
+        "slice"
+      ],
+      "properties": {
+        "mark_id": {
+          "type": "string"
+        },
+        "long_mm": {
+          "type": "number",
+          "minimum": 0
+        },
+        "plane": {
+          "type": "string",
+          "enum": [
+            "axial",
+            "coronal",
+            "sagittal"
+          ]
+        },
+        "slice": {
+          "type": "integer"
+        },
+        "p0": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "default": null
+        },
+        "p1": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "default": null
+        }
       }
     }
   },
   "properties": {
-    "marks": {"type": "array", "items": {"$ref": "#/$defs/Mark"}},
-    "patterns": {"type": "array", "items": {"$ref": "#/$defs/PatternSelection"}},
-    "declared_normal": {"type": "boolean"},
-    "normal_confidence": {"anyOf": [{"$ref": "#/$defs/Confidence"}, {"type": "null"}], "default": null},
-    "telemetry": {"type": "array", "items": {"$ref": "telemetry_event.json"}, "maxItems": 20000},
-    "hints_used": {"type": "integer", "minimum": 0, "maximum": 3},
+    "marks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Mark"
+      }
+    },
+    "patterns": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/PatternSelection"
+      }
+    },
+    "declared_normal": {
+      "type": "boolean"
+    },
+    "normal_confidence": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Confidence"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "telemetry": {
+      "type": "array",
+      "items": {
+        "$ref": "telemetry_event.json"
+      },
+      "maxItems": 20000
+    },
+    "hints_used": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 3
+    },
     "client_timing": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["shown_at", "submitted_at"],
+      "required": [
+        "shown_at",
+        "submitted_at"
+      ],
       "properties": {
-        "shown_at": {"type": "string", "format": "date-time"},
-        "submitted_at": {"type": "string", "format": "date-time"}
+        "shown_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "submitted_at": {
+          "type": "string",
+          "format": "date-time"
+        }
       }
+    },
+    "measurements": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Measurement"
+      },
+      "default": []
     }
   }
 }

@@ -1,0 +1,67 @@
+# The "___ by ___" badge for every reference dataset. Shown on every case, debrief and reference example.
+# grade: radiologist | clinician | model | unknown. Verify against each dataset's paper before changing wording.
+version: 1
+datasets:
+  chestx-det:
+    dataset: "ChestX-Det"
+    segmented_by: "three board-certified radiologists"
+    readers: 3
+    institution: "Deepwise AI Lab (images: NIH Clinical Center, ChestX-ray14)"
+    license: "Apache-2.0 (annotations); NIH terms (images)"
+    citation: "Lian J et al. A structure-aware relation network for thoracic diseases detection and segmentation. IEEE TMI 2021. Images: Wang X et al. ChestX-ray8. CVPR 2017."
+    url: "https://github.com/Deepwise-AILab/ChestX-Det-Dataset"
+    grade: radiologist
+  Task07_Pancreas:
+    dataset: "Medical Segmentation Decathlon, Task07 Pancreas"
+    segmented_by: "an abdominal radiologist (single reader)"
+    readers: 1
+    institution: "Memorial Sloan Kettering Cancer Center"
+    license: "CC BY-SA 4.0"
+    citation: "Antonelli M et al. The Medical Segmentation Decathlon. Nat Commun 2022."
+    url: "http://medicaldecathlon.com/"
+    grade: radiologist
+  Task08_HepaticVessel:
+    dataset: "Medical Segmentation Decathlon, Task08 Hepatic Vessel"
+    segmented_by: "expert manual segmentation with semi-automatic vessel maps (single reader)"
+    readers: 1
+    institution: "Memorial Sloan Kettering Cancer Center"
+    license: "CC BY-SA 4.0"
+    citation: "Antonelli M et al. The Medical Segmentation Decathlon. Nat Commun 2022."
+    url: "http://medicaldecathlon.com/"
+    grade: clinician
+  Task03_Liver:
+    dataset: "Medical Segmentation Decathlon, Task03 Liver (LiTS)"
+    segmented_by: "radiologists and oncologists at several hospitals (single reader per case)"
+    readers: 1
+    institution: "IRCAD, LMU Munich and partners (LiTS)"
+    license: "CC BY-SA 4.0"
+    citation: "Bilic P et al. The Liver Tumor Segmentation Benchmark (LiTS). Med Image Anal 2023."
+    url: "http://medicaldecathlon.com/"
+    grade: radiologist
+  Task01_BrainTumour:
+    dataset: "Medical Segmentation Decathlon, Task01 Brain Tumour (BraTS)"
+    segmented_by: "trained raters to a protocol, approved by board-certified neuroradiologists"
+    readers: 1
+    institution: "BraTS consortium (UPenn and partners)"
+    license: "CC BY-SA 4.0"
+    citation: "Bakas S et al. Advancing The Cancer Genome Atlas glioma MRI collections. Sci Data 2017."
+    url: "http://medicaldecathlon.com/"
+    grade: radiologist
+  Task06_Lung:
+    dataset: "Medical Segmentation Decathlon, Task06 Lung (NSCLC-Radiomics)"
+    segmented_by: "radiation oncologists (treatment-planning contours)"
+    readers: 1
+    institution: "Maastro Clinic (TCIA)"
+    license: "CC BY-SA 4.0"
+    citation: "Aerts HJWL et al. Decoding tumour phenotype by noninvasive imaging. Nat Commun 2014."
+    url: "http://medicaldecathlon.com/"
+    grade: clinician
+  Task10_Colon:
+    dataset: "Medical Segmentation Decathlon, Task10 Colon"
+    segmented_by: "expert manual segmentation (single reader)"
+    readers: 1
+    institution: "Memorial Sloan Kettering Cancer Center"
+    license: "CC BY-SA 4.0"
+    citation: "Antonelli M et al. The Medical Segmentation Decathlon. Nat Commun 2022."
+    url: "http://medicaldecathlon.com/"
+    grade: clinician
