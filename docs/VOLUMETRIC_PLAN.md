@@ -19,6 +19,9 @@ The X-ray experience stays byte-identical for `modality: cxr` cases.
   `previews/<case_id>_axial.png` for QA. Slabs cropped to the body and centred on the finding (~144 px in-plane, ≤ 32 slices; lung 176).
 - Provenance from config/provenance.yaml by MSD task id. Splits: practice / assess per modality; bench examples for the reference bank.
 
+## Slice numbering
+`slice`, `slice_range`, `measure.slice`, telemetry `slice` and `Mark.slice` are 0-based indices in the contract. EVERY human-facing string (viewer "Slice 8 of 28", facts card, debrief, hints, tutor templates) is 1-based: show index + 1.
+
 ## Grading (config/scoring.yaml `volumetric`)
 - Hit: voxel lookup in the mask; tolerance 2 % of the larger in-plane FOV (mm); ±2 slices; a mark inside a DIFFERENT labelled structure is never rescued.
 - Miss types from slice dwell: finding's slices on screen < 800 ms → missed_search; < 2000 ms or cursor never within 15 mm → missed_recognition; else missed_decision.

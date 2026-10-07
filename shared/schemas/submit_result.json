@@ -264,6 +264,13 @@
             },
             "slice": {
               "type": "integer"
+            },
+            "plane": {
+              "type": "string",
+              "enum": [
+                "axial"
+              ],
+              "default": "axial"
             }
           }
         },
@@ -324,7 +331,8 @@
           "enum": [
             "true_positive",
             "duplicate",
-            "false_positive"
+            "false_positive",
+            "unmatched"
           ]
         },
         "matched_finding": {

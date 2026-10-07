@@ -220,7 +220,9 @@ class Case(_Strict):
 
 
 # --------------------------------------------------------------------------- telemetry_event.json
-TelemetryKind = Literal["move", "down", "up", "wheel", "enter", "leave", "loupe", "wl", "pan"]
+TelemetryKind = Literal[
+    "move", "down", "up", "wheel", "enter", "leave", "loupe", "wl", "pan", "slice", "plane", "window"
+]
 
 
 class TelemetryEvent(_Strict):
@@ -543,6 +545,7 @@ class TeachingCard(_Strict):
     search_tip: str
     radiopaedia_url: str | None
     review: CardReview
+    modality: Modality | None = None
 
 
 # --------------------------------------------------------------------------- api.json

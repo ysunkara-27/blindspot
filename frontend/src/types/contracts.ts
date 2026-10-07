@@ -683,6 +683,7 @@ export interface RevealFinding {
   measure?: {
     long_mm: number;
     slice: number;
+    plane?: "axial";
   } | null;
   size_verdict?: {
     your_mm: number;
@@ -696,7 +697,7 @@ export interface RevealFinding {
 
 export interface RevealMark {
   mark_id: string;
-  result: "true_positive" | "duplicate" | "false_positive";
+  result: "true_positive" | "duplicate" | "false_positive" | "unmatched";
   matched_finding?: string | null;
   zone?: string | null;
   voxel?: number[] | null;
@@ -775,4 +776,5 @@ export interface TeachingCard {
     date: string | null;
     notes: string | null;
   };
+  modality?: "cxr" | "ct" | "mr" | null;
 }

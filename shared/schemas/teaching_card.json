@@ -5,28 +5,120 @@
   "description": "content/teaching_cards/<label>.yaml",
   "type": "object",
   "additionalProperties": false,
-  "required": ["label", "display_name", "kind", "one_liner", "key_signs", "where_it_hides", "mimics", "commonly_confused_with", "search_tip", "radiopaedia_url", "review"],
+  "required": [
+    "label",
+    "display_name",
+    "kind",
+    "one_liner",
+    "key_signs",
+    "where_it_hides",
+    "mimics",
+    "commonly_confused_with",
+    "search_tip",
+    "radiopaedia_url",
+    "review"
+  ],
   "properties": {
-    "label": {"type": "string"},
-    "display_name": {"type": "string"},
-    "kind": {"type": "string", "enum": ["focal", "pattern"]},
-    "one_liner": {"type": "string"},
-    "key_signs": {"type": "array", "items": {"type": "string"}, "minItems": 1},
-    "where_it_hides": {"type": "array", "items": {"type": "string"}},
-    "mimics": {"type": "array", "items": {"type": "string"}},
-    "commonly_confused_with": {"type": "array", "items": {"type": "string"}},
-    "search_tip": {"type": "string"},
-    "radiopaedia_url": {"type": ["string", "null"]},
+    "label": {
+      "type": "string"
+    },
+    "display_name": {
+      "type": "string"
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "focal",
+        "pattern"
+      ]
+    },
+    "one_liner": {
+      "type": "string"
+    },
+    "key_signs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "where_it_hides": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "mimics": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "commonly_confused_with": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "search_tip": {
+      "type": "string"
+    },
+    "radiopaedia_url": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "review": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["status", "reviewer", "date", "notes"],
+      "required": [
+        "status",
+        "reviewer",
+        "date",
+        "notes"
+      ],
       "properties": {
-        "status": {"type": "string", "enum": ["ai_draft", "student_reviewed", "radiologist_reviewed"]},
-        "reviewer": {"type": ["string", "null"]},
-        "date": {"type": ["string", "null"]},
-        "notes": {"type": ["string", "null"]}
+        "status": {
+          "type": "string",
+          "enum": [
+            "ai_draft",
+            "student_reviewed",
+            "radiologist_reviewed"
+          ]
+        },
+        "reviewer": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "date": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "notes": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
       }
+    },
+    "modality": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "cxr",
+        "ct",
+        "mr",
+        null
+      ],
+      "default": null
     }
   }
 }
