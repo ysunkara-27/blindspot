@@ -1,6 +1,7 @@
 // Landing copy that tests and sections share. Facts quote docs/RESEARCH.md; each carries its source.
 export const FREE_LINE = 'Free · no account · about 2 minutes per film';
-export const FEEDBACK_URL = 'https://www.ysunkara.com/feedback';
+/** The feedback form is a page of the app now (FeedbackPage.tsx); the landing band links there. */
+export const FEEDBACK_PATH = '/feedback';
 
 export type Fact = { lead: string; text: string; source: string; url: string };
 export const FACTS: Fact[] = [

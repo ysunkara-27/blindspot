@@ -19,7 +19,7 @@ test('the six sections, in order, with the copy the owner asked for', async ({ p
   await page.setViewportSize({ width: 1440, height: 900 });
   await withModalities(page, { cxr: 3578, ct: 85, mr: 47 });
   await page.goto('/?mock=0');
-  await expect(page).toHaveTitle('Blindspot · chest X-ray perception trainer');
+  await expect(page).toHaveTitle('Blindspot · medical imaging perception trainer');
 
   // 1. Hero
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Learn to see what you keep missing on medical images.');
@@ -65,7 +65,7 @@ test('the six sections, in order, with the copy the owner asked for', async ({ p
   await expect(fb).toContainText('Blindspot is an early build. If you’re a radiologist, resident or student, two minutes of feedback shapes what we build next.');
   const give = page.getByTestId('give-feedback');
   await expect(give).toHaveText('Give feedback');
-  await expect(give).toHaveAttribute('href', 'https://www.ysunkara.com/feedback');
+  await expect(give).toHaveAttribute('href', '/feedback');
   await expect(give).not.toHaveAttribute('target', '_blank');
   await expect(fb).toContainText('or reply to the email that brought you here');
   await expect(page.getByTestId('landing-links').getByRole('link', { name: 'Finding library' })).toHaveAttribute('href', '/reference');
@@ -126,6 +126,6 @@ test('at 390 px the page stacks, reads in full, and asks for a computer instead 
   await expect(page.getByTestId('scan-start-cxr')).toHaveCount(0);
   const o = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, iw: window.innerWidth }));
   expect(o.sw).toBeLessThanOrEqual(o.iw + 1);
-  await expect(page.getByTestId('give-feedback')).toHaveAttribute('href', 'https://www.ysunkara.com/feedback');
+  await expect(page.getByTestId('give-feedback')).toHaveAttribute('href', '/feedback');
   await page.screenshot({ path: `${SHOTS}/landing-v2-02-narrow.png`, fullPage: true });
 });

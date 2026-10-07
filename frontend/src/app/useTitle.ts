@@ -5,7 +5,7 @@ import { useEffect } from 'react';
 export function useTitle(title: string | null, restore = false) {
   useEffect(() => {
     const prev = document.title;
-    document.title = title ? `${title} · Blindspot` : 'Blindspot · chest X-ray perception trainer';
+    document.title = title ? `${title} · Blindspot` : 'Blindspot · medical imaging perception trainer';
     return restore ? () => { document.title = prev; } : undefined;
   }, [title, restore]);
 }

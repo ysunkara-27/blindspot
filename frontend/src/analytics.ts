@@ -11,7 +11,7 @@ const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '::1', '']);
 
 export type AnalyticsEvent =
   | 'session_start' | 'film_submitted' | 'debrief_live' | 'debrief_template' | 'hint' | 'ask' | 'reference_open'
-  | 'tutorial_done' | 'set_complete';
+  | 'tutorial_done' | 'set_complete' | 'feedback_sent';
 
 type Store = { getItem(k: string): string | null; setItem(k: string, v: string): void };
 

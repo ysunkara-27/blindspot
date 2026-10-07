@@ -9,6 +9,7 @@ import { StartPage } from '../pages/StartPage';
 import { SetSummaryPage } from '../pages/SessionSummaryView';
 import { ReadPage } from '../pages/ReadPage';
 import { AboutPage } from '../pages/AboutPage';
+import { FeedbackPage } from '../pages/FeedbackPage';
 import { DevCasePage } from '../pages/DevCasePage';
 import { NotFoundPage } from '../pages/NotFoundPage';
 import { AccessGate } from './Gate';
@@ -28,9 +29,9 @@ const qc = new QueryClient({
   defaultOptions: { queries: { retry: (n, e) => !isGateError(e) && n < 1, refetchOnWindowFocus: false } },
 });
 
-// Pages that still make sense on a phone: the landing (it explains, then asks for a computer), the About report and
-// the finding library (text first; its example films scale down).
-const NARROW_OK = new Set(['/', '/about', '/reference']);
+// Pages that still make sense on a phone: the landing (it explains, then asks for a computer), the About report,
+// the finding library (text first; its example films scale down) and the feedback form.
+const NARROW_OK = new Set(['/', '/about', '/reference', '/feedback']);
 
 // A page that was already open stays mounted (hidden, inert) when the window narrows, so shrinking a window or a
 // transient resize never throws away marks, a half-written review or the card being edited. A page opened narrow
@@ -71,6 +72,7 @@ export function App() {
                 <Route path="/cohort" element={<CohortPage />} />
                 <Route path="/review" element={<ReviewPage />} />
                 <Route path="/about" element={<AboutPage />} />
+                <Route path="/feedback" element={<FeedbackPage />} />
                 <Route path="/dev/case/:id" element={<DevCasePage />} />
                 <Route path="*" element={<NotFoundPage />} />
               </Routes>

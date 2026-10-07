@@ -1,0 +1,67 @@
+/* /feedback: one report column, short questions separated by rules (as /start). Pills are the start screen's
+   scan-type chips; the 1–5 chips are the rail's "How sure?" chips, a little larger for a form. Amber frames what is
+   still needed; nothing else is coloured. */
+.block { padding: 20px 0 18px; }
+.block + .block { border-top: 1px solid var(--report-rule); }
+.plain { border: none; margin: 0; padding: 0; min-width: 0; }
+.q { display: block; font-size: var(--fs-2); font-weight: 700; margin: 0 0 10px; padding: 0; }
+.opt { margin-left: 8px; font-size: 14px; font-weight: 400; color: var(--report-ink-muted); }
+.hint { color: var(--report-ink-muted); font-size: var(--fs-1); line-height: 1.45; margin: -4px 0 10px; }
+
+.pills { display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; }
+.pill {
+  display: inline-flex; align-items: center; gap: 7px; padding: 7px 14px; border-radius: 999px;
+  border: 1px solid #b9c2ca; background: #fff; color: var(--report-ink); font: inherit; font-weight: 700; font-size: var(--fs-1); cursor: pointer;
+}
+.pill::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: transparent; border: 1px solid #b9c2ca; box-sizing: border-box; }
+.pill:hover { border-color: var(--report-ink); }
+.pill:focus-visible, .chip:focus-visible, .textarea:focus-visible, .input:focus-visible, .primary:focus-visible { outline: 2px solid var(--grease-amber); outline-offset: 2px; }
+.pillOn { background: var(--report-ink); border-color: var(--report-ink); color: #fff; }
+.pillOn::before { background: var(--grease-amber); border-color: var(--grease-amber); }
+
+.ratings { list-style: none; margin: 0; padding: 0; }
+.rating {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px 20px; flex-wrap: wrap;
+  padding: 10px 0; border-top: 1px solid var(--report-rule);
+}
+.rating:first-child { border-top: none; padding-top: 0; }
+.ratingQ { flex: 1 1 18em; line-height: 1.4; }
+.chipsCaptioned { display: inline-flex; align-items: center; gap: 9px; }
+.cap { font-size: 13px; color: var(--report-ink-muted); min-width: 4.5em; }
+.cap:first-child { text-align: right; }
+.chips { display: inline-flex; gap: 4px; }
+.chip {
+  width: 36px; height: 36px; padding: 0;
+  border: 1px solid #b9c2ca; border-radius: 4px; background: #fff; color: var(--report-ink);
+  font-size: var(--fs-1); font-variant-numeric: tabular-nums; cursor: pointer;
+}
+.chip:hover { border-color: var(--grease-amber); }
+.chipOn { background: var(--grease-amber); border-color: #c98a17; color: #1d1300; font-weight: 700; }
+/* Still unanswered after a try: a dashed amber frame asks for it without shouting (the rail does the same). */
+.chipsNeeded, .needed { outline: 1.5px dashed #c98a17; outline-offset: 4px; border-radius: 5px; }
+.needed { display: inline-block; }
+
+.textarea, .input {
+  font: inherit; padding: 9px 12px; border: 1px solid #b9c2ca; border-radius: var(--radius); background: #fff; color: var(--report-ink);
+  width: 100%; display: block;
+}
+.textarea { resize: vertical; min-height: 6em; line-height: 1.45; }
+.input { max-width: 420px; }
+.counter { margin: 6px 0 0; text-align: right; font-size: 13px; color: var(--report-ink-muted); font-variant-numeric: tabular-nums; }
+
+.go { border-top: 1px solid var(--report-rule); padding: 20px 0 0; }
+.primary {
+  padding: 12px 28px; border: none; border-radius: var(--radius); background: var(--report-ink); color: #fff;
+  font: inherit; font-size: var(--fs-2); font-weight: 700; cursor: pointer;
+}
+.primary:disabled { background: #a7b0b8; cursor: default; }
+.error { padding: 10px 12px; background: #e7ecef; border-left: 3px solid var(--grease-amber); border-radius: 0 4px 4px 0; font-size: var(--fs-1); margin: 0 0 14px; }
+.privacy { color: var(--report-ink-muted); font-size: 14px; line-height: 1.45; margin: 14px 0 0; }
+
+@media (max-width: 599.98px) {
+  .rating { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .ratingQ { flex: 0 0 auto; }
+  .cap { min-width: 0; }
+  .cap:first-child { text-align: left; }
+  .chip { width: 40px; height: 40px; }
+}

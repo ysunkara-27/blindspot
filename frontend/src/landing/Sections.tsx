@@ -2,7 +2,7 @@
 // The scan cards live in ScanCards.tsx (they read the library's health and provenance).
 import { Link } from 'react-router-dom';
 import { DISCLAIMER } from '../app/Shell';
-import { FACTS, FEEDBACK_URL, PROXY_CAVEAT } from './copy';
+import { FACTS, FEEDBACK_PATH, PROXY_CAVEAT } from './copy';
 import { GlyphExpert, GlyphLooked, GlyphMark } from './glyphs';
 import l from '../pages/Landing.module.css';
 
@@ -77,7 +77,7 @@ export function FeedbackBand() {
               Blindspot is an early build. If you&rsquo;re a radiologist, resident or student, two minutes of feedback shapes what we build next.
             </p>
             <div className={l.ctaRow}>
-              <a href={FEEDBACK_URL} className={l.ctaInk} data-testid="give-feedback">Give feedback</a>
+              <Link to={FEEDBACK_PATH} className={l.ctaInk} data-testid="give-feedback">Give feedback</Link>
               <span className={l.ctaOr}>or reply to the email that brought you here</span>
             </div>
           </div>

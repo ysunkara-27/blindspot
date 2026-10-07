@@ -107,7 +107,7 @@ test('access gate: a 401 shows one calm page; a wrong code says so; the right co
   const gate = page.getByTestId('access-gate');
   await expect(gate).toBeVisible();
   // Someone without a code still sees what this is: the hero, how to get a code, and About.
-  await expect(page).toHaveTitle('Blindspot · chest X-ray perception trainer');
+  await expect(page).toHaveTitle('Blindspot · medical imaging perception trainer');
   await expect(gate.getByRole('heading', { level: 1 })).toHaveText('Learn to see what you keep missing on medical images.');
   await expect(gate.getByTestId('hero-film')).toBeVisible();
   await expect(gate.getByTestId('hero-support')).toContainText('Blindspot replays where you looked and explains each miss.');
