@@ -118,3 +118,27 @@
 .scrub label { flex: 1 1 auto; display: flex; min-width: 0; }
 .scrub input[type='range'] { width: 100%; accent-color: var(--report-ink); margin: 0; }
 .scrubText { font-size: 13px; color: var(--report-ink-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* Round 5: sign schematics — a 120×120 drawing in a neutral box, name, one paragraph, link. */
+.signList { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 10px; }
+.signCard { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 12px; align-items: start; }
+.schematic {
+  width: 120px;
+  height: 120px;
+  box-sizing: border-box;
+  border: 1px solid #b9c2ca;
+  border-radius: 4px;
+  background: #fff;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.schematic svg { display: block; width: 100%; height: 100%; }
+.signBody { min-width: 0; }
+.signName { margin: 2px 0 4px; font-weight: 700; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.signTag { font-size: 12px; font-weight: 400; padding: 1px 7px; border-radius: 999px; background: var(--lightbox-cyan); color: #04262b; white-space: nowrap; }
+.signText { margin: 0; font-size: 14px; line-height: 1.45; }
+.signNote { margin: 4px 0 0; font-size: 13px; color: var(--report-ink-muted); }
+.signLink { display: inline-block; margin-top: 4px; font-size: 14px; color: var(--report-ink); }
+.signsHead { display: flex; align-items: center; justify-content: space-between; gap: 6px 10px; flex-wrap: wrap; }
+.signsHead .h3 { margin: 0; white-space: nowrap; }
+.badgeSmall { font-size: 12px; white-space: nowrap; }

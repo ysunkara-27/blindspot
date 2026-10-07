@@ -436,8 +436,13 @@ test('search trace: only after submit, with a legend, an explainer, a remembered
   await expect(page.getByTestId('film-legend')).toHaveCount(0);
   await expect(page.getByTestId('search-toggle')).toHaveCount(0);
   await callNormalAndSubmit(page);
-  await expect(page.getByTestId('search-trace')).toBeVisible();
+  // Round 5: "My search" starts off (the legend says so); this test turns it on.
   const toggle = page.getByTestId('search-toggle');
+  await expect(toggle).toHaveText('My search: off');
+  await expect(page.getByTestId('search-trace')).toHaveCount(0);
+  await expect(page.getByTestId('search-legend')).toContainText('My search is off');
+  await toggle.click();
+  await expect(page.getByTestId('search-trace')).toBeVisible();
   await expect(toggle).toHaveText('My search: on');
   await expect(toggle).toHaveAttribute('aria-pressed', 'true');
   const legend = page.getByTestId('search-legend');
@@ -477,7 +482,7 @@ test('search trace: only after submit, with a legend, an explainer, a remembered
   await expect(toggle).toHaveText('My search: off');
   await expect(page.getByTestId('search-trace')).toHaveCount(0);
   await expect(rings).toHaveCount(0);
-  await expect(page.getByTestId('search-legend')).toHaveCount(0);
+  await expect(page.getByTestId('search-legend')).toHaveAttribute('data-search', 'off');
   expect(await page.evaluate(() => localStorage.getItem('blindspot.showSearch'))).toBe('0');
   await page.getByTestId('next-case').click();
   await expect(page.getByTestId('case-index')).toHaveText(/Case 2/);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { guardReference, safeExternalUrl, uiTerms } from './guard';
+import { guardReference, guardReferenceLabel, pickExamples, safeExternalUrl, uiTerms } from './guard';
 
 describe('guardReference', () => {
   it('returns empty lists for anything that is not the payload', () => {
@@ -83,5 +83,30 @@ describe('guardReference — volumetric examples (round 4)', () => {
     const r = guardReference({ labels: [{ label: 'nodule', examples: [{ case_id: 'c', image_url: '/i.png', width: 10, height: 10 }] }] });
     expect(r.labels[0].modality).toBe('cxr');
     expect(r.labels[0].examples[0]).toMatchObject({ modality: 'cxr', volume: null, provenance: null });
+  });
+});
+
+describe('pickExamples (round 5: the two thumbnails under a debrief row)', () => {
+  const ex = (case_id: string, outline: boolean, volume = false) => ({
+    case_id, image_url: `/i/${case_id}.png`, width: 10, height: 10, modality: 'cxr' as const, provenance: null,
+    volume: volume ? { volume_url: '/v', mask_url: '/m', shape: [4, 4, 4] as [number, number, number], spacing: [1, 1, 1] as [number, number, number], window: { wc: 0, ww: 1 }, slice: 1, label_values: [] } : null,
+    finding: outline ? { finding_id: `${case_id}#F1`, polygon: [[1, 1], [2, 2], [3, 1]] as [number, number][], bbox: null, relative_location: 'right upper zone', side: 'right', slice_range: null } : null,
+  });
+  it('prefers examples with an outline to draw, distinct cases, at most n', () => {
+    const got = pickExamples([ex('a', false), ex('b', true), ex('b', true), ex('c', true), ex('d', true)], 2);
+    expect(got.map((e) => e.case_id)).toEqual(['b', 'c']);
+  });
+  it('falls back to plain films when no outline exists, and never shows the case being read', () => {
+    expect(pickExamples([ex('a', false), ex('b', false)], 2).map((e) => e.case_id)).toEqual(['a', 'b']);
+    expect(pickExamples([ex('a', true), ex('b', true), ex('c', true)], 2, 'a').map((e) => e.case_id)).toEqual(['b', 'c']);
+    expect(pickExamples([], 2)).toEqual([]);
+  });
+  it('counts a volume example as drawable', () => {
+    expect(pickExamples([ex('a', false), ex('v', false, true)], 1).map((e) => e.case_id)).toEqual(['v']);
+  });
+  it('guardReferenceLabel reads one entry with its sign ids', () => {
+    const l = guardReferenceLabel({ label: 'effusion', signs: ['meniscus', 3, ''], examples: [] });
+    expect(l?.signs).toEqual(['meniscus']);
+    expect(guardReferenceLabel(null)).toBeNull();
   });
 });

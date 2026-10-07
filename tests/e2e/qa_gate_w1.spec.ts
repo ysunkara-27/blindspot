@@ -110,7 +110,7 @@ for (const vp of [{ width: 1280, height: 800 }, { width: 1920, height: 1080 }]) 
     // pre-submit bodies carry no ground truth (everything except /submit, /debrief, /ask)
     const leaks: string[] = [];
     for (const b of w.bodies) {
-      if (/\/(submit|debrief|ask)$/.test(b.url) || b.url.includes('/dev/') || b.url.includes('/review') || b.url.includes('/dashboard')) continue;
+      if (/\/(submit|debrief|ask)$/.test(b.url) || b.url.includes('/dev/') || b.url.includes('/review') || b.url.includes('/dashboard') || b.url.includes('/reference') || b.url.includes('/signs')) continue; // reference examples are held-back bench films, never served as cases
       for (const k of GT_KEYS) if (b.body.includes(k)) leaks.push(`${b.method} ${b.url} ${k}`);
     }
     expect(leaks).toEqual([]);
@@ -234,6 +234,7 @@ test('reduced motion on the real film', async ({ page }) => {
   await page.mouse.move(2, 400);
   await page.keyboard.press('Enter');
   await expect(page.getByTestId('reveal-layer')).toBeVisible();
+  await page.getByTestId('search-toggle').click(); // round 5: "My search" starts off
   const anim = await page.getByTestId('search-trace').evaluate((el) => getComputedStyle(el).animationName);
   expect(anim).toBe('none');
   await shot(page, 'reduced-motion');

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { availableSteps, hasTutorialFlag, placeCard, shouldOpenTutorial, STEPS, tourStep, type Rect } from './steps';
+import { availableSteps, hasTutorialFlag, placeCard, SEARCH_TIP_STEPS, shouldOpenSearchTip, shouldOpenTutorial, STEPS, tourStep, type Rect } from './steps';
 
 describe('tutorial steps', () => {
   it('has the seven X-ray steps in order, each pointing at a real control; the two volume steps sit between them', () => {
@@ -11,6 +11,20 @@ describe('tutorial steps', () => {
     expect(availableSteps(() => true).map((s) => s.id)).toEqual(['film', 'magnifier', 'pick', 'confidence', 'whole', 'hints', 'submit']);
     expect(availableSteps(() => true, STEPS, true).map((s) => s.id)).toEqual(['film', 'slices', 'magnifier', 'pick', 'confidence', 'measure', 'whole', 'hints', 'submit']);
     expect(availableSteps((sel) => sel !== '[data-tour="measure"]', STEPS, true).map((s) => s.id)).not.toContain('measure');
+  });
+  it('step 3 mentions tracing an outline with D (round 5)', () => {
+    expect(STEPS.find((s) => s.id === 'pick')!.body).toMatch(/trace an outline .* with D/);
+  });
+  it('the search tip is one step on the "My search" toggle, and opens once per browser (automation: only with ?tutorial=1)', () => {
+    expect(SEARCH_TIP_STEPS).toHaveLength(1);
+    expect(SEARCH_TIP_STEPS[0]).toMatchObject({ id: 'search', target: '[data-tour="my-search"]', title: 'See how you looked' });
+    expect(SEARCH_TIP_STEPS[0].body).toContain('Turn on My search');
+    expect(availableSteps(() => true, SEARCH_TIP_STEPS)).toHaveLength(1);
+    expect(availableSteps(() => false, SEARCH_TIP_STEPS)).toHaveLength(0);
+    expect(shouldOpenSearchTip({ webdriver: false, bootFlag: false, done: false })).toBe(true);
+    expect(shouldOpenSearchTip({ webdriver: false, bootFlag: false, done: true })).toBe(false);
+    expect(shouldOpenSearchTip({ webdriver: true, bootFlag: false, done: false })).toBe(false);
+    expect(shouldOpenSearchTip({ webdriver: true, bootFlag: true, done: true })).toBe(true);
   });
   it('never mentions a points cost for hints', () => {
     for (const s of STEPS) expect(`${s.title} ${s.body}`).not.toMatch(/points?|cost/i);

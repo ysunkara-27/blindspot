@@ -4,6 +4,7 @@ import type {
   Arrow, AttemptSubmit, DebriefOutput, Outcome, RevealFinding, RevealMark, SubmitResult, TelemetryEvent,
 } from '../../types/contracts';
 import { labelDisplay, zoneDisplay } from '../labels';
+import { signsForFinding } from './signs';
 import type { MockCase, MockFinding } from './types';
 
 const RELATED = [['consolidation', 'atelectasis'], ['nodule', 'mass', 'calcification'], ['effusion', 'pleural_thickening']];
@@ -11,6 +12,43 @@ export const REVIEW_AREAS = ['right_apex', 'left_apex', 'right_hilum', 'left_hil
 
 function inBox(x: number, y: number, b: [number, number, number, number], pad: number): boolean {
   return x >= b[0] - pad && x <= b[2] + pad && y >= b[1] - pad && y <= b[3] + pad;
+}
+
+type Pt = [number, number];
+function inPolygon(x: number, y: number, poly: Pt[]): boolean {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, yi] = poly[i];
+    const [xj, yj] = poly[j];
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+/** Round 5, drawn marks: how a learner's outline overlaps a finding (its polygon, else its box), by grid sampling.
+ *  `inside` = share of the outline that lies on the finding; `covered` = share of the finding under the outline.
+ *  NOT the grading of record (backend/app/scoring); a stand-in with the same verdict names. */
+export function outlineOverlap(outline: Pt[], finding: { polygon?: Pt[] | null; bbox: [number, number, number, number] }, step = 4): { inside: number; covered: number } {
+  const fin = (x: number, y: number) => (finding.polygon && finding.polygon.length >= 3 ? inPolygon(x, y, finding.polygon) : inBox(x, y, finding.bbox, 0));
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const [x, y] of outline) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+  const [bx0, by0, bx1, by1] = finding.bbox;
+  let out = 0, both = 0, fnd = 0;
+  for (let y = Math.min(y0, by0); y <= Math.max(y1, by1); y += step) {
+    for (let x = Math.min(x0, bx0); x <= Math.max(x1, bx1); x += step) {
+      const a = inPolygon(x, y, outline);
+      const b = fin(x, y);
+      if (a) out++;
+      if (b) fnd++;
+      if (a && b) both++;
+    }
+  }
+  return { inside: out ? both / out : 0, covered: fnd ? both / fnd : 0 };
+}
+export function outlineVerdict(o: { inside: number; covered: number }): NonNullable<RevealMark['outline_verdict']> {
+  if (o.covered >= 0.5 && o.inside >= 0.5) return 'on_target';
+  if (o.covered >= 0.5 && o.inside < 0.5) return 'too_broad';
+  if (o.covered > 0.05 || o.inside > 0.05) return 'partly';
+  return 'off';
 }
 
 /** Patient-side zone for a point. Patient RIGHT is on the image LEFT (CLAUDE.md rule 3). */
@@ -63,12 +101,21 @@ export function scoreAttempt(c: MockCase, body: AttemptSubmit): SubmitResult {
   const markResults: RevealMark[] = [];
   const matchedBy = new Map<string, string>(); // finding id -> mark id
 
-  // Greedy matching by distance to centroid (the backend uses Hungarian matching).
+  // Greedy matching by distance to centroid (the backend uses Hungarian matching). A drawn outline also matches a
+  // finding it overlaps, and carries an outline verdict.
   const pairs: { m: number; f: MockFinding; d: number }[] = [];
+  const verdicts = new Map<number, RevealMark['outline_verdict']>();
   body.marks.forEach((mk, i) => {
+    const poly = mk.tool === 'draw' && mk.polygon && mk.polygon.length >= 3 ? mk.polygon : null;
     for (const f of focal) {
-      if (inBox(mk.x, mk.y, f.bbox, pad)) pairs.push({ m: i, f, d: Math.hypot(mk.x - f.centroid[0], mk.y - f.centroid[1]) });
+      const ov = poly ? outlineOverlap(poly, f) : null;
+      const v = ov ? outlineVerdict(ov) : null;
+      if (inBox(mk.x, mk.y, f.bbox, pad) || (v && v !== 'off')) {
+        pairs.push({ m: i, f, d: Math.hypot(mk.x - f.centroid[0], mk.y - f.centroid[1]) });
+        if (v && (!verdicts.has(i) || v === 'on_target')) verdicts.set(i, v);
+      }
     }
+    if (poly && !verdicts.has(i)) verdicts.set(i, 'off');
   });
   pairs.sort((a, b) => a.d - b.d);
   const markTo = new Map<number, string>();
@@ -81,18 +128,19 @@ export function scoreAttempt(c: MockCase, body: AttemptSubmit): SubmitResult {
   body.marks.forEach((mk, i) => {
     const zone = mockZone(mk.x, mk.y, c.width, c.height);
     const fid = markTo.get(i);
+    const shape = mk.tool === 'draw' && mk.polygon ? { polygon: mk.polygon, outline_verdict: verdicts.get(i) ?? null } : {};
     if (fid) {
-      markResults.push({ mark_id: mk.mark_id, result: 'true_positive', matched_finding: fid, zone });
+      markResults.push({ mark_id: mk.mark_id, result: 'true_positive', matched_finding: fid, zone, ...shape });
       return;
     }
     const dup = pairs.find((p) => p.m === i);
     if (dup) {
-      markResults.push({ mark_id: mk.mark_id, result: 'duplicate', matched_finding: dup.f.finding_id, zone });
+      markResults.push({ mark_id: mk.mark_id, result: 'duplicate', matched_finding: dup.f.finding_id, zone, ...shape });
       outcomes.push({ target: mk.mark_id, result: 'duplicate', zone, matched: dup.f.finding_id });
       return;
     }
     fp++;
-    markResults.push({ mark_id: mk.mark_id, result: 'false_positive', zone });
+    markResults.push({ mark_id: mk.mark_id, result: 'false_positive', zone, ...(shape.polygon ? { ...shape, outline_verdict: 'off' as const } : {}) });
     outcomes.push({ target: mk.mark_id, result: 'false_positive', zone, learner_label: mk.label });
   });
 
@@ -116,6 +164,7 @@ export function scoreAttempt(c: MockCase, body: AttemptSubmit): SubmitResult {
       finding_id: f.finding_id, label: f.label, display: labelDisplay(f.label), kind: 'focal', polygon: f.polygon, bbox: f.bbox,
       centroid: f.centroid, side: f.side, zones: f.zones, primary_zone: f.primary_zone, relative_location: f.relative_location,
       result, dwell_ms: dwell,
+      signs: signsForFinding(f.finding_id, f.label, f.polygon, f.bbox, c.width), // round 5: the sign drawn on the film
     });
   }
   let patternOk = 0;
@@ -182,6 +231,8 @@ export function scoreAttempt(c: MockCase, body: AttemptSubmit): SubmitResult {
   for (const r of markResults.filter((r) => r.result === 'false_positive')) lines.push(`${r.mark_id} in the ${zoneDisplay(r.zone)}: nothing there on the expert read.`);
   lines.push(`Search covered about ${lungCoverage}% of the film. Not visited: ${unvisited.map(zoneDisplay).join(', ') || 'none'}.`);
   if (body.hints_used) lines.push(`Hints used: ${body.hints_used}.`);
+  // Round 5: the backend's "Look for" line names the sign drawn on the film for each finding.
+  for (const f of revealFindings) for (const sg of f.signs ?? []) lines.push(`Look for: ${sg.name} (${f.finding_id}) — ${sg.text}`);
 
   return {
     score, success, outcomes,

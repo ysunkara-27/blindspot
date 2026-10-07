@@ -3,6 +3,8 @@
 // `unmatched` (reported, never penalised); miss types come from the slice dwell; the size verdict is within
 // max(3 mm, 20 %). NOT the scoring of record.
 import type { AttemptSubmit, NextCase, Outcome, RevealFinding, RevealMark, SubmitResult, TelemetryEvent } from '../../types/contracts';
+import { signsForFinding } from './signs';
+import { outlineOverlap, outlineVerdict } from './scoring';
 import { labelDisplay } from '../labels';
 import { buildSliceDwell, SEEN_MS } from '../../viewer/volume/dwell';
 import type { MockVolCase, MockVolFinding } from './volTypes';
@@ -74,7 +76,12 @@ export function scoreVolumeAttempt(c: MockVolCase, body: AttemptSubmit): SubmitR
   let unmatched = 0;
   for (const mk of body.marks) {
     const fid = markTo.get(mk.mark_id);
-    const base = { mark_id: mk.mark_id, zone: 'mid_slab', voxel: mk.voxel ?? null, plane: mk.plane ?? null, slice: mk.slice ?? null };
+    // Round 5: a drawn outline on the axial plane is graded by its overlap with the finding's box (in-plane coords).
+    const poly = mk.tool === 'draw' && mk.polygon && mk.polygon.length >= 3 ? mk.polygon : null;
+    const fid0 = markTo.get(mk.mark_id);
+    const hit = fid0 ? c.findings.find((f) => f.finding_id === fid0) : null;
+    const verdict = poly ? (hit && mk.plane === 'axial' ? outlineVerdict(outlineOverlap(poly, { bbox: hit.bbox }, 1)) : hit ? 'partly' : 'off') : null;
+    const base = { mark_id: mk.mark_id, zone: 'mid_slab', voxel: mk.voxel ?? null, plane: mk.plane ?? null, slice: mk.slice ?? null, ...(poly ? { polygon: poly, outline_verdict: verdict } : {}) };
     if (fid) { marks.push({ ...base, result: 'true_positive', matched_finding: fid }); continue; }
     const dup = pairs.find((p) => p.m === mk.mark_id);
     if (dup) {
@@ -118,6 +125,7 @@ export function scoreVolumeAttempt(c: MockVolCase, body: AttemptSubmit): SubmitR
       finding_id: f.finding_id, label: f.label, display: labelDisplay(f.label), kind: f.kind, polygon: null, bbox: f.bbox, centroid: f.centroid,
       side: f.side, zones: f.zones, primary_zone: f.primary_zone, relative_location: f.relative_location, result, dwell_ms: dwell,
       slice_range: f.slice_range, centroid3: f.centroid3, label_values: f.label_values, components: f.components, measure: f.measure, size_verdict: sizeVerdict,
+      signs: signsForFinding(f.finding_id, f.label, null, f.bbox).map((sg) => ({ ...sg, geometry: { ...sg.geometry, plane: 'axial', slice: f.measure?.slice ?? f.slice_range?.[0] ?? null } })),
     });
   }
 

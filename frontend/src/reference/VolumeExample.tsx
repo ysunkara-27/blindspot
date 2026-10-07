@@ -24,7 +24,8 @@ async function loadVolumeExample(v: NonNullable<ReferenceExample['volume']>): Pr
 /** Which mask values are the finding: the example's own, else every non-zero value. */
 const insideFn = (values: number[]) => (values.length ? (x: number) => values.includes(x) : (x: number) => x > 0);
 
-export function VolumeExample({ ex, outline, alt, small = false }: { ex: ReferenceExample; outline: boolean; alt: string; small?: boolean }) {
+/** `thumb` (round 5): the measure slice only, no scrubber or caption — the debrief row's 120 px thumbnail. */
+export function VolumeExample({ ex, outline, alt, small = false, thumb = false }: { ex: ReferenceExample; outline: boolean; alt: string; small?: boolean; thumb?: boolean }) {
   const v = ex.volume!;
   const [z, setZ] = useState(v.slice);
   const [data, setData] = useState<Loaded | null>(null);
@@ -58,7 +59,7 @@ export function VolumeExample({ ex, outline, alt, small = false }: { ex: Referen
   const onFinding = range ? z >= range[0] && z <= range[1] : rings.length > 0;
 
   return (
-    <figure className={`${s.figure} ${small ? s.figureSmall : ''}`} data-testid="reference-example" data-modality={ex.modality} data-slice={z}>
+    <figure className={`${s.figure} ${small || thumb ? s.figureSmall : ''}`} data-testid="reference-example" data-modality={ex.modality} data-slice={z}>
       <div className={s.film} style={{ aspectRatio: `${g.W} / ${g.H}` }}>
         {failed ? <p className={s.filmNote}>This example scan could not be decoded. {failed}</p> : (
           <>
@@ -72,7 +73,7 @@ export function VolumeExample({ ex, outline, alt, small = false }: { ex: Referen
           </>
         )}
       </div>
-      <div className={s.scrub}>
+      {!thumb && <div className={s.scrub}>
         <label>
           <span className="sr-only">Axial slice</span>
           <input type="range" min={0} max={Math.max(0, g.n - 1)} value={z} onChange={(e) => setZ(Number(e.target.value))} disabled={!data} data-testid="reference-slice-scrub" />
@@ -80,11 +81,11 @@ export function VolumeExample({ ex, outline, alt, small = false }: { ex: Referen
         <span className={s.scrubText} data-testid="reference-slice-text">
           Slice {z + 1} of {g.n}{range ? (onFinding ? ' · on the finding' : ` · finding on ${range[0] + 1}–${range[1] + 1}`) : ''}
         </span>
-      </div>
-      <figcaption className={s.caption}>
+      </div>}
+      {!thumb && <figcaption className={s.caption}>
         {ex.finding?.relative_location ? `${ex.finding.relative_location.charAt(0).toUpperCase()}${ex.finding.relative_location.slice(1)}. ` : ''}
         <ProvenanceBadge provenance={ex.provenance} modality={ex.modality} short />
-      </figcaption>
+      </figcaption>}
     </figure>
   );
 }

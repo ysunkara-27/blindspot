@@ -7,10 +7,15 @@
 // grid (axial, coronal, sagittal, info); a double-click on a pane opens the single-plane view where marking happens.
 // The current slice is painted to a canvas through the window LUT; "image px" are the slice's display px, so the one
 // screen transform (coords.ts) serves pixels, marks and outlines unchanged. Marks carry plane, slice and voxel.
-// A caliper measures mass-like marks in mm (X-ray: from the View menu, in px). An X-ray case takes none of these paths.
+// A caliper measures mass-like marks in mm (X-ray: in px). An X-ray case takes none of these paths.
+// Round 5 (clinician feedback): the tools sit next to the magnifier as one segmented control — Point · Draw · Caliper.
+// Draw traces a free outline (read/stroke.ts) that becomes a mark with a polygon; "My search" starts off; the reveal
+// draws the radiologists' signs (SignsLayer, toggle "Signs" / S) and an outline verdict chip beside a drawn mark.
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type Dispatch } from 'react';
 import type { ReadAction, DraftMark, MarkLabel, PopoverMode } from '../read/readState';
-import type { CaliperDraft, Tool } from '../read/tools';
+import { TOOLS, type CaliperDraft, type Tool } from '../read/tools';
+import { clampPolygon, finishStroke, polygonPath, type Pt } from '../read/stroke';
+import { signSlice, signsOnView, useSigns } from './signs';
 import { labelDisplay } from '../api/labels';
 import type { TelemetryEvent } from '../types/contracts';
 import { clampView, clientToImage, displayToPlane, fitView, imageToScreen, insideImage, visibleRect, zoomAt, type View } from './coords';
@@ -44,6 +49,7 @@ const KEY_STEP_PX = 12;
 const KEY_STEP_BIG_PX = 60;
 const TIP_KEY = 'blindspot.magnifierTipSeen';
 const DEFAULT_PRESET = 'Default';
+const VERDICT_TEXT: Record<string, string> = { on_target: 'On target', partly: 'Partly on it', too_broad: 'Too broad' };
 
 export type SearchUi = {
   /** "My search" toggle (remembered across cases). */
@@ -75,7 +81,7 @@ export type VolumeUi = {
   submittedTelemetry?: TelemetryEvent[];
 };
 
-/** The caliper (volumes: the size step; X-ray: a px ruler from the View menu). */
+/** The film tools (Point · Draw · Caliper) and the caliper draft (volumes: the size step; X-ray: a px ruler). */
 export type CaliperUi = {
   tool: Tool;
   setTool: (t: Tool) => void;
@@ -124,7 +130,19 @@ type Gesture =
   | { kind: 'pan'; x0: number; y0: number; o0: View }
   | { kind: 'drag'; markId: string }
   | { kind: 'caliper'; x0: number; y0: number }
+  | { kind: 'draw'; pts: Pt[] }
   | { kind: 'wl'; x0: number; y0: number; w0: Window };
+
+/** Point-in-polygon (even-odd), image px. */
+function insidePolygon(x: number, y: number, poly: Pt[]): boolean {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const [xi, yi] = poly[i];
+    const [xj, yj] = poly[j];
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
 
 function tipSeen(): boolean {
   try { return localStorage.getItem(TIP_KEY) === '1'; } catch { return true; }
@@ -150,6 +168,10 @@ export function Viewer(p: ViewerProps) {
   const [fitting, setFitting] = useState(false); // the one eased refit, when the reveal starts
   const [explain, setExplain] = useState(false);
   const [tip, setTip] = useState(false);
+  const [stroke, setStroke] = useState<Pt[] | null>(null); // the outline being traced (Draw tool), image px
+  const signsVisible = useSigns((st) => st.visible);
+  const toggleSigns = useSigns((st) => st.toggle);
+  const focusedSign = useSigns((st) => st.focused);
   const gesture = useRef<Gesture>({ kind: 'none' });
   const overImage = useRef(false);
   const placeTimer = useRef<number | null>(null);
@@ -389,7 +411,10 @@ export function Viewer(p: ViewerProps) {
       if (!m.voxel) return [];
       const d = voxelToDisplay(geom, m.voxel as Voxel);
       const vis = sliceVisibility(d.slice, slice);
-      return vis === 'hidden' ? [] : [{ ...m, x: d.x, y: d.y, vis }];
+      if (vis === 'hidden') return [];
+      // A drawn outline lives on its own plane: shown there (in display px), a point elsewhere.
+      const polygon = m.polygon && m.plane === geom.plane ? m.polygon.map(([u, v]): Pt => [u * geom.ax, v * geom.ay]) : null;
+      return [{ ...m, x: d.x, y: d.y, vis, polygon }];
     });
   }, [p.marks, geom, slice]);
 
@@ -407,6 +432,15 @@ export function Viewer(p: ViewerProps) {
 
   const caliperOn = !!p.caliper && p.caliper.tool === 'caliper' && !p.reveal && !p.readOnly;
   const canPlace = p.canMark && !p.reveal && !gridMode && !caliperOn && !wlTool && !p.readOnly;
+  const drawOn = canPlace && !!p.caliper && p.caliper.tool === 'draw';
+  /** The drawn mark whose polygon holds this image point (topmost = last placed). */
+  const outlineAt = (x: number, y: number): string | null => {
+    for (let i = viewMarks.length - 1; i >= 0; i--) {
+      const m = viewMarks[i];
+      if (m.vis === 'full' && m.polygon && m.polygon.length >= 3 && insidePolygon(x, y, m.polygon)) return m.mark_id;
+    }
+    return null;
+  };
   const popMark = viewMarks.find((m) => m.mark_id === p.popoverId);
   const popPos = popMark ? imageToScreen(popMark.x, popMark.y, view) : null;
   const lensOn = p.loupe && canPlace && loaded;
@@ -435,6 +469,8 @@ export function Viewer(p: ViewerProps) {
     const pt = displayToPlane(xd, yd, geom, slice);
     return { x: pt.x, y: pt.y, at: { plane: pt.plane, slice: pt.slice, voxel: pt.voxel } };
   };
+  /** A drawn outline (display px) as stored on a mark: image px on an X-ray, in-plane coords on a volume. */
+  const polygonAt = (poly: Pt[]): Pt[] => (geom ? poly.map(([x, y]) => [x / geom.ax, y / geom.ay]) : poly);
 
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0 || (e.target as HTMLElement).closest('[data-no-stage]')) return;
@@ -455,8 +491,17 @@ export function Viewer(p: ViewerProps) {
       }
     }
     const markId = p.canMark && !p.readOnly ? markAt(sx, sy) : null;
+    const img = clientToImage(e.clientX, e.clientY, r, view);
+    if (drawOn && !markId && !p.popoverId && insideImage(img, imgW, imgH)) {
+      // Draw: a press away from a mark's tag starts a stroke (tracing a new outline, or redrawing the selected one).
+      gesture.current = { kind: 'draw', pts: [[img.x, img.y]] };
+      setStroke([[img.x, img.y]]);
+      setArmedTagAt(0, 0, false);
+      p.telemetry.push('down', sample(img));
+      return;
+    }
     gesture.current = { kind: 'pending', x0: sx, y0: sy, markId };
-    p.telemetry.push('down', sample(clientToImage(e.clientX, e.clientY, r, view)));
+    p.telemetry.push('down', sample(img));
   };
 
   const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -479,6 +524,18 @@ export function Viewer(p: ViewerProps) {
       const img = clientToImage(e.clientX, e.clientY, r, view);
       const d = p.caliper!.draft;
       if (d) p.caliper!.setDraft({ ...d, p1: [Math.min(imgW, Math.max(0, img.x)), Math.min(imgH, Math.max(0, img.y))] });
+      p.telemetry.push('move', sample(img));
+      return;
+    }
+    if (g.kind === 'draw') {
+      const img = clientToImage(e.clientX, e.clientY, r, view);
+      const pt: Pt = [Math.min(imgW, Math.max(0, img.x)), Math.min(imgH, Math.max(0, img.y))];
+      const last = g.pts[g.pts.length - 1];
+      // Sample at ≥ 1.5 screen px apart: enough for a faithful trace, few enough to simplify quickly.
+      if (Math.hypot(pt[0] - last[0], pt[1] - last[1]) * view.scale >= 1.5) {
+        g.pts.push(pt);
+        setStroke(g.pts.slice());
+      }
       p.telemetry.push('move', sample(img));
       return;
     }
@@ -516,6 +573,28 @@ export function Viewer(p: ViewerProps) {
     const r = e.currentTarget.getBoundingClientRect();
     p.telemetry.push('up', sample(clientToImage(e.clientX, e.clientY, r, live.current.view)));
     suppressClick.current = g.kind !== 'pending';
+    if (g.kind === 'draw') {
+      setStroke(null);
+      const done = finishStroke(g.pts, live.current.view.scale);
+      if (!done) return;
+      if (done.kind === 'point') {
+        // A click inside an outline you drew selects it; elsewhere it places a point mark, as the Point tool would.
+        const hit = outlineAt(done.x, done.y);
+        if (hit) p.dispatch({ type: 'select', id: hit, popover: true });
+        else p.dispatch({ type: 'place', ...at3(done.x, done.y) });
+        return;
+      }
+      const polygon = clampPolygon(done.polygon, imgW, imgH);
+      const [x0, y0] = g.pts[0];
+      const sel = viewMarks.find((m) => m.mark_id === p.selectedId);
+      // Tracing again inside the selected outline replaces it (label and confidence stay).
+      if (sel?.polygon && insidePolygon(x0, y0, sel.polygon) && !p.popoverId) {
+        p.dispatch({ type: 'redraw', id: sel.mark_id, polygon: polygonAt(polygon), ...at3(done.x, done.y) });
+        return;
+      }
+      p.dispatch({ type: 'place', polygon: polygonAt(polygon), ...at3(done.x, done.y) });
+      return;
+    }
     if (g.kind === 'caliper') {
       // A click without a drag leaves no line.
       const d = p.caliper!.draft;
@@ -658,6 +737,21 @@ export function Viewer(p: ViewerProps) {
   const kbdPos = kbd ? imageToScreen(kbd.x, kbd.y, view) : null;
   const armedName = p.armed ? labelDisplay(p.armed) : '';
   const anatomyOn = !!p.reveal && !!p.anatomy?.on;
+  const strokeOn = !!stroke && stroke.length > 1;
+  const strokeD = strokeOn ? polygonPath(stroke!) : '';
+  // Signs on this view (X-ray: all of them; volume: this plane and slice), and the toggle only when the reveal has any.
+  const viewSigns = useMemo(
+    () => (p.reveal ? signsOnView(p.reveal.findings, geom, geom ? slice : null) : []),
+    [p.reveal, geom, slice],
+  );
+  const hasSigns = !!p.reveal && p.reveal.findings.some((f) => (f.signs?.length ?? 0) > 0);
+  // focusSign(): a volume scrolls to the sign's plane and slice (the pulse is the layer's).
+  useEffect(() => {
+    if (!focusedSign || !vol || !p.reveal) return;
+    const at = signSlice(p.reveal.findings, focusedSign.id);
+    if (!at || !PLANES.includes(at.plane as Plane)) return;
+    navTo((n) => showPlane(n, vol.meta, at.plane as Plane, at.slice));
+  }, [focusedSign, vol, p.reveal, navTo]);
   const zoneText = !anatomyOn ? '' : p.anatomy!.status === 'pending' ? 'Loading anatomy…'
     : p.anatomy!.status === 'error' || (!p.anatomy!.data?.zones.length && !vol?.mask) ? 'Anatomy outlines are not available for this case.'
     : hoverZone ? (p.anatomy!.data?.zones.find((z) => z.id === hoverZone)?.name ?? hoverZone)
@@ -691,8 +785,8 @@ export function Viewer(p: ViewerProps) {
     });
   }, [p.reveal, geom, slice]);
   const revealView: RevealView | null = p.reveal && vol && geom
-    ? { ...p.reveal, findings: sliceFindings ?? [], arrows: sliceArrows, unvisited: [], heatmapUrl: sliceTrace }
-    : p.reveal;
+    ? { ...p.reveal, findings: sliceFindings ?? [], arrows: sliceArrows, unvisited: [], heatmapUrl: sliceTrace, signs: viewSigns, showSigns: signsVisible }
+    : p.reveal ? { ...p.reveal, signs: viewSigns, showSigns: signsVisible } : null;
   const sliceLabel = geom ? `Slice ${slice + 1} of ${geom.n}` : '';
   const comps = (p.reveal?.findings ?? []).find((f) => f.components?.length)?.components ?? null;
   const caliperDraft = p.caliper?.draft ?? null;
@@ -706,6 +800,8 @@ export function Viewer(p: ViewerProps) {
     : canPlace
       ? 'Chest radiograph. Arrow keys move a crosshair, Shift for larger steps. Space places a mark. Plus and minus zoom.'
       : 'Chest radiograph. Plus and minus zoom.';
+  const toolsOn = !!p.caliper && !p.reveal && !p.readOnly;
+  const curTool: Tool = p.caliper?.tool ?? 'mark';
 
   return (
     <div className={`${s.viewer} ${vol ? s.volumeRoom : ''}`} data-modality={vol ? vol.modality : 'cxr'}>
@@ -722,8 +818,13 @@ export function Viewer(p: ViewerProps) {
             </span>
           ) : !p.reveal && p.armed && p.canMark ? (
             <span className={s.stripArmed} data-testid="armed-prompt">
-              <strong>{armedName}</strong> — {gridMode ? 'double-click a pane, then click where you see it' : vol ? 'click the scan where you see it' : 'click the film where you see it'}
+              <strong>{armedName}</strong> — {gridMode ? 'double-click a pane, then click where you see it' : drawOn ? `press and drag to trace around it on the ${vol ? 'scan' : 'film'}` : vol ? 'click the scan where you see it' : 'click the film where you see it'}
               <button type="button" className={s.stripLink} onClick={() => p.dispatch({ type: 'disarm' })}>Cancel <kbd className={s.kbdTool}>Esc</kbd></button>
+            </span>
+          ) : drawOn ? (
+            <span className={s.stripArmed} data-testid="draw-prompt">
+              <strong>Draw</strong> — press and drag to trace around a finding; release to close the outline
+              <button type="button" className={s.stripLink} onClick={() => p.caliper!.setTool('mark')}>Point tool <kbd className={s.kbdTool}>P</kbd></button>
             </span>
           ) : loaded && (canPlace || gridMode) && !p.reveal && !p.readOnly && (p.marks.length === 0 || !zoomed) ? (
             <span className={s.nudge} data-testid="nudge" aria-hidden="true">
@@ -747,8 +848,14 @@ export function Viewer(p: ViewerProps) {
           <div className={s.stripRight}>
             {p.search && (
               <button type="button" className={`${s.tool} ${p.search.on ? s.toolOn : ''}`} aria-pressed={p.search.on}
-                onClick={p.search.onToggle} data-testid="search-toggle" title="Show or hide where your cursor spent time">
+                onClick={p.search.onToggle} data-testid="search-toggle" data-tour="my-search" title="Show or hide where your cursor spent time">
                 My search: {p.search.on ? 'on' : 'off'}
+              </button>
+            )}
+            {hasSigns && (
+              <button type="button" className={`${s.tool} ${signsVisible ? s.toolOn : ''}`} aria-pressed={signsVisible}
+                onClick={toggleSigns} data-testid="signs-toggle" title="Show or hide the signs to look for (S)">
+                Signs: {signsVisible ? 'on' : 'off'}<kbd className={s.kbdTool}>S</kbd>
               </button>
             )}
             {p.onToggleAnatomy && (
@@ -763,7 +870,9 @@ export function Viewer(p: ViewerProps) {
 
       <div
         ref={stageRef}
-        className={`${s.stage} ${panning ? s.panning : ''} ${canPlace ? s.marking : ''} ${caliperOn && !gridMode ? s.measuring : ''} ${wlTool ? s.windowing : ''}`}
+        className={`${s.stage} ${panning ? s.panning : ''} ${canPlace ? s.marking : ''} ${drawOn ? s.drawing : ''} ${caliperOn && !gridMode ? s.measuring : ''} ${wlTool ? s.windowing : ''}`}
+        data-tool={toolsOn ? curTool : undefined}
+        data-anatomy={anatomyOn ? '1' : undefined}
         data-testid="stage"
         data-tour="film"
         data-zoom={zoom.toFixed(3)}
@@ -833,28 +942,59 @@ export function Viewer(p: ViewerProps) {
               </ErrorBoundary>
             )}
             <svg className={s.overlay} viewBox={`0 0 ${imgW} ${imgH}`} width={imgW} height={imgH} aria-hidden="true">
+              {/* Drawn outlines go under every tag; after the reveal each carries its outline verdict. */}
+              {viewMarks.map((m) => {
+                if (!m.polygon || m.polygon.length < 3) return null;
+                const rm = p.reveal?.marks.find((x) => x.mark_id === m.mark_id);
+                const sel = m.mark_id === p.selectedId;
+                const unfinished = !m.label || m.confidence == null;
+                const d = polygonPath(m.polygon);
+                const verdict = rm?.outline_verdict && VERDICT_TEXT[rm.outline_verdict] ? VERDICT_TEXT[rm.outline_verdict] : null;
+                let x1 = -Infinity, y0 = Infinity;
+                for (const [x, y] of m.polygon) { x1 = Math.max(x1, x); y0 = Math.min(y0, y); }
+                const vfs = (p.projector ? 16 : 12) * k;
+                const vw = (verdict ? verdict.length * 0.6 * vfs : 0) + vfs * 1.2;
+                const vx = Math.min(x1 - vw * 0.3, imgW - vw);
+                const vy = Math.max(0, y0 - vfs * 2.1);
+                return (
+                  <g key={`o-${m.mark_id}`} data-outline-id={m.mark_id} data-verdict={rm?.outline_verdict ?? undefined} className={m.vis === 'ghost' ? s.markGhost : ''}>
+                    <path d={d} className={s.outlineMarkCasing} strokeWidth={(strokePx + 2.5) * k} />
+                    <path d={d} className={`${s.outlineMark} ${sel ? s.outlineMarkSel : ''}`} strokeWidth={(sel ? strokePx + 1 : strokePx) * k}
+                      strokeDasharray={unfinished && !p.reveal ? `${5 * k} ${3 * k}` : undefined} />
+                    {verdict && (
+                      <g className={s.settle} data-testid={`verdict-${m.mark_id}`} data-verdict={rm!.outline_verdict!}>
+                        <rect x={vx} y={vy} width={vw} height={vfs * 1.6} rx={vfs * 0.8} className={s.verdictChip} strokeWidth={1.2 * k} />
+                        <text x={vx + vw / 2} y={vy + vfs * 1.15} textAnchor="middle" className={s.verdictText} style={{ fontSize: vfs }}>{verdict}</text>
+                      </g>
+                    )}
+                  </g>
+                );
+              })}
+              {strokeOn && <path d={strokeD} className={s.strokeLive} strokeWidth={strokePx * k} data-testid="stroke-live" />}
               {viewMarks.map((m) => {
                 const rm = p.reveal?.marks.find((x) => x.mark_id === m.mark_id);
                 const sel = m.mark_id === p.selectedId;
                 const unfinished = !m.label || m.confidence == null;
                 const unmatched = (rm?.result as string | undefined) === 'unmatched';
+                const drawn = !!m.polygon && m.polygon.length >= 3;
+                const r = drawn ? 6 : 10;
                 return (
-                  <g key={m.mark_id} data-mark-id={m.mark_id} data-label={m.label ?? ''} data-vis={vol ? m.vis : undefined} className={`${s.mark} ${m.vis === 'ghost' ? s.markGhost : ''}`} transform={`translate(${m.x} ${m.y})`}>
+                  <g key={m.mark_id} data-mark-id={m.mark_id} data-label={m.label ?? ''} data-tool={drawn ? 'draw' : 'point'} data-vis={vol ? m.vis : undefined} className={`${s.mark} ${m.vis === 'ghost' ? s.markGhost : ''}`} transform={`translate(${m.x} ${m.y})`}>
                     {rm?.result === 'false_positive' && (
                       <circle r={18 * k} className={`${s.overcallRing} ${s.settle}`} strokeWidth={strokePx * k} />
                     )}
                     {unmatched && (
                       <circle r={18 * k} className={`${s.unmatchedRing} ${s.settle}`} strokeWidth={strokePx * k} strokeDasharray={`${1.5 * k} ${3.5 * k}`} data-testid={`unmatched-${m.mark_id}`} />
                     )}
-                    <circle r={10 * k} className={s.markHalo} strokeWidth={(strokePx + 3) * k} />
+                    <circle r={r * k} className={s.markHalo} strokeWidth={(strokePx + 3) * k} />
                     <circle
-                      r={10 * k}
+                      r={r * k}
                       className={s.markRing}
                       strokeWidth={(sel ? strokePx + 1.5 : strokePx) * k}
                       strokeDasharray={unfinished && !p.reveal ? `${4 * k} ${3 * k}` : undefined}
                     />
                     <circle r={1.8 * k} className={s.markDot} />
-                    <text x={15 * k} y={-10 * k} className={s.markText} style={{ fontSize: (p.projector ? 18 : 13) * k, strokeWidth: 3 * k }}>
+                    <text x={(drawn ? 10 : 15) * k} y={-(drawn ? 7 : 10) * k} className={s.markText} style={{ fontSize: (p.projector ? 18 : drawn ? 12 : 13) * k, strokeWidth: 3 * k }}>
                       {m.mark_id}
                     </text>
                   </g>
@@ -902,8 +1042,13 @@ export function Viewer(p: ViewerProps) {
         {!loaded && <div className={s.loading} data-testid="film-loading">{vol?.status === 'error' ? (vol.error || 'The scan could not be loaded.') : vol ? 'Loading scan…' : 'Loading film…'}</div>}
 
         {/* On-film legend for the layers that are on. */}
-        {p.reveal && ((p.search && p.search.on) || anatomyOn) && (
+        {p.reveal && (p.search || anatomyOn) && (
           <div className={s.legend} data-no-stage data-testid="film-legend" onPointerDown={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
+            {p.search && !p.search.on && (
+              <div className={`${s.legendChip} ${s.legendMuted}`} data-testid="search-legend" data-search="off">
+                <span>My search is off — turn it on to see where you looked</span>
+              </div>
+            )}
             {p.search?.on && (
               <div className={s.legendChip} data-testid="search-legend">
                 <span className={s.legendSwatch} aria-hidden="true" />
@@ -973,7 +1118,7 @@ export function Viewer(p: ViewerProps) {
             {!nav.grid && geom && (
               <span className={s.sliceGroup} data-tour="slices">
                 {p.reveal && vol.sliceDwell !== undefined && (
-                  <DwellBar dwell={vol.sliceDwell} plane={geom.plane} n={geom.n} current={slice} findingSlicesViewed={vol.findingSlicesViewed} onPick={(sl) => navTo((n) => setSlice(n, vol.meta, geom.plane, sl))} />
+                  <DwellBar dwell={vol.sliceDwell} plane={geom.plane} n={geom.n} current={slice} findingSlicesViewed={vol.findingSlicesViewed} showDwell={!p.search || p.search.on} onPick={(sl) => navTo((n) => setSlice(n, vol.meta, geom.plane, sl))} />
                 )}
                 <label className={s.slider}>
                   <span data-testid="slice-readout">{sliceLabel}</span>
@@ -1027,13 +1172,23 @@ export function Viewer(p: ViewerProps) {
         <button type="button" className={s.tool} data-testid="reset-view" onClick={resetAll}>
           Reset view
         </button>
-        {vol && p.caliper && !p.reveal && !p.readOnly && (
-          <button type="button" className={`${s.tool} ${caliperOn ? s.toolOn : ''}`} aria-pressed={caliperOn} data-testid="caliper-toggle" data-tour="measure"
-            onClick={() => p.caliper!.setTool(caliperOn ? 'mark' : 'caliper')} title="Measure: drag from edge to edge (C)">
-            Caliper<kbd className={s.kbdTool}>C</kbd>
-          </button>
-        )}
         <span className={s.toolSpacer} />
+        <span className={s.toolRight}>
+        {toolsOn && (
+          <span className={s.segment} role="group" aria-label="Tool" data-testid="tool-segment" data-tour="tools">
+            {TOOLS.map((t) => {
+              const on = curTool === t.id;
+              const caliper = t.id === 'caliper';
+              return (
+                <button type="button" key={t.id} className={`${s.tool} ${on ? s.toolOn : ''}`} aria-pressed={on}
+                  data-testid={caliper ? 'caliper-toggle' : `tool-${t.id}`} data-tour={caliper ? 'measure' : undefined}
+                  onClick={() => p.caliper!.setTool(on && t.id !== 'mark' ? 'mark' : t.id)} title={t.title}>
+                  {t.name}<kbd className={s.kbdTool}>{t.key}</kbd>
+                </button>
+              );
+            })}
+          </span>
+        )}
         {p.onToggleLoupe && (
           <span className={s.tipAnchor}>
             <button type="button" className={`${s.tool} ${p.loupe ? s.toolOn : ''}`} aria-pressed={p.loupe} onClick={p.onToggleLoupe}
@@ -1047,6 +1202,7 @@ export function Viewer(p: ViewerProps) {
             )}
           </span>
         )}
+        </span>
       </div>
 
       {explain && <SearchExplainer onClose={() => setExplain(false)} />}

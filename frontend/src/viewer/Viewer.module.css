@@ -254,6 +254,8 @@
 .toolGroup { display: inline-flex; align-items: center; gap: 6px; }
 .toolLabel { color: #c9d1d8; }
 .toolSpacer { flex: 1 1 0; }
+/* The tool group at the right end; when the strip wraps it keeps to the right on its own line. */
+.toolRight { display: inline-flex; align-items: center; gap: 10px; margin-left: auto; }
 .zoom { min-width: 2.9em; text-align: center; font-variant-numeric: tabular-nums; color: #e6ebef; }
 .slider { display: flex; align-items: center; gap: 6px; }
 .slider input { width: 64px; accent-color: var(--graticule); }
@@ -537,3 +539,54 @@
 .dwellCurrent { outline: 1px solid #e6ebef; outline-offset: -1px; }
 .dwellFill { position: absolute; left: 0; right: 0; bottom: 0; background: var(--grease-amber); opacity: 0.9; }
 .dwellNote { color: #c9d1d8; max-width: 260px; white-space: normal; line-height: 1.2; }
+
+/* ---- Round 5: signs (cyan cues after submit), the Draw tool and outlined marks, the segmented tool strip. ---- */
+.sign { pointer-events: visiblePainted; cursor: help; outline: none; }
+/* With the anatomy on, the zones own the pointer (their names show on hover); the signs stay visible, not hoverable. */
+.stage[data-anatomy='1'] .sign { pointer-events: none; }
+.sign:focus-visible .signText { text-decoration: underline; }
+.signCasing { fill: none; stroke: rgba(0, 0, 0, 0.6); stroke-linecap: round; stroke-linejoin: round; }
+.signLine { fill: none; stroke: var(--lightbox-cyan); stroke-linecap: round; stroke-linejoin: round; }
+.signBand { fill: var(--lightbox-cyan); fill-opacity: 0.25; stroke: var(--lightbox-cyan); stroke-opacity: 0.5; }
+.signText { fill: var(--lightbox-cyan); font-weight: 700; }
+.signTip { fill: #e6ebef; font-weight: 400; }
+.signLeader { stroke: var(--lightbox-cyan); stroke-opacity: 0.8; stroke-linecap: round; }
+.signTipBox { pointer-events: none; }
+.signTipBox .pill { stroke: var(--lightbox-cyan); stroke-opacity: 0.6; stroke-width: 1px; }
+.revealSign { animation: fade 240ms ease-out 700ms both; }
+/* focusSign(): two beats on the line, then it rests. */
+.signPulse .signLine, .signPulse .signBand { animation: signPulse 1500ms ease-in-out both; }
+@keyframes signPulse {
+  0% { stroke-width: 2px; stroke-opacity: 1; }
+  25% { stroke-opacity: 0.25; }
+  50% { stroke-opacity: 1; }
+  75% { stroke-opacity: 0.25; }
+  100% { stroke-opacity: 1; }
+}
+.signPulse .pill { stroke: var(--lightbox-cyan); stroke-width: 1.5px; }
+@media (prefers-reduced-motion: reduce) {
+  .revealSign { animation: none; }
+  .signPulse .signLine, .signPulse .signBand { animation: none; }
+}
+.still .revealSign { animation: none; }
+
+/* Drawn marks: a closed amber path (filled faintly) with the usual tag at its centroid. Unfinished = dashed. */
+.outlineMark { fill: var(--grease-amber); fill-opacity: 0.1; stroke: var(--grease-amber); stroke-linejoin: round; cursor: grab; pointer-events: visiblePainted; }
+.outlineMarkCasing { fill: none; stroke: rgba(0, 0, 0, 0.55); stroke-linejoin: round; }
+.outlineMarkSel { fill-opacity: 0.18; }
+/* The stroke being drawn right now. */
+.drawing { cursor: crosshair; }
+.strokeLive { fill: var(--grease-amber); fill-opacity: 0.08; stroke: var(--grease-amber); stroke-linejoin: round; stroke-linecap: round; }
+/* Outline verdict chip ("On target", "Partly on it", "Too broad") beside a drawn mark after the reveal. */
+.verdictChip { fill: rgba(9, 11, 13, 0.88); stroke: var(--grease-amber); }
+.verdictText { fill: var(--grease-amber); font-weight: 700; }
+
+/* Segmented tools: Point · Draw · Caliper, as one control. */
+.segment { display: inline-flex; align-items: stretch; border: 1px solid #3a4046; border-radius: var(--radius); overflow: hidden; }
+.segment .tool { border: none; border-radius: 0; }
+.segment .tool + .tool { border-left: 1px solid #3a4046; }
+.segment .tool:hover { border-color: #3a4046; }
+.segment .toolOn + .tool { border-left-color: #e6ebef; }
+
+/* "My search" off: the legend chip stays, as a plain note. */
+.legendMuted { color: #c9d1d8; }

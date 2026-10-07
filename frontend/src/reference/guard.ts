@@ -34,6 +34,8 @@ export type ReferenceLabel = {
   radiopaedia_url: string | null;
   review_status: string;
   examples: ReferenceExample[];
+  /** Round 5: ids of the sign schematics (GET /api/signs) that belong to this finding type. */
+  signs: string[];
 };
 export type Reference = { labels: ReferenceLabel[]; normal_examples: ReferenceFilm[] };
 
@@ -133,7 +135,31 @@ function label(v: unknown): ReferenceLabel | null {
     radiopaedia_url: safeExternalUrl(v.radiopaedia_url),
     review_status: str(v.review_status ?? (isObj(v.review) ? v.review.status : '')),
     examples: Array.isArray(v.examples) ? v.examples.map(example).filter((e): e is ReferenceExample => !!e) : [],
+    signs: strs(v.signs),
   };
+}
+
+/** GET /api/reference/{label}: one entry of `labels[]` (round 5: with its `signs`). */
+export const guardReferenceLabel = (v: unknown): ReferenceLabel | null => label(v);
+
+/** The example films a debrief row shows (round 5): ones with an outline to draw (polygon, bbox or a volume),
+ *  distinct cases, never the case being read, up to `n`. Falls back to any example when none has an outline. */
+export function pickExamples(examples: ReferenceExample[], n = 2, excludeCaseId: string | null = null): ReferenceExample[] {
+  const out: ReferenceExample[] = [];
+  const seen = new Set<string>();
+  const take = (list: ReferenceExample[]) => {
+    for (const e of list) {
+      if (out.length >= n) return;
+      const key = e.case_id || e.image_url || e.volume?.volume_url || '';
+      if (excludeCaseId && e.case_id === excludeCaseId) continue;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(e);
+    }
+  };
+  take(examples.filter((e) => e.volume || e.finding?.polygon || e.finding?.bbox));
+  take(examples);
+  return out;
 }
 
 export function guardReference(v: unknown): Reference {

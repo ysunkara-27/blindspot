@@ -299,16 +299,15 @@ test.describe('round 4 — volume viewer', () => {
     await page.keyboard.press('Escape');
   });
 
-  test('X-ray cases keep their controls: brightness and contrast, no plane buttons, the caliper from the View menu in px', async ({ page }) => {
+  test('X-ray cases keep their controls: brightness and contrast, no plane buttons, the caliper from the strip in px', async ({ page }) => {
     await page.goto(REAL ? '/start?mock=0' : '/start?mock=1');
     await page.getByTestId('start').click();
     await expect(page.getByTestId('film')).toBeVisible();
     await expect(page.getByLabel('Brightness')).toBeVisible();
     await expect(page.getByTestId('plane-axial')).toHaveCount(0);
     await expect(page.getByTestId('slice-slider')).toHaveCount(0);
-    await expect(page.getByTestId('caliper-toggle')).toHaveCount(0);
-    await page.getByTestId('view-menu').click();
-    await page.getByTestId('caliper-menu').click();
+    // Round 5: the caliper is a strip tool on every modality (it left the View menu).
+    await page.getByTestId('caliper-toggle').click();
     await expect(page.getByTestId('caliper-prompt')).toBeVisible();
     const v = await view(page);
     const [ax, ay] = v.toScreen(100, 100);

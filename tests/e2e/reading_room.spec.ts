@@ -119,6 +119,8 @@ test('practice flow: zoom, pan, loupe, marks, hint, submit, reveal, facts, debri
   // Submit → reveal
   await page.getByTestId('submit').click();
   await expect(page.getByTestId('reveal-layer')).toBeVisible();
+  // Round 5: "My search" starts off; turn it on to see the trace.
+  await page.getByTestId('search-toggle').click();
   await expect(page.getByTestId('search-trace')).toBeVisible();
   // Mock case syn_005 always has two findings (one found, one missed). A real case may be a normal film.
   if (!REAL || (await page.locator('[data-testid^="outline-"]').count()) > 0) {
@@ -228,6 +230,7 @@ test('reduced motion: the reveal is instant', async ({ page }) => {
   await placeMark(page, w * 0.31, h * 0.37, 'Mass', 3);
   await page.getByTestId('submit').click();
   await expect(page.getByTestId('reveal-layer')).toBeVisible();
+  await page.getByTestId('search-toggle').click(); // round 5: the trace is off until asked for
   // No waiting: outlines are fully drawn and labels visible immediately.
   expect(await page.getByTestId('search-trace').evaluate((el) => getComputedStyle(el).animationName)).toBe('none');
   const outline = page.locator('[data-testid^="outline-"] polygon, [data-testid^="outline-"] rect').first();

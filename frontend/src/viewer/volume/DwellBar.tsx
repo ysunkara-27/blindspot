@@ -6,15 +6,17 @@ import { PLANE_DISPLAY } from './nav';
 import type { Plane } from './planes';
 import s from '../Viewer.module.css';
 
-export function DwellBar({ dwell, plane, n, current, onPick, findingSlicesViewed }: {
+export function DwellBar({ dwell, plane, n, current, onPick, findingSlicesViewed, showDwell = true }: {
   dwell: SliceDwell[] | null | undefined; plane: Plane; n: number; current: number; onPick: (slice: number) => void;
   /** The server's per-finding verdict (`search.finding_slices_viewed`): the caption never contradicts it. */
   findingSlicesViewed?: Record<string, boolean> | null;
+  /** "My search" off: the finding cells stay, the amber time per slice is hidden (round 5). */
+  showDwell?: boolean;
 }) {
   const cells = dwellCells(dwell, plane, n);
   const missed = cells.filter((c) => c.notVisited).map((c) => c.slice + 1);
   return (
-    <div className={s.dwell} data-testid="dwell-bar" data-plane={plane} aria-label={`Time spent per ${PLANE_DISPLAY[plane].toLowerCase()} slice`}>
+    <div className={s.dwell} data-testid="dwell-bar" data-plane={plane} data-dwell={showDwell ? 'on' : 'off'} aria-label={`Time spent per ${PLANE_DISPLAY[plane].toLowerCase()} slice`}>
       <div className={s.dwellCells} role="list">
         {cells.map((c) => (
           <button
@@ -29,12 +31,12 @@ export function DwellBar({ dwell, plane, n, current, onPick, findingSlicesViewed
             data-visited={c.hasFinding ? (c.notVisited ? '0' : '1') : undefined}
             onClick={() => onPick(c.slice)}
           >
-            <span className={s.dwellFill} style={{ height: `${Math.round(c.frac * 100)}%` }} />
+            <span className={s.dwellFill} style={{ height: `${showDwell ? Math.round(c.frac * 100) : 0}%` }} />
           </button>
         ))}
       </div>
       <span className={s.dwellNote} data-testid="dwell-note">
-        {dwellCaption(cells, findingSlicesViewed)}{missed.length ? ` Not visited: slice${missed.length > 1 ? 's' : ''} ${missed.join(', ')}.` : ''}
+        {showDwell ? `${dwellCaption(cells, findingSlicesViewed)}${missed.length ? ` Not visited: slice${missed.length > 1 ? 's' : ''} ${missed.join(', ')}.` : ''}` : 'Cyan: slices with a finding. Turn on My search to see the time you spent on each slice.'}
       </span>
     </div>
   );

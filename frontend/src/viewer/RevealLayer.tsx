@@ -5,10 +5,15 @@
 // pills; identical arrow labels are written once; unvisited review areas get a thin dashed amber ring.
 // Volumes: a finding on the current slice comes with `rings` (marching-squares contours in display px) and, for the
 // brain case, `components_rings` drawn as three cyan tints under the outline.
+// Round 5: the signs ("Look for: …", SignsLayer) share the label placer, so their pills avoid outlines, arrows and
+// every other label; a drawn (outlined) learner mark is an obstacle over its whole polygon.
 import type { Arrow, RevealFinding, RevealMark } from '../types/contracts';
 import type { DraftMark } from '../read/readState';
 import type { UnvisitedRing } from './anatomy';
 import { arrowGeometry, placeLabels, quadPoint, rayToBoxEdge, shortArrowText, type Box, type Pt } from './arrows';
+import { SignsLayer } from './SignsLayer';
+import { signLabelBoxes } from './signLabels';
+import { signBounds, type ViewSign } from './signs';
 import type { Ring } from './volume/marching';
 import { ringsPath } from './volume/sliceReveal';
 import s from './Viewer.module.css';
@@ -24,9 +29,12 @@ export type RevealView = {
   showTrace: boolean;
   /** Review areas the learner did not visit, positioned from the anatomy outlines (empty when unavailable). */
   unvisited?: UnvisitedRing[];
+  /** The signs drawable on this view (viewer/signs.ts `signsOnView`), and the "Signs" toggle. */
+  signs?: ViewSign[];
+  showSigns?: boolean;
 };
 
-type MarkLike = Pick<DraftMark, 'mark_id' | 'x' | 'y'>;
+type MarkLike = Pick<DraftMark, 'mark_id' | 'x' | 'y' | 'polygon'>;
 
 const isMiss = (r?: string | null) => !!r && (r.startsWith('missed') || r === 'pattern_missed');
 const FONT = '"Atkinson Hyperlegible Next", "Atkinson Hyperlegible", system-ui, sans-serif';
@@ -107,21 +115,35 @@ export function RevealLayer({ reveal, width, height, k, strokePx, marks }: {
     return { x: r.cx - ringW / 2, y: r.cy - ry - ringH / 2, w: ringW, h: ringH };
   });
 
-  // Learner marks (ring + "M1" tag) are fixed obstacles: labels never cover them.
-  const markBoxes: Box[] = marks.map((m) => ({ x: m.x - 20 * k, y: m.y - 26 * k, w: 64 * k, h: 46 * k }));
-  // Expert outlines are soft obstacles: a finding's label avoids every OTHER outline; arrow text avoids all of them.
   const pad = 3 * k;
+  // Learner marks (ring + "M1" tag, or a drawn outline) are fixed obstacles: labels never cover them.
+  const markBoxes: Box[] = marks.map((m) => {
+    if (m.polygon && m.polygon.length >= 3) {
+      let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+      for (const [x, y] of m.polygon) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+      return { x: x0 - 3 * k, y: y0 - 16 * k, w: x1 - x0 + 6 * k, h: y1 - y0 + 19 * k };
+    }
+    return { x: m.x - 20 * k, y: m.y - 26 * k, w: 64 * k, h: 46 * k };
+  });
+  // Signs (round 5): their shapes are soft obstacles like outlines; their pills are placed with everything else.
+  const signs = reveal.showSigns === false ? [] : (reveal.signs ?? []);
+  const signShapeBoxes: Box[] = signs.map((sg) => { const [x0, y0, x1, y1] = signBounds(sg); return { x: x0 - pad, y: y0 - pad, w: x1 - x0 + 2 * pad, h: y1 - y0 + 2 * pad }; });
+  const signBoxes = signLabelBoxes(signs, k, fsPx, height);
+  // Expert outlines are soft obstacles: a finding's label avoids every OTHER outline; arrow text avoids all of them.
   const outlineBox = (f: RevealFinding): Box => ({ x: f.bbox[0] - pad, y: f.bbox[1] - pad, w: f.bbox[2] - f.bbox[0] + 2 * pad, h: f.bbox[3] - f.bbox[1] + 2 * pad });
   const outlines = reveal.findings.map(outlineBox);
   const avoid = [
-    ...fLabels.map((_, i) => outlines.filter((_, j) => j !== i)),
-    ...labelled.map(() => outlines),
-    ...ringBoxes.map(() => outlines),
+    ...fLabels.map((_, i) => [...outlines.filter((_, j) => j !== i), ...signShapeBoxes]),
+    ...labelled.map(() => [...outlines, ...signShapeBoxes]),
+    ...ringBoxes.map(() => [...outlines, ...signShapeBoxes]),
+    // A sign's pill may sit over its own finding's box (the sign is usually inside it), never over another outline.
+    ...signBoxes.map((_, i) => [...outlines.filter((_, j) => reveal.findings[j].finding_id !== signs[i].finding_id), ...signShapeBoxes.filter((_, j) => j !== i)]),
   ];
-  const placed = placeLabels([...fLabels.map((l) => l.box), ...labelled.map((x) => x.box), ...ringBoxes], width, height, markBoxes, avoid);
+  const placed = placeLabels([...fLabels.map((l) => l.box), ...labelled.map((x) => x.box), ...ringBoxes, ...signBoxes], width, height, markBoxes, avoid);
   const fPlaced = placed.slice(0, fLabels.length);
   const aPlaced = placed.slice(fLabels.length, fLabels.length + labelled.length);
-  const rPlaced = placed.slice(fLabels.length + labelled.length);
+  const rPlaced = placed.slice(fLabels.length + labelled.length, fLabels.length + labelled.length + ringBoxes.length);
+  const sPlaced = placed.slice(fLabels.length + labelled.length + ringBoxes.length);
 
   return (
     <>
@@ -171,6 +193,8 @@ export function RevealLayer({ reveal, width, height, k, strokePx, marks }: {
             <path d={g.head} pathLength={1} className={`${s.arrow} ${s.revealArrowHead}`} strokeWidth={sw * 1.4} />
           </g>
         ))}
+        {/* Signs: cyan cues drawn after the outlines, under the labels. */}
+        {signs.length > 0 && <SignsLayer signs={signs} placed={sPlaced} k={k} strokePx={strokePx} fsPx={fsPx} width={width} />}
         {/* Labels last so they sit above every line. Each is plain text on a solid dark pill. */}
         {rings.map((r, i) => {
           const b = rPlaced[i];

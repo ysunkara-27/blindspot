@@ -6,6 +6,8 @@ import { track } from '../analytics';
 import { debriefErrorText, debriefHadError } from '../tutor/status';
 import type { DebriefResponse, RevealFinding } from '../types/contracts';
 import { openReference } from '../reference/store';
+import { FindingTeaching } from './FindingTeaching';
+import { useSigns } from './signsSeam';
 import { plainText } from './copy';
 import { PROVENANCE, SOURCE, SOURCE_TITLE } from './debriefCopy';
 import s from './Rail.module.css';
@@ -32,6 +34,8 @@ export function DebriefPanel({ attemptId, findings, disabled }: { attemptId: str
     const t = window.setTimeout(() => setSlow(true), SLOW_MS);
     return () => clearTimeout(t);
   }, []);
+  // A focused on-film sign belongs to this attempt: drop it when the panel goes (next case, page change).
+  useEffect(() => () => useSigns.getState().clearFocus(), [attemptId]);
 
   const d = q.data;
   const failed = q.isError || d?.status === 'failed';
@@ -77,14 +81,19 @@ export function DebriefPanel({ attemptId, findings, disabled }: { attemptId: str
                 <div className={s.row}>
                   <span><span className={s.fid}>{f.finding_id}</span> {rf?.display ?? ''}</span>
                   {rf && (
-                    <button type="button" className={s.linkBtn} onClick={() => openReference(rf.label)} data-testid={`see-examples-${f.finding_id}`}>
+                    <button type="button" className={s.linkBtn} onClick={() => openReference(rf.label, { signIds: (rf.signs ?? []).map((sg) => sg.schematic ?? sg.id) })} data-testid={`see-examples-${f.finding_id}`}>
                       See examples
                     </button>
                   )}
                 </div>
                 <dl className={s.dl}>
                   <dt>Where to look</dt><dd>{plainText(f.where_to_look)}</dd>
-                  <dt>What it looks like</dt><dd><ul>{f.what_it_looks_like.map((w, i) => <li key={i}>{plainText(w)}</li>)}</ul></dd>
+                  <dt>What it looks like</dt>
+                  <dd>
+                    <ul>{f.what_it_looks_like.map((w, i) => <li key={i}>{plainText(w)}</li>)}</ul>
+                    {/* Round 5: the signs drawn on the film, two example films, Radiopaedia (all code-built or generic). */}
+                    {rf && <FindingTeaching finding={rf} />}
+                  </dd>
                   <dt>{f.result.startsWith('missed') ? 'Why it was missed' : 'Why'}</dt><dd>{plainText(f.why)}</dd>
                 </dl>
               </div>

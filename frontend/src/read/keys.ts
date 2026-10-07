@@ -5,7 +5,10 @@ const SEEN_KEY = 'blindspot.keysSeen';
 export const SHORTCUTS: [string, string, boolean][] = [
   ['Pick a finding, then click the film', 'Place a mark with that name, then say how sure you are', false],
   ['Click the film', 'Place a mark, then pick a label and how sure you are', false],
-  ['Drag a mark', 'Move it', false],
+  ['D', 'Draw: press and drag on the film to trace an outline around a finding; it is labelled like a point mark', true],
+  ['P', 'Point tool (the default): a click places a mark', true],
+  ['C', 'Caliper: drag from edge to edge to measure (pixels on a film)', true],
+  ['Drag a mark', 'Move it (an outline moves by its tag; trace again inside a selected outline to redraw it)', false],
   ['Mouse wheel', 'Zoom at the cursor (up to 6×)', false],
   ['Drag the film', 'Pan', false],
   ['Double-click', 'Reset the view', false],
@@ -16,6 +19,7 @@ export const SHORTCUTS: [string, string, boolean][] = [
   ['H', 'Get a hint', true],
   ['Enter', 'Submit read; after the reveal, next case', true],
   ['A', 'Show anatomy (after you submit)', true],
+  ['S', 'Show or hide the signs to look for (after you submit)', true],
   ['→', 'Next case', true],
   ['Tab to the film, then arrow keys', 'Move a crosshair (Shift = larger steps); Space places a mark there', false],
   ['+  −', 'Zoom in or out while the film has focus', true],
@@ -38,7 +42,7 @@ export const VOLUME_SHORTCUTS: [string, string, boolean][] = [
 /** The list for the key sheet: the volume rows first on a CT / MR case. ← / → move the crosshair on a volume. */
 export function shortcutsFor(volume: boolean): [string, string, boolean][] {
   if (!volume) return SHORTCUTS;
-  const base = SHORTCUTS.map(([k, what, isKey]): [string, string, boolean] =>
+  const base = SHORTCUTS.filter(([k]) => k !== 'C').map(([k, what, isKey]): [string, string, boolean] =>
     k === 'Mouse wheel' ? ['Ctrl + wheel', 'Zoom at the cursor (up to 6×)', false]
     : k === 'Tab to the film, then arrow keys' ? ['Tab to the scan, then ← →', 'Move a crosshair (Alt + ↑ ↓ for up and down); Space places a mark there', false]
     : [k.replace(/\bfilm\b/g, 'scan'), what.replace(/\bfilm\b/g, 'scan'), isKey]);

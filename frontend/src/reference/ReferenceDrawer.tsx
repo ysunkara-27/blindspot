@@ -1,5 +1,5 @@
 // "What does this look like?" — a right-side drawer over the rail with generic teaching material for one finding
-// type: definition, key signs, look-alikes, and example films from a separate reference set with the expert outline in
+// type: definition, key signs, sign schematics (round 5), look-alikes, and example films from a separate reference set with the expert outline in
 // cyan. It never says anything about the case being read, so it is available before submit.
 // Mount <ReferenceDrawer /> once on a page; open it from anywhere with openReference(label) or <InfoButton />.
 import { useEffect, useRef, useState } from 'react';
@@ -11,6 +11,7 @@ import { labelDisplay } from '../api/labels';
 import type { ReferenceExample, ReferenceFilm, ReferenceLabel } from './guard';
 import { uiTerms } from './guard';
 import { openReference, useReference } from './store';
+import { SignsToKnow } from './SignsToKnow';
 import { VolumeExample } from './VolumeExample';
 import s from './Reference.module.css';
 
@@ -64,7 +65,7 @@ function Film({ film, finding, caption, showOutline, alt, small = false }: {
   );
 }
 
-function Card({ card, normals }: { card: ReferenceLabel; normals: ReferenceFilm[] }) {
+function Card({ card, normals, firstSigns }: { card: ReferenceLabel; normals: ReferenceFilm[]; firstSigns: string[] }) {
   const [outlines, setOutlines] = useState(true);
   const examples = card.examples.slice(0, 3);
   const volumetric = card.modality !== 'cxr';
@@ -85,6 +86,9 @@ function Card({ card, normals }: { card: ReferenceLabel; normals: ReferenceFilm[
           <ul className={s.list}>{card.key_signs.map((k, i) => <li key={i}>{uiTerms(k)}</li>)}</ul>
         </section>
       )}
+
+      {/* Round 5: the signs drawn and explained; the ones drawn on the film just read come first. */}
+      <SignsToKnow label={card.label} first={firstSigns} />
 
       {card.commonly_confused_with.length > 0 && (
         <section className={s.section}>
@@ -163,6 +167,7 @@ function Card({ card, normals }: { card: ReferenceLabel; normals: ReferenceFilm[
 
 export function ReferenceDrawer() {
   const label = useReference((st) => st.label);
+  const signIds = useReference((st) => st.signIds);
   const close = useReference((st) => st.close);
   const ref = useRef<HTMLElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -213,7 +218,7 @@ export function ReferenceDrawer() {
           The reference is not available right now. <button type="button" className={s.link} onClick={() => q.refetch()}>Try again</button>
         </p>
       ) : card ? (
-        <Card key={card.label} card={card} normals={q.data?.normal_examples ?? []} />
+        <Card key={card.label} card={card} normals={q.data?.normal_examples ?? []} firstSigns={signIds} />
       ) : (
         <p className={s.notice} data-testid="reference-empty">There is no reference card for {title.toLowerCase()} yet.</p>
       )}

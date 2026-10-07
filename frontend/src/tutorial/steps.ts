@@ -42,7 +42,7 @@ export const STEPS: Step[] = [
   {
     id: 'pick', target: '[data-tour="pick"]',
     title: 'Pick what you see, then click where it is',
-    body: 'Choose a finding here and your next click on the film places a mark with that name. You can also click the film first and name the mark there.',
+    body: 'Choose a finding here and your next click on the film places a mark with that name, or trace an outline around it with D (Draw). You can also click the film first and name the mark there.',
   },
   {
     id: 'confidence', target: '[data-tour="confidence"]',
@@ -72,6 +72,29 @@ export const STEPS: Step[] = [
     body: 'You then see the radiologists’ outlines in cyan, your marks in amber, and your own search: where your cursor spent time.',
   },
 ];
+
+/** Round 5: one more coach mark, shown right after the learner's FIRST submitted read (any modality): "My search"
+ *  starts off, so the first reveal points at the toggle; Next turns it on. Remembered separately from the tour. */
+export const SEARCH_TIP_KEY = 'bs_search_tip_done';
+export const SEARCH_TIP_STEPS: Step[] = [
+  {
+    id: 'search', target: '[data-tour="my-search"]',
+    title: 'See how you looked',
+    body: 'Turn on My search to replay your cursor over the film and see which areas you never visited.',
+  },
+];
+export function markSearchTipDone() {
+  try { localStorage.setItem(SEARCH_TIP_KEY, '1'); } catch { /* storage blocked: it may show again next visit */ }
+}
+export function searchTipDone(): boolean {
+  try { return localStorage.getItem(SEARCH_TIP_KEY) != null; } catch { return true; }
+}
+/** Should the search tip open on this reveal? Under automation only when the page was loaded with ?tutorial=1
+ *  (the same rule as the tour); in a real browser whenever it has not been seen yet. */
+export function shouldOpenSearchTip(o: { webdriver: boolean; bootFlag: boolean; done: boolean }): boolean {
+  if (o.webdriver) return o.bootFlag;
+  return !o.done;
+}
 
 /** The steps whose control is on the page right now (with the fallback where one is given). Volumetric steps are
  *  kept only on a CT / MR case (`volumetric`), and then only when their control is on the page too. */

@@ -320,3 +320,59 @@
 .sizeLabel { font-weight: 700; }
 .sizeHint { color: var(--report-ink-muted); font-variant-numeric: tabular-nums; }
 .sizeVerdict { grid-column: 1 / -1; font-size: 13px; color: var(--report-ink-muted); padding-left: calc(2em + 8px); }
+
+/* ---- Round 5: under "What it looks like" — signs on the film, example films, Radiopaedia ---- */
+.teach { margin-top: 6px; display: grid; gap: 6px; }
+.teachCompact { grid-column: 1 / -1; padding-left: calc(2em + 8px); }
+.teachRow { display: grid; gap: 3px; }
+.teachLabel { font-size: 13px; color: var(--report-ink-muted); }
+.signChips { display: flex; flex-wrap: wrap; gap: 4px 6px; }
+.signChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border: 1px solid #127a88;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--report-ink);
+  font-size: 14px;
+  line-height: 1.4;
+  cursor: pointer;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.signChip:hover { background: #e3f6f9; }
+.signChipKey { color: #127a88; font-weight: 700; }
+.thumbs { display: flex; gap: 8px; flex-wrap: wrap; }
+.thumb {
+  display: grid;
+  gap: 3px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--report-ink);
+  text-align: left;
+  cursor: pointer;
+  width: fit-content;
+  max-width: calc(50% - 4px);
+  font: inherit;
+}
+/* 120 px tall at the film's own aspect ratio, so the cyan outline (an SVG stretched over the box) lands on the lesion. */
+.thumbFilm, .thumbVol { position: relative; display: block; height: 120px; width: auto; max-width: 100%; background: var(--film-black); border-radius: 3px; overflow: hidden; }
+.thumbFilm img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; object-fit: fill; user-select: none; }
+.thumbFilm svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.thumbVol :is(figure) { margin: 0; height: 100%; }
+.thumbVol { width: 120px; }
+.thumbVol :is(figure) > div { height: 120px !important; }
+.thumbOutline { fill: var(--lightbox-cyan); fill-opacity: 0.06; stroke: var(--lightbox-cyan); stroke-width: 2px; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.thumb:hover .thumbFilm, .thumb:hover .thumbVol { outline: 2px solid var(--lightbox-cyan); }
+.thumbCap { display: grid; font-size: 12px; line-height: 1.3; }
+.thumbWhere { color: var(--report-ink); overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.thumbSet { color: var(--report-ink-muted); }
+.ext { color: var(--report-ink); font-weight: 700; font-size: 14px; }
+.linksOnly { font-size: 12px; color: var(--report-ink-muted); }
+.lookFor { margin: 6px 0 0; font-size: 14px; line-height: 1.4; }
+.lookFor strong { color: #127a88; }

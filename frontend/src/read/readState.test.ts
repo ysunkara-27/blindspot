@@ -200,3 +200,40 @@ describe('measurement from the caliper', () => {
     expect(measurementFromCaliper(meta, { plane: 'axial', slice: 1, p0: [1, 1], p1: [1, 1] })).toBeNull();
   });
 });
+
+describe('drawn marks (round 5)', () => {
+  const square: [number, number][] = [[100, 100], [140, 100], [140, 140], [100, 140]];
+  it('place with a polygon stores the outline, the tool and the centroid; the armed label applies as usual', () => {
+    let s = readReducer(initialRead, { type: 'arm', label: 'nodule' });
+    s = readReducer(s, { type: 'place', x: 120, y: 120, polygon: square });
+    expect(s.marks[0]).toMatchObject({ mark_id: 'M1', x: 120, y: 120, label: 'nodule', polygon: square, tool: 'draw' });
+    expect(s.popoverMode).toBe('confidence');
+    s = readReducer(s, { type: 'confidence', id: 'M1', confidence: 4 });
+    expect(toSubmitMarks(s)[0]).toMatchObject({ mark_id: 'M1', x: 120, y: 120, label: 'nodule', confidence: 4, tool: 'draw', polygon: square });
+    // A point mark sends no polygon or tool.
+    s = readReducer(s, { type: 'place', x: 10, y: 10 });
+    s = readReducer(s, { type: 'label', id: 'M2', label: 'mass' });
+    s = readReducer(s, { type: 'confidence', id: 'M2', confidence: 2 });
+    expect(toSubmitMarks(s)[1]).not.toHaveProperty('polygon');
+    expect(toSubmitMarks(s)[1]).not.toHaveProperty('tool');
+  });
+  it('move shifts the whole outline with the centroid', () => {
+    let s = readReducer(initialRead, { type: 'place', x: 120, y: 120, polygon: square });
+    s = readReducer(s, { type: 'move', id: 'M1', x: 130, y: 115 });
+    expect(s.marks[0].polygon).toEqual([[110, 95], [150, 95], [150, 135], [110, 135]]);
+  });
+  it('redraw replaces the outline and keeps the label and confidence', () => {
+    let s = readReducer(initialRead, { type: 'place', x: 120, y: 120, polygon: square });
+    s = readReducer(s, { type: 'label', id: 'M1', label: 'effusion' });
+    s = readReducer(s, { type: 'confidence', id: 'M1', confidence: 5 });
+    const tri: [number, number][] = [[0, 0], [30, 0], [0, 30]];
+    s = readReducer(s, { type: 'redraw', id: 'M1', polygon: tri, x: 10, y: 10 });
+    expect(s.marks[0]).toMatchObject({ polygon: tri, x: 10, y: 10, label: 'effusion', confidence: 5, tool: 'draw' });
+  });
+  it('submit rounds polygon vertices to 0.1 px', () => {
+    let s = readReducer(initialRead, { type: 'place', x: 1, y: 1, polygon: [[0.123, 0.456], [10.049, 0], [0, 10.96]] });
+    s = readReducer(s, { type: 'label', id: 'M1', label: 'nodule' });
+    s = readReducer(s, { type: 'confidence', id: 'M1', confidence: 3 });
+    expect(toSubmitMarks(s)[0].polygon).toEqual([[0.1, 0.5], [10, 0], [0, 11]]);
+  });
+});

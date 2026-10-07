@@ -4,13 +4,17 @@
 // Volumes (CT / MR): the same room. The voxels are fetched and gunzipped here (never the mask before submit), the
 // plane / slice navigation and the caliper live here so the rail's size step and the viewer share them, and the
 // reveal opens the single axial view at the finding's measured slice with the label volume decoded on demand.
+// Round 5: "My search" starts off (remembered once toggled); a one-step tip after the first submitted read points at
+// the toggle; the Point / Draw / Caliper tools (P, D, C) and "Signs" (S) are keyed here; the caliper left the View menu.
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import { api, ApiError, assetUrl, isSubmitResult } from '../api/client';
 import { labelDisplay, modeDisplay, zoneDisplay } from '../api/labels';
 import { canSubmit, confidenceTarget, initialRead, initialVolumetricRead, pendingSizes, readReducer, toHintMarks, toSubmitMarks, toSubmitMeasurements, toSubmitPatterns, type DraftMark } from '../read/readState';
-import { measurementFromCaliper, useTools } from '../read/tools';
+import { measurementFromCaliper, toolForKey, useTools } from '../read/tools';
+import { SEARCH_KEY, searchDefault } from '../read/searchPref';
+import { useSigns } from '../viewer/signs';
 import { ReadRail } from '../rail/ReadRail';
 import { ResultSummary } from '../rail/ResultSummary';
 import { DebriefPanel } from '../rail/DebriefPanel';
@@ -36,12 +40,11 @@ import { useTitle } from '../app/useTitle';
 import { guardAnatomy, unvisitedRings } from '../viewer/anatomy';
 import { ReferenceDrawer } from '../reference/ReferenceDrawer';
 import { useReference } from '../reference/store';
-import { BOOT_TUTORIAL_FLAG, hasTutorialFlag, shouldOpenTutorial, Tutorial, tutorialDone } from '../tutorial';
+import { BOOT_TUTORIAL_FLAG, hasTutorialFlag, markSearchTipDone, SEARCH_TIP_STEPS, searchTipDone, shouldOpenSearchTip, shouldOpenTutorial, Tutorial, tutorialDone } from '../tutorial';
 import shell from '../app/Shell.module.css';
 import rail from '../rail/Rail.module.css';
 import room from '../read/Room.module.css';
 
-const SEARCH_KEY = 'blindspot.showSearch';
 
 export function ReadPage() {
   const session = useSession((s) => s.session);
@@ -59,7 +62,7 @@ function ReadSession({ session }: { session: SessionInfo }) {
   const [seq, setSeq] = useState(0);
   // The magnifier is off until the learner asks for it, in every mode.
   const [loupe, setLoupe] = useState(false);
-  const [showSearch, setShowSearch] = useState(() => { try { return localStorage.getItem(SEARCH_KEY) !== '0'; } catch { return true; } });
+  const [showSearch, setShowSearch] = useState(searchDefault);
   const toggleSearch = useCallback(() => setShowSearch((v) => {
     try { localStorage.setItem(SEARCH_KEY, v ? '0' : '1'); } catch { /* storage blocked: the choice lasts this visit */ }
     return !v;
@@ -87,6 +90,26 @@ function ReadSession({ session }: { session: SessionInfo }) {
     setParams((p) => { const n = new URLSearchParams(p); n.delete('tutorial'); return n; }, { replace: true });
   }, [setParams]);
   const openTour = useCallback(() => { setHelp(false); setTour(true); }, []);
+  // The search tip: once, on the first reveal (the tour, if still open, has had its say by then).
+  const [tip, setTip] = useState(false);
+  const tipDecided = useRef(false);
+  const onRevealed = useCallback(() => {
+    if (tipDecided.current) return;
+    tipDecided.current = true;
+    if (shouldOpenSearchTip({ webdriver: !!navigator.webdriver, bootFlag: BOOT_TUTORIAL_FLAG, done: searchTipDone() })) {
+      setTour(false);
+      // After the reveal has committed: the coach mark looks for the toggle in the DOM when it mounts.
+      window.setTimeout(() => setTip(true), 400);
+    }
+  }, []);
+  const closeTip = useCallback((finished: boolean) => {
+    setTip(false);
+    if (finished) setShowSearch((v) => {
+      if (v) return v;
+      try { localStorage.setItem(SEARCH_KEY, '1'); } catch { /* storage blocked */ }
+      return true;
+    });
+  }, []);
 
   useTitle(!next.data ? 'Reading room' : next.data.done ? (isAssessment(session.mode) ? 'Assessment results' : 'Set complete') : `Case ${next.data.index} · Reading room`);
   // "?" opens the key list from anywhere in the reading room (the open dialog handles its own keys).
@@ -101,6 +124,7 @@ function ReadSession({ session }: { session: SessionInfo }) {
     <>
       {help ? <KeysHelp onClose={closeHelp} volume={!!next.data && !next.data.done && isVolumetric(next.data.case)} /> : null}
       {tour && !help ? <Tutorial onClose={closeTour} modality={next.data && !next.data.done ? next.data.case.modality : null} /> : null}
+      {tip && !help && !tour ? <Tutorial onClose={closeTip} steps={SEARCH_TIP_STEPS} heading="After your first read" finishLabel="Turn it on" remember={markSearchTipDone} /> : null}
     </>
   );
 
@@ -154,6 +178,7 @@ function ReadSession({ session }: { session: SessionInfo }) {
         showSearch={showSearch}
         toggleSearch={toggleSearch}
         onFilmShown={onFilmShown}
+        onRevealed={onRevealed}
         onNext={() => setSeq((n) => n + 1)}
         prefetchNext={prefetchNext}
       />
@@ -161,13 +186,10 @@ function ReadSession({ session }: { session: SessionInfo }) {
   );
 }
 
-/** Header "View" menu: display options that are not part of reading a film. X-ray cases also keep the caliper here
- *  (a px ruler; on a volume the caliper is in the bar under the film and in the rail's size step). */
-function ViewMenu({ caliper }: { caliper: boolean }) {
+/** Header "View" menu: display options that are not part of reading a film (the tools live in the strip under it). */
+function ViewMenu() {
   const projector = useSession((s) => s.projector);
   const setProjector = useSession((s) => s.setProjector);
-  const tool = useTools((t) => t.tool);
-  const setTool = useTools((t) => t.setTool);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
   const btn = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
@@ -206,12 +228,6 @@ function ViewMenu({ caliper }: { caliper: boolean }) {
             <span>Large-screen mode: {projector ? 'on' : 'off'}</span>
             <span className={room.menuNote}>For a projector: brighter film, thicker lines, larger type.</span>
           </button>
-          {caliper && (
-            <button type="button" className={room.menuItem} aria-pressed={tool === 'caliper'} onClick={() => { setTool(tool === 'caliper' ? 'mark' : 'caliper'); setPos(null); }} data-testid="caliper-menu">
-              <span>Caliper: {tool === 'caliper' ? 'on' : 'off'} <kbd className={room.kbd}>C</kbd></span>
-              <span className={room.menuNote}>Drag on the film to measure in pixels (no pixel spacing is known for these films).</span>
-            </button>
-          )}
         </div>
       )}
     </>
@@ -242,7 +258,7 @@ function RoomHeader({ session, next, onHelp, onTour }: {
       <SyntheticBadge short />
       {next && <ProvenanceBadge provenance={next.case.provenance} modality={next.case.modality} className={room.provenance} />}
       <span className={room.spacer} />
-      <ViewMenu caliper={!!next && !isVolumetric(next.case)} />
+      <ViewMenu />
       <button type="button" className={room.btn} onClick={onTour} data-testid="tutorial-button" title="Walk through the reading room, step by step">
         How to read here
       </button>
@@ -266,9 +282,9 @@ const isTextEntry = (t: EventTarget | null) => {
   return !(el!.tagName === 'INPUT' && ['checkbox', 'radio', 'button'].includes(el!.type));
 };
 
-function ReadingRoom({ session, next, header, loupe, setLoupe, showSearch, toggleSearch, onFilmShown, onNext, prefetchNext }: {
+function ReadingRoom({ session, next, header, loupe, setLoupe, showSearch, toggleSearch, onFilmShown, onRevealed, onNext, prefetchNext }: {
   session: SessionInfo; next: NextCase; header: React.ReactNode; loupe: boolean; setLoupe: (v: boolean) => void;
-  showSearch: boolean; toggleSearch: () => void; onFilmShown: (index: number) => void; onNext: () => void; prefetchNext: () => void;
+  showSearch: boolean; toggleSearch: () => void; onFilmShown: (index: number) => void; onRevealed: () => void; onNext: () => void; prefetchNext: () => void;
 }) {
   const projector = useSession((s) => s.projector);
   const aid = next.attempt_id;
@@ -290,12 +306,16 @@ function ReadingRoom({ session, next, header, loupe, setLoupe, showSearch, toggl
   // The film tool (mark / caliper) and the caliper draft are shared with the rail and the header menu; fresh per case.
   const tool = useTools((t) => t.tool);
   const setTool = useTools((t) => t.setTool);
+  const toggleTool = useTools((t) => t.toggleTool);
   const caliperDraft = useTools((t) => t.caliper);
   const setCaliper = useTools((t) => t.setCaliper);
   const forMark = useTools((t) => t.forMark);
   const measureFor = useTools((t) => t.measure);
   const resetTools = useTools((t) => t.reset);
   useEffect(() => { resetTools(); return () => resetTools(); }, [resetTools]);
+  // "Signs" is on at every reveal; a rail row's focusSign() request never outlives its case.
+  const resetSigns = useSigns((st) => st.reset);
+  useEffect(() => { resetSigns(); return () => resetSigns(); }, [resetSigns]);
   const telemetry = useMemo(() => new TelemetryBuffer(), []);
   const shownAt = useRef('');
   const submittedTelemetry = useRef<AttemptSubmit['telemetry']>([]);
@@ -312,9 +332,10 @@ function ReadingRoom({ session, next, header, loupe, setLoupe, showSearch, toggl
   // Dev/e2e only: lets Playwright count telemetry events (SPEC §15.2 M4). Never in production builds.
   useEffect(() => {
     if (!import.meta.env.DEV) return;
-    const w = window as unknown as { __bsTelemetry?: TelemetryBuffer };
+    const w = window as unknown as { __bsTelemetry?: TelemetryBuffer; __bsFocusSign?: (id: string) => void };
     w.__bsTelemetry = telemetry;
-    return () => { if (w.__bsTelemetry === telemetry) delete w.__bsTelemetry; };
+    w.__bsFocusSign = (id) => useSigns.getState().focusSign(id); // the rail seam, callable from a test
+    return () => { if (w.__bsTelemetry === telemetry) { delete w.__bsTelemetry; delete w.__bsFocusSign; } };
   }, [telemetry]);
 
   const onShown = useCallback(() => {
@@ -350,6 +371,7 @@ function ReadingRoom({ session, next, header, loupe, setLoupe, showSearch, toggl
       resetTools();
       setResult(r);
       track('film_submitted');
+      if (isSubmitResult(r)) onRevealed();
       prefetchNext();
     },
   });
@@ -360,7 +382,7 @@ function ReadingRoom({ session, next, header, loupe, setLoupe, showSearch, toggl
     submittedTelemetry.current = tel;
     setSubmittedTel(tel);
     dispatch({ type: 'closePopover' });
-    submitM.mutate({
+    const body: AttemptSubmit = {
       marks: toSubmitMarks(read),
       patterns: toSubmitPatterns(read),
       declared_normal: read.declaredNormal,
@@ -369,7 +391,10 @@ function ReadingRoom({ session, next, header, loupe, setLoupe, showSearch, toggl
       hints_used: hints.length,
       client_timing: { shown_at: shownAt.current || new Date().toISOString(), submitted_at: new Date().toISOString() },
       ...(read.volumetric ? { measurements: toSubmitMeasurements(read) } : {}),
-    });
+    };
+    // Dev/e2e only: the body as sent (the mock never touches the network). Never in production builds.
+    if (import.meta.env.DEV) (window as unknown as { __bsLastSubmit?: AttemptSubmit }).__bsLastSubmit = body;
+    submitM.mutate(body);
   }, [read, submitM, result, telemetry, hints.length]);
 
   // ---- Volumes: the size step and slice keys. ----
@@ -420,9 +445,9 @@ function ReadingRoom({ session, next, header, loupe, setLoupe, showSearch, toggl
   // Keyboard shortcuts (SPEC §5.1).
   const conflict = submitM.error instanceof ApiError && submitM.error.status === 409;
   const canAnatomy = !!result && isSubmitResult(result);
-  const keys = useRef({ submit, askHint, callNormal, read, result, onNext, loupe, setLoupe, conflict, canAnatomy, vmeta, tool, forMark, drawnMm, onRecord, toggleCaliper, resetTools, nav });
+  const keys = useRef({ submit, askHint, callNormal, read, result, onNext, loupe, setLoupe, conflict, canAnatomy, vmeta, tool, forMark, drawnMm, onRecord, toggleCaliper, toggleTool, resetTools, nav });
   useLayoutEffect(() => {
-    keys.current = { submit, askHint, callNormal, read, result, onNext, loupe, setLoupe, conflict, canAnatomy, vmeta, tool, forMark, drawnMm, onRecord, toggleCaliper, resetTools, nav };
+    keys.current = { submit, askHint, callNormal, read, result, onNext, loupe, setLoupe, conflict, canAnatomy, vmeta, tool, forMark, drawnMm, onRecord, toggleCaliper, toggleTool, resetTools, nav };
   });
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -447,6 +472,11 @@ function ReadingRoom({ session, next, header, loupe, setLoupe, showSearch, toggl
       switch (e.key) {
         case 'm': case 'M': case 'l': case 'L': k.setLoupe(!k.loupe); break;
         case 'c': case 'C': k.toggleCaliper(); break;
+        case 'p': case 'P': case 'd': case 'D':
+          // Point / Draw (keys toggle back to Point). Not after submit.
+          if (!k.result && !k.read.declaredNormal) k.toggleTool(toolForKey(e.key)!);
+          break;
+        case 's': case 'S': if (k.canAnatomy) useSigns.getState().toggle(); break;
         case 'n': case 'N': k.callNormal(); break;
         case 'h': case 'H': k.askHint(); break;
         case 'a': case 'A': if (k.canAnatomy) setAnatomyOn((v) => !v); break;
@@ -465,7 +495,8 @@ function ReadingRoom({ session, next, header, loupe, setLoupe, showSearch, toggl
           if (useReference.getState().label) { useReference.getState().close(); break; }
           if (k.tool === 'caliper') { k.resetTools(); break; }
           if (k.read.armed) dispatch({ type: 'disarm' });
-          else dispatch({ type: 'select', id: null });
+          else if (k.read.selectedId) dispatch({ type: 'select', id: null });
+          else if (k.tool === 'draw') k.resetTools();
           break;
         case 'Enter':
           if (onButton) return;

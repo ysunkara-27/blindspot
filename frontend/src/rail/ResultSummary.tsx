@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { labelDisplay, OUTCOME_COPY, zoneDisplay } from '../api/labels';
 import { InfoButton } from '../reference/ReferenceDrawer';
 import type { Outcome, SubmitResult } from '../types/contracts';
+import { FindingTeaching } from './FindingTeaching';
 import { OutcomeChip } from './OutcomeList';
 import { PROXY_NOTE, scoreSentence, searchLines, whyLine } from './copy';
 import { sizeVerdictText } from '../viewer/volume/dwell';
@@ -23,6 +24,10 @@ export function ResultSummary({ result, settle = true }: { result: SubmitResult;
   const tn = result.outcomes.find((o) => o.result === 'true_negative');
   const anyProxy = result.outcomes.some((o) => { const t = OUTCOME_COPY[o.result]?.missType; return t === 'search' || t === 'recognition' || t === 'decision'; });
   const search = searchLines(result.reveal.search, volumetric);
+  // Round 5: the backend's "Look for: …" lines name the sign drawn on the film for each finding.
+  const lookFor = result.facts_card.lines.filter((l) => /^look for\b/i.test(l.trim()));
+  // When no tutor debrief will follow (assessment review), the signs, example films and links sit under each row here.
+  const teachHere = result.debrief_status === 'disabled';
   const anim = settle ? s.settle : '';
   return (
     <>
@@ -55,6 +60,7 @@ export function ResultSummary({ result, settle = true }: { result: SubmitResult;
                 {f.size_verdict && (
                   <span className={s.sizeVerdict} data-testid={`size-verdict-${f.finding_id}`} data-ok={f.size_verdict.ok ? '1' : '0'}>{sizeVerdictText(f.size_verdict)}</span>
                 )}
+                {teachHere && <FindingTeaching finding={f} compact />}
               </li>
             );
           })}
@@ -90,6 +96,10 @@ export function ResultSummary({ result, settle = true }: { result: SubmitResult;
           )}
           {findings.length === 0 && !tn && fps.length === 0 && patternFalse.length === 0 && <li className={s.muted}>This {volumetric ? 'scan' : 'film'} is normal.</li>}
         </ul>
+        {lookFor.map((l, i) => {
+          const m = /^(look for:?)\s*(.*)$/i.exec(l.trim());
+          return <p key={i} className={s.lookFor} data-testid="facts-look-for"><strong>Look for:</strong> {m ? m[2] : l}</p>;
+        })}
       </section>
 
       <section className={`${s.section} ${anim}`} aria-labelledby="search-h" data-testid="facts-card">

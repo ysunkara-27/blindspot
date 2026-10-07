@@ -48,3 +48,14 @@
   .cols { grid-template-columns: 1fr; }
   .films { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* Round 5: Findings / Signs tabs, the per-entry "Signs to know" and the Signs tab grid. */
+.tabs { display: flex; gap: 4px; margin: 0 0 14px; border-bottom: 1px solid var(--report-rule); }
+.tab { background: none; border: none; border-bottom: 3px solid transparent; padding: 8px 14px; font: inherit; font-size: var(--fs-2); color: var(--report-ink-muted); cursor: pointer; margin-bottom: -1px; }
+.tab:hover { color: var(--report-ink); }
+.tabOn { color: var(--report-ink); font-weight: 700; border-bottom-color: var(--report-ink); }
+.signs { border-top: none; padding-top: 0; margin: 0 0 14px; }
+.signsHead { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 0 0 8px; }
+.signGrid { list-style: none; margin: 6px 0 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 28px; }
+.signGrid > li { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 12px; align-items: start; }
+@media (max-width: 899.98px) { .signGrid { grid-template-columns: 1fr; } }

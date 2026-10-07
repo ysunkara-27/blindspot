@@ -1,13 +1,14 @@
 // /reference — the finding library, grouped by scan type: every finding type Blindspot trains, with its definition,
 // key signs, mimics, a search tip, example films (or CT / MR slices) with the reference outline, normal films, and a
-// Radiopaedia link (link only).
+// Radiopaedia link (link only). Round 5: "Signs to know" schematics under each entry, and a Signs tab (?tab=signs)
+// listing every schematic, including signs no graded finding carries yet (bat-wing, Kerley B).
 // Content comes from GET /api/reference (teaching cards + annotated example films from a separate reference set);
 // nothing here is written by a model at view time. The fetch, guard and types are the reading room's
 // (api/reference.ts, reference/guard.ts), so this page and the reference drawer share one cached payload; only the
 // page layout (all thirteen entries in one report column) is local.
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { apiMode, assetUrl } from '../api/client';
 import { FOCAL_LABELS, labelDisplay, MODALITIES, MODALITY_DISPLAY, PATTERN_LABELS, VOLUMETRIC_LABELS } from '../api/labels';
 import { fetchReference, type ReferenceExample, type ReferenceFilm, type ReferenceLabel } from '../api/reference';
@@ -17,6 +18,8 @@ import { useTitle } from '../app/useTitle';
 import { PROVENANCE } from '../rail/debriefCopy';
 import { EXAMPLES_NOTE } from '../reference';
 import { uiTerms } from '../reference/guard';
+import { SchematicBadge, SignCard, SignsToKnow } from '../reference/SignsToKnow';
+import { NOT_GRADED, useSignSchematics } from '../reference/signsData';
 import { VolumeExample } from '../reference/VolumeExample';
 import type { Modality } from '../types/contracts';
 import p from './Pages.module.css';
@@ -82,6 +85,7 @@ function Entry({ l, outline, known }: { l: ReferenceLabel; outline: boolean; kno
           </div>
         )}
       </div>
+      <SignsToKnow label={l.label} className={r.signs} />
       {l.search_tip && <p className={r.tip}><strong>Where to look</strong>{uiTerms(l.search_tip)}</p>}
       {confused.length > 0 && (
         <p className={r.confused}>
@@ -111,6 +115,41 @@ function Entry({ l, outline, known }: { l: ReferenceLabel; outline: boolean; kno
   );
 }
 
+/** The Signs tab: every schematic, the ones of graded findings first, then the rest with a "not graded yet" note. */
+function SignsTab({ known }: { known: Set<string> }) {
+  const q = useSignSchematics();
+  if (q.isPending) return <p className={p.muted}>Loading the signs…</p>;
+  const all = q.data ?? [];
+  if (q.isError || all.length === 0) return <p className={r.notice} data-testid="signs-offline">The sign drawings did not load. Check your connection, then reload the page.</p>;
+  const graded = all.filter((sg) => sg.labels.some((l) => known.has(l)));
+  const other = all.filter((sg) => !sg.labels.some((l) => known.has(l)));
+  return (
+    <div data-testid="signs-tab">
+      <div className={r.signsHead}>
+        <p className={p.lede} style={{ margin: 0 }}>{all.length} signs, drawn and explained. A sign is a shape to look for, not a diagnosis; the finding it points to is named under each drawing.</p>
+        <SchematicBadge />
+      </div>
+      <section className={r.entry} aria-labelledby="signs-graded">
+        <div className={r.entryHead}><h2 className={r.h2} id="signs-graded">Signs of the findings Blindspot grades</h2></div>
+        <ul className={r.signGrid} data-testid="signs-graded">
+          {graded.map((sg) => <SignCard key={sg.id} sign={sg} showLabels />)}
+        </ul>
+      </section>
+      {other.length > 0 && (
+        <section className={r.entry} aria-labelledby="signs-other">
+          <div className={r.entryHead}><h2 className={r.h2} id="signs-other">Other signs worth knowing</h2><span className={r.kind}>{NOT_GRADED}</span></div>
+          <ul className={r.signGrid} data-testid="signs-other">
+            {other.map((sg) => <SignCard key={sg.id} sign={sg} notGraded />)}
+          </ul>
+        </section>
+      )}
+      <p className={p.mutedSmall} style={{ marginTop: 18 }}>
+        Schematic drawings are AI-drafted line sketches, not radiographs, and have not been reviewed yet. Radiopaedia is linked, never copied. For education, not for clinical use.
+      </p>
+    </div>
+  );
+}
+
 export function ReferencePage() {
   useTitle('Finding library');
   const mock = apiMode().mode === 'mock';
@@ -118,6 +157,9 @@ export function ReferencePage() {
   const q = useQuery({ queryKey: ['reference'], queryFn: fetchReference, retry: false, staleTime: Infinity });
   const [outline, setOutline] = useState(true);
   const { hash } = useLocation();
+  const [params, setParams] = useSearchParams();
+  const tab: 'findings' | 'signs' = params.get('tab') === 'signs' ? 'signs' : 'findings';
+  const setTab = (t: 'findings' | 'signs') => setParams(t === 'signs' ? { tab: 'signs' } : {}, { replace: true });
   // /reference#nodule lands on that entry once the library has loaded.
   useEffect(() => {
     if (q.data && hash.length > 1) document.getElementById(decodeURIComponent(hash.slice(1)))?.scrollIntoView();
@@ -136,6 +178,11 @@ export function ReferencePage() {
   return (
     <PageShell width={860}>
       <h1 className={p.h1}>Finding library</h1>
+      <div className={r.tabs} role="tablist" aria-label="Library sections">
+        <button type="button" role="tab" aria-selected={tab === 'findings'} className={`${r.tab} ${tab === 'findings' ? r.tabOn : ''}`} onClick={() => setTab('findings')} data-testid="ref-tab-findings">Findings</button>
+        <button type="button" role="tab" aria-selected={tab === 'signs'} className={`${r.tab} ${tab === 'signs' ? r.tabOn : ''}`} onClick={() => setTab('signs')} data-testid="ref-tab-signs">Signs</button>
+      </div>
+      {tab === 'signs' ? <SignsTab known={known} /> : <>
       <p className={p.lede} data-testid="ref-lede">
         {many
           ? `The ${labels.length} findings Blindspot trains, by scan type: what each one is, the signs to look for, what gets mistaken for it, and example films or studies with the reference outline.`
@@ -210,6 +257,7 @@ export function ReferencePage() {
           </p>
         </div>
       )}
+      </>}
     </PageShell>
   );
 }

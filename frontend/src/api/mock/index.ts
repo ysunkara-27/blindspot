@@ -7,6 +7,7 @@ import { labelDisplay, zoneDisplay } from '../labels';
 import { MOCK_CASES } from './cases';
 import { dwellMs, REVIEW_AREAS, reviewAreaBox, scoreAttempt, templateDebrief } from './scoring';
 import { mockReference } from './reference';
+import { mockSignSchematics, schematicIdsFor } from './signs';
 import type { MockCase } from './types';
 import { MOCK_VOL_CASES } from './volCases';
 import { scoreVolumeAttempt, volumeAnatomy, volumeCase } from './volScoring';
@@ -56,6 +57,13 @@ export async function mockRequest(method: string, path: string, body: unknown): 
 
   // Generic teaching material (never about the case being read): available at any time.
   if (method === 'GET' && p === '/reference') return mockReference();
+  // Round 5: one finding type's card (+ the ids of its sign schematics) and the sign schematics themselves.
+  if (method === 'GET' && (m = p.match(/^\/reference\/([^/]+)$/))) {
+    const entry = mockReference().labels.find((l) => l.label === m![1]);
+    if (!entry) throw new MockHttpError(404, 'unknown label');
+    return { ...entry, signs: schematicIdsFor(entry.label) };
+  }
+  if (method === 'GET' && p === '/signs') return mockSignSchematics();
 
   if (method === 'GET' && p === '/health') return { ok: true, offline: true, cases: MOCK_CASES.length + MOCK_VOL_CASES.length, version: 'mock-synthetic', modalities: ['cxr', 'ct', 'mr'], cases_by_modality: { cxr: MOCK_CASES.length, ct: VOL_ORDER.ct.length, mr: VOL_ORDER.mr.length } };
 

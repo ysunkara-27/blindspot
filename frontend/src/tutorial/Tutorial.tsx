@@ -18,9 +18,13 @@ const same = (a: Rect | null, b: Rect | null) => a === b || (!!a && !!b && Math.
 /** `onClose(finished)`: finished = walked to the end; false = skipped. Either way it is remembered as done.
  *  `modality` (round 4): 'ct' | 'mr' adds the slice and measure steps, whose controls the volume viewer marks with
  *  data-tour="slices" and data-tour="measure"; a chest film (or no modality) gets the unchanged X-ray tour. */
-export function Tutorial({ onClose, modality }: { onClose: (finished: boolean) => void; modality?: string | null }) {
+export function Tutorial({ onClose, modality, steps: stepsIn, heading = 'How to read here', finishLabel = 'Start reading', remember = markTutorialDone }: {
+  onClose: (finished: boolean) => void; modality?: string | null;
+  /** Round 5: another short sequence (the search tip after the first read) with its own heading, last button and memory. */
+  steps?: Step[]; heading?: string; finishLabel?: string; remember?: () => void;
+}) {
   const volumetric = modality === 'ct' || modality === 'mr';
-  const steps = useMemo<Step[]>(() => availableSteps((sel) => !!document.querySelector(sel), undefined, volumetric), [volumetric]);
+  const steps = useMemo<Step[]>(() => availableSteps((sel) => !!document.querySelector(sel), stepsIn, volumetric), [volumetric, stepsIn]);
   const [i, setI] = useState(0);
   const [target, setTarget] = useState<Rect | null>(null);
   const [film, setFilm] = useState<Rect | null>(null);
@@ -30,8 +34,8 @@ export function Tutorial({ onClose, modality }: { onClose: (finished: boolean) =
   const step = steps[i];
 
   const end = (finished: boolean) => {
-    markTutorialDone();
-    if (finished) track('tutorial_done');
+    remember();
+    if (finished && !stepsIn) track('tutorial_done');
     onClose(finished);
   };
   const endRef = useRef(end);
@@ -79,7 +83,7 @@ export function Tutorial({ onClose, modality }: { onClose: (finished: boolean) =
   const place = target ? placeCard(target, { w: CARD_W, h: cardH }, vp, film) : { left: Math.max(8, vp.w - CARD_W - 24), top: 80, side: 'inside' as const };
   const last = i === steps.length - 1;
   return (
-    <div className={s.root} data-testid="tutorial" data-step={step.id}>
+    <div className={s.root} data-testid="tutorial" data-step={step.id} data-tour-kind={stepsIn ? 'tip' : 'tour'}>
       {target && (
         <div className={s.ring} aria-hidden="true" data-testid="tutorial-ring"
           style={{ left: target.left - 4, top: target.top - 4, width: target.width + 8, height: target.height + 8 }} />
@@ -104,15 +108,15 @@ export function Tutorial({ onClose, modality }: { onClose: (finished: boolean) =
           if (e.key !== 'Tab') e.stopPropagation();
         }}
       >
-        <p className={s.count} data-testid="tutorial-count">How to read here · step {i + 1} of {steps.length}</p>
+        <p className={s.count} data-testid="tutorial-count">{heading}{steps.length > 1 ? ` · step ${i + 1} of ${steps.length}` : ''}</p>
         <h2 id="tutorial-title" className={s.title}>{step.title}</h2>
         <p id="tutorial-body" className={s.body}>{step.body}</p>
         <div className={s.row}>
           <button type="button" className={s.skip} onClick={() => end(false)} data-testid="tutorial-skip">Skip</button>
           <span className={s.spacer} />
-          <button type="button" className={s.back} onClick={() => go('back')} disabled={i === 0} data-testid="tutorial-back">Back</button>
+          {steps.length > 1 && <button type="button" className={s.back} onClick={() => go('back')} disabled={i === 0} data-testid="tutorial-back">Back</button>}
           <button ref={nextRef} type="button" className={s.next} onClick={() => go('next')} data-testid="tutorial-next">
-            {last ? 'Start reading' : 'Next'}
+            {last ? finishLabel : 'Next'}
           </button>
         </div>
       </div>

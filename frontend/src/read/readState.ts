@@ -3,14 +3,23 @@
 // every mark, whole-film finding and normal call needs a confidence the learner chose before the read can be submitted.
 // Volumes (CT / MR): a mark also carries the plane and slice it was placed on and its voxel [x, y, z]; x, y are then
 // the in-plane voxel coords of that plane. Mass-like marks get a size step (measure with the caliper, or skip).
+// Round 5: a mark may carry a free-drawn `polygon` (tool 'draw'); x, y is then its centroid. Moving shifts the whole
+// outline; drawing again inside a selected drawn mark replaces its outline (label and confidence stay).
 import type { Confidence, Mark, Measurement, PatternSelection } from '../types/contracts';
 import { labelDisplay, type PatternLabel } from '../api/labels';
+import { shiftPolygon, type Pt } from './stroke';
 
 export type MarkLabel = Mark['label'];
 export type Plane = NonNullable<Mark['plane']>;
 export type Voxel = [number, number, number];
 export type Mark3 = { plane: Plane; slice: number; voxel: Voxel };
-export type DraftMark = { mark_id: string; x: number; y: number; label: MarkLabel | null; confidence: Confidence | null } & Partial<Mark3>;
+export type MarkTool = NonNullable<Mark['tool']>;
+export type DraftMark = {
+  mark_id: string; x: number; y: number; label: MarkLabel | null; confidence: Confidence | null;
+  /** Free-drawn outline in image px (X-ray) or in-plane coords of its plane (volumes); x, y is its centroid. */
+  polygon?: Pt[] | null;
+  tool?: MarkTool;
+} & Partial<Mark3>;
 /** A caliper measurement waiting to be recorded, or recorded, for one mark. */
 export type DraftMeasurement = { long_mm: number; plane: Plane; slice: number; p0: Voxel; p1: Voxel };
 export type SizeStep = { kind: 'recorded'; m: DraftMeasurement } | { kind: 'skipped' };
@@ -48,8 +57,10 @@ export const initialVolumetricRead: ReadState = { ...initialRead, volumetric: tr
 export type ReadAction =
   | { type: 'arm'; label: MarkLabel }
   | { type: 'disarm' }
-  | { type: 'place'; x: number; y: number; at?: Mark3 }
+  | { type: 'place'; x: number; y: number; at?: Mark3; polygon?: Pt[] }
   | { type: 'move'; id: string; x: number; y: number; at?: Mark3 }
+  /** Replace a drawn mark's outline (x, y = the new centroid). */
+  | { type: 'redraw'; id: string; polygon: Pt[]; x: number; y: number; at?: Mark3 }
   | { type: 'label'; id: string; label: MarkLabel }
   | { type: 'confidence'; id: string; confidence: Confidence }
   | { type: 'delete'; id: string }
@@ -76,9 +87,10 @@ export function readReducer(s: ReadState, a: ReadAction): ReadState {
       if (s.declaredNormal) return s;
       const id = `M${s.nextId}`;
       // Armed: the mark takes that label and only the confidence is asked. Not armed: the popover asks for both.
+      const shape = a.polygon ? { polygon: a.polygon, tool: 'draw' as const } : {};
       return {
         ...s,
-        marks: [...s.marks, { mark_id: id, x: a.x, y: a.y, label: s.armed, confidence: null, ...(a.at ?? {}) }],
+        marks: [...s.marks, { mark_id: id, x: a.x, y: a.y, label: s.armed, confidence: null, ...shape, ...(a.at ?? {}) }],
         nextId: s.nextId + 1, selectedId: id, popoverId: id, popoverMode: s.armed ? 'confidence' : 'full', armed: null,
       };
     }
@@ -86,7 +98,17 @@ export function readReducer(s: ReadState, a: ReadAction): ReadState {
       // A moved mark's measurement no longer fits it.
       const sizes = { ...s.sizes };
       delete sizes[a.id];
-      return { ...s, sizes, marks: s.marks.map((m) => (m.mark_id === a.id ? { ...m, x: a.x, y: a.y, ...(a.at ?? {}) } : m)) };
+      return {
+        ...s, sizes,
+        marks: s.marks.map((m) => (m.mark_id === a.id
+          ? { ...m, x: a.x, y: a.y, ...(a.at ?? {}), ...(m.polygon ? { polygon: shiftPolygon(m.polygon, a.x - m.x, a.y - m.y) } : {}) }
+          : m)),
+      };
+    }
+    case 'redraw': {
+      const sizes = { ...s.sizes };
+      delete sizes[a.id];
+      return { ...s, sizes, marks: s.marks.map((m) => (m.mark_id === a.id ? { ...m, x: a.x, y: a.y, polygon: a.polygon, tool: 'draw', ...(a.at ?? {}) } : m)) };
     }
     case 'label': {
       const sizes = { ...s.sizes };
@@ -181,15 +203,18 @@ export function confidenceTarget(s: ReadState): { kind: 'mark'; id: string } | {
 /** The 3-D fields of a mark, when it has them (volumes). An X-ray mark sends none. */
 const at3 = (m: DraftMark): Pick<Mark, 'plane' | 'slice' | 'voxel'> =>
   m.voxel && m.plane ? { plane: m.plane, slice: m.slice ?? null, voxel: m.voxel } : {};
+/** The outline fields of a drawn mark (rounded to 0.1 px); a point mark sends none. */
+const shape = (m: DraftMark): Pick<Mark, 'polygon' | 'tool'> =>
+  m.polygon && m.polygon.length >= 3 ? { polygon: m.polygon.map(([x, y]) => [Math.round(x * 10) / 10, Math.round(y * 10) / 10]), tool: 'draw' } : {};
 
 /** Contract-shaped marks for submit: only complete marks (canSubmit guarantees all of them are). */
 export function toSubmitMarks(s: ReadState): Mark[] {
-  return s.marks.flatMap((m) => (m.label && m.confidence != null ? [{ mark_id: m.mark_id, x: m.x, y: m.y, label: m.label, confidence: m.confidence, ...at3(m) }] : []));
+  return s.marks.flatMap((m) => (m.label && m.confidence != null ? [{ mark_id: m.mark_id, x: m.x, y: m.y, label: m.label, confidence: m.confidence, ...at3(m), ...shape(m) }] : []));
 }
 /** Marks for a hint request, which may arrive mid-read: positions matter, an unfinished label goes as "not_sure"
  *  and an unchosen confidence as the scale midpoint (the hint ladder does not read it; nothing is recorded). */
 export function toHintMarks(s: ReadState): Mark[] {
-  return s.marks.map((m) => ({ mark_id: m.mark_id, x: m.x, y: m.y, label: m.label ?? 'not_sure', confidence: m.confidence ?? 3, ...at3(m) }));
+  return s.marks.map((m) => ({ mark_id: m.mark_id, x: m.x, y: m.y, label: m.label ?? 'not_sure', confidence: m.confidence ?? 3, ...at3(m), ...shape(m) }));
 }
 /** Recorded caliper measurements for submit (volumes; empty on an X-ray). */
 export function toSubmitMeasurements(s: ReadState): Measurement[] {
