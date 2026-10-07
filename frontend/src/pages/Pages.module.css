@@ -1,5 +1,6 @@
 .display { font-size: var(--fs-5); font-weight: 700; margin: 8px 0 12px; letter-spacing: -0.015em; }
 .h1 { font-size: var(--fs-4); font-weight: 700; margin: 0 0 12px; }
+.lostMark { display: block; margin: 8px 0 20px; }
 .h2 { font-size: var(--fs-3); font-weight: 700; margin: 0 0 8px; }
 .lede { font-size: var(--fs-2); line-height: 1.5; margin: 0 0 20px; }
 .muted { color: var(--report-ink-muted); }

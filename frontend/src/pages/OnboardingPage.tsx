@@ -7,7 +7,7 @@ import { useMutation } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, isGateError } from '../api/client';
 import { forgetLearner, loadRemembered, readPath, SAMPLE_NAME, sampleSessionCreate } from '../api/sessionOptions';
-import { BrandMark } from '../app/BrandMark';
+import { BrandMark } from '../brand/mark';
 import { Nav, SyntheticBadge } from '../app/Shell';
 import { track } from '../analytics';
 import { SMALL_SCREEN_TEXT } from '../app/SmallScreen';
@@ -47,7 +47,7 @@ export function OnboardingPage() {
   return (
     <div className={s.page} data-testid="landing">
       <header className={s.pageHeader}>
-        <Link to="/" className={s.brand}><BrandMark size={22} className={s.brandMark} />Blindspot</Link>
+        <Link to="/" className={s.brand}><BrandMark size={20} tone="light" className={s.brandMark} />Blindspot</Link>
         <SyntheticBadge />
         <span className={s.spacer} />
         <Nav />

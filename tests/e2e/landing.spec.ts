@@ -129,3 +129,36 @@ test('at 390 px the page stacks, reads in full, and asks for a computer instead 
   await expect(page.getByTestId('give-feedback')).toHaveAttribute('href', '/feedback');
   await page.screenshot({ path: `${SHOTS}/landing-v2-02-narrow.png`, fullPage: true });
 });
+
+test('the header carries the mark beside the wordmark, and the favicon is the new tile', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto('/?mock=0');
+  // Header lockup: the eye (one path with the two lung cut-outs) and the dot, in the ink tone on paper.
+  const brand = page.locator('header').first().getByRole('link', { name: 'Blindspot' });
+  const mark = brand.getByTestId('brand-mark');
+  await expect(mark).toBeVisible();
+  await expect(mark).toHaveAttribute('data-tone', 'light');
+  await expect(mark).toHaveAttribute('viewBox', '0 0 64 40');
+  await expect(mark.locator('path')).toHaveCount(1);
+  await expect(mark.locator('circle')).toHaveCount(1);
+  expect((await mark.locator('path').getAttribute('d'))!.match(/Z/g)).toHaveLength(3);
+  const box = (await mark.boundingBox())!;
+  expect(Math.round(box.height)).toBe(20);
+  expect(Math.round(box.width)).toBe(32);
+  // The hero's name line uses the dark tone (cyan dot on the surround).
+  await expect(page.locator('[data-testid="brand-mark"][data-tone="dark"]').first()).toBeVisible();
+  // Favicon and touch icons point at the new files, which the server serves.
+  await expect(page.locator('link[rel="icon"][type="image/svg+xml"]')).toHaveAttribute('href', '/favicon.svg');
+  await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute('href', '/icons/apple-touch-icon.png');
+  const fav = await page.request.get('/favicon.svg');
+  expect(fav.ok()).toBe(true);
+  const svg = await fav.text();
+  expect(svg).toContain('rx="12" fill="#1C1F22"');
+  expect(svg).toContain('fill="#35C9DD"');
+  expect(svg).not.toContain('stroke=');
+  expect((await page.request.get('/icons/apple-touch-icon.png')).ok()).toBe(true);
+  expect((await page.request.get('/og.png')).ok()).toBe(true);
+  await expect(page.locator('meta[property="og:image"]')).toHaveAttribute('content', 'https://scanblindspot.com/og.png');
+  await expect(page.locator('meta[name="twitter:card"]')).toHaveAttribute('content', 'summary_large_image');
+  await page.screenshot({ path: `${SHOTS}/landing-v2-03-header-mark.png`, clip: { x: 0, y: 0, width: 1280, height: 420 } });
+});

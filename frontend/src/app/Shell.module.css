@@ -36,7 +36,7 @@
   align-content: flex-start;
   overflow: hidden;
 }
-.header > .brand { height: 50px; display: inline-flex; align-items: center; }
+.header > .brand { height: 50px; display: inline-flex; align-items: center; gap: 8px; }
 /* Projector mode: big type needs the room; the page links stay on paper pages. */
 :root[data-projector='1'] .header .nav { display: none; }
 .brand { font-weight: 700; color: #f3f5f6; text-decoration: none; letter-spacing: 0.01em; font-size: var(--fs-2); }

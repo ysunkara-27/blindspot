@@ -6,7 +6,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { submitCode } from '../api/client';
 import { useGate, type GateKind } from '../api/access';
 import { LandingHero } from '../pages/LandingHero';
-import { BrandMark } from './BrandMark';
+import { BrandMark } from '../brand/mark';
 import { DISCLAIMER } from './Shell';
 import { useTitle } from './useTitle';
 import g from './Gate.module.css';
@@ -73,7 +73,7 @@ function AccessPage({ onDone }: { onDone: () => void }) {
   useTitle(null);
   return (
     <div className={g.page} data-testid="access-gate">
-      <header className={g.head}><span className={g.brand}><BrandMark size={22} className={g.headMark} />Blindspot</span></header>
+      <header className={g.head}><span className={g.brand}><BrandMark size={20} tone="light" className={g.headMark} />Blindspot</span></header>
       {/* Someone without a code still sees what this is: the same hero as the landing. */}
       <LandingHero headingId="gate-h" />
       <main className={g.gateMain}>

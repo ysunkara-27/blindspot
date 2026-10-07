@@ -1,0 +1,31 @@
+<!doctype html>
+<!-- Open Graph card (1200 × 630): the lockup centred on the PACS surround. scripts/gen-brand.mjs fills {{MARK}} with
+     the mark from src/brand/markSvg.ts and screenshots this page to public/og.png. -->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;700&display=swap" rel="stylesheet" />
+    <style>
+      html, body { margin: 0; }
+      body {
+        width: 1200px; height: 630px; overflow: hidden;
+        background: #1C1F22; color: #F3F5F6;
+        font-family: 'Atkinson Hyperlegible Next', system-ui, sans-serif;
+        display: flex; align-items: center; justify-content: center;
+        -webkit-font-smoothing: antialiased;
+      }
+      .lockup { display: flex; flex-direction: column; align-items: center; text-align: center; }
+      .mark svg { display: block; }
+      .name { margin: 28px 0 0; font-size: 88px; font-weight: 700; line-height: 1; letter-spacing: -0.02em; }
+      .line { margin: 22px 0 0; font-size: 30px; font-weight: 400; color: #C9D1D8; letter-spacing: 0.005em; }
+    </style>
+  </head>
+  <body>
+    <div class="lockup">
+      <div class="mark">{{MARK}}</div>
+      <p class="name">Blindspot</p>
+      <p class="line">Learn to see what you keep missing on medical images.</p>
+    </div>
+  </body>
+</html>

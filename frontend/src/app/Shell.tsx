@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import { apiMode } from '../api/client';
 import { useSession } from '../state/session';
-import { BrandMark } from './BrandMark';
+import { BrandMark } from '../brand/mark';
 import s from './Shell.module.css';
 
 export const DISCLAIMER = 'For education. Not for clinical use.';
@@ -47,7 +47,7 @@ export function PageShell({ children, wide = false, width, hero }: { children: R
   return (
     <div className={s.page}>
       <header className={s.pageHeader}>
-        <Link to="/" className={s.brand}><BrandMark size={22} className={s.brandMark} />Blindspot</Link>
+        <Link to="/" className={s.brand}><BrandMark size={20} tone="light" className={s.brandMark} />Blindspot</Link>
         <SyntheticBadge />
         <span className={s.spacer} />
         <Nav />

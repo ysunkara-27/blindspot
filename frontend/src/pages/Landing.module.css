@@ -16,7 +16,8 @@
   align-items: center;
 }
 .heroCopy { min-width: 0; }
-.name { font-size: var(--fs-2); font-weight: 700; color: #9aa5af; margin: 0 0 16px; letter-spacing: 0.01em; }
+.name { font-size: var(--fs-2); font-weight: 700; color: #9aa5af; margin: 0 0 16px; letter-spacing: 0.01em; display: inline-flex; align-items: center; gap: 9px; }
+.nameMark { flex-shrink: 0; }
 .title {
   font-size: var(--fs-5);
   font-weight: 700;

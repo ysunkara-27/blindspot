@@ -2,6 +2,7 @@
 // line, and the drawn key to the colour logic. The caller supplies the actions under the copy (the landing's buttons;
 // nothing on the gate, whose code form sits below).
 import type { ReactNode } from 'react';
+import { BrandMark } from '../brand/mark';
 import { HeroFilm } from './HeroFilm';
 import l from './Landing.module.css';
 
@@ -13,7 +14,7 @@ export function LandingHero({ children, headingId = 'landing-h' }: { children?: 
     <section className={l.hero} aria-labelledby={headingId}>
       <div className={l.heroInner}>
         <div className={l.heroCopy}>
-          <p className={l.name}>Blindspot</p>
+          <p className={l.name}><BrandMark size={18} className={l.nameMark} />Blindspot</p>
           <h1 id={headingId} className={l.title} data-testid="hero-purpose">{PURPOSE}</h1>
           <p className={l.support} data-testid="hero-support">{SUPPORT}</p>
           {children}

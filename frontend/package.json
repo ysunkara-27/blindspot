@@ -10,6 +10,7 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "gen:types": "node scripts/gen-types.mjs",
+    "gen:brand": "node --no-warnings scripts/gen-brand.mjs",
     "test": "vitest",
     "e2e": "playwright test --config ../tests/e2e/playwright.config.ts"
   },

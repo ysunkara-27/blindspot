@@ -30,6 +30,7 @@ import { guardMaskNames, isVolumetric, volumeMeta } from '../viewer/volume/guard
 import { colorizeServerHeatmap, densityFromTelemetry, densityToDataUrl } from '../viewer/heatmap';
 import { TelemetryBuffer } from '../viewer/telemetry';
 import { Footer, Nav, SyntheticBadge } from '../app/Shell';
+import { BrandMark } from '../brand/mark';
 import { ProvenanceBadge } from '../app/ProvenanceBadge';
 import { track } from '../analytics';
 import { TutorNotice } from '../tutor/TutorNotice';
@@ -240,7 +241,7 @@ function RoomHeader({ session, next, onHelp, onTour }: {
   const done = next ? Math.max(0, next.index - 1) : 0;
   return (
     <header className={room.header}>
-      <Link to="/" className={shell.brand}>Blindspot</Link>
+      <Link to="/" className={shell.brand}><BrandMark size={18} className={shell.brandMark} />Blindspot</Link>
       <span className={shell.mode} data-testid="mode">
         {modeDisplay(session.mode)}{session.mode === 'drill' && session.drillLabel ? ` · ${labelDisplay(session.drillLabel)}` : ''}
       </span>
