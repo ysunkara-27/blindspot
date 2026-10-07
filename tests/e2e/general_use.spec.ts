@@ -48,22 +48,23 @@ const json = (route: Route, status: number, body: unknown) =>
 test('landing explains Blindspot and offers Start reading, a sample set and the links', async ({ page }) => {
   await page.goto(ROOT);
   await expect(page).toHaveTitle(/Blindspot/);
-  await expect(page.getByRole('heading', { level: 1, name: 'Blindspot' })).toBeVisible();
-  await expect(page.getByTestId('three-lines')).toContainText("Mark what you see. We'll show you how you looked.");
-  await expect(page.getByTestId('three-lines')).toContainText('a proxy for where you looked');
+  // One scrolling page (landing.spec.ts checks each section): the hero's purpose line, the two buttons, the film key.
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Learn to see what you keep missing on medical images.');
+  await expect(page.getByTestId('hero-support')).toContainText('replays where you looked and explains each miss');
   await expect(page.getByTestId('start-reading')).toHaveText('Start reading');
   await expect(page.getByTestId('try-sample')).toHaveText('Try a sample set');
-  await expect(page.getByText('About half the films are normal — finding nothing is a real answer.')).toBeVisible();
+  await expect(page.getByTestId('free-line')).toHaveText('Free · no account · about 2 minutes per film');
   await expect(page.getByTestId('hero-film')).toBeVisible();
   const how = page.getByTestId('how-it-works');
-  for (const t of ['Radiologists outlined', 'cursor', 'validator', 'not eye tracking', 'never looked there']) await expect(how).toContainText(t);
-  for (const t of ['A mixed set', 'Your weak spots', 'One finding type', 'A test']) await expect(page.getByTestId('what-you-can-do')).toContainText(t);
+  for (const t of ['Mark what you see', 'cursor, magnifier and zoom', 'not eye tracking', 'never looked there', 'Radiologist outlines']) await expect(how).toContainText(t);
+  for (const t of ['Chest X-ray', 'Abdominal CT', 'Brain MRI']) await expect(page.getByTestId('what-you-can-read')).toContainText(t);
   const links = page.getByTestId('landing-links');
-  for (const t of ['Finding library', 'Reading log', 'About Blindspot']) await expect(links.getByRole('link', { name: t })).toBeVisible();
+  for (const t of ['Finding library', 'How it’s built']) await expect(links.getByRole('link', { name: t })).toBeVisible();
   await expect(page.getByTestId('disclaimer')).toContainText('For education. Not for clinical use.');
-  // The form is not on the landing any more, and nobody is asked for a training level anywhere.
+  // The form is not on the landing, and nobody is asked for a training level anywhere.
   await expect(page.getByTestId('name')).toHaveCount(0);
   await expect(page.getByTestId('level')).toHaveCount(0);
+  await expect(page.locator('form')).toHaveCount(0);
   await shot(page, '01-landing');
   await page.screenshot({ path: `${process.cwd().endsWith('frontend') ? '../' : ''}${SHOTS}/general-01-landing-full.png`, fullPage: true });
   await page.getByTestId('start-reading').click();
@@ -105,11 +106,11 @@ test('access gate: a 401 shows one calm page; a wrong code says so; the right co
   await page.goto('/?mock=0');
   const gate = page.getByTestId('access-gate');
   await expect(gate).toBeVisible();
-  // Someone without a code still sees what this is: the hero, the three lines, how to get a code, and About.
+  // Someone without a code still sees what this is: the hero, how to get a code, and About.
   await expect(page).toHaveTitle('Blindspot · chest X-ray perception trainer');
-  await expect(gate.getByRole('heading', { level: 1, name: 'Blindspot' })).toBeVisible();
+  await expect(gate.getByRole('heading', { level: 1 })).toHaveText('Learn to see what you keep missing on medical images.');
   await expect(gate.getByTestId('hero-film')).toBeVisible();
-  await expect(gate.getByTestId('three-lines')).toContainText("Mark what you see. We'll show you how you looked.");
+  await expect(gate.getByTestId('hero-support')).toContainText('Blindspot replays where you looked and explains each miss.');
   await expect(gate).toContainText('Enter your access code to start reading');
   await expect(gate.getByTestId('request-access')).toContainText('Ask the person who shared this link for the code');
   await expect(gate.getByRole('link', { name: 'read about Blindspot' })).toBeVisible();

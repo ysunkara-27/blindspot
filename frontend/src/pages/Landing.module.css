@@ -1,38 +1,57 @@
-/* Landing (/) and the access gate: a dark hero band that previews the reading room, then the report-paper column. SPEC §14. */
+/* Landing (/) and the access gate's hero. SPEC §14: PACS-dark hero band, then report-paper sections in one
+   1040 px column. Cyan is the expert, amber is the learner; nothing else is coloured. */
+
+.main { flex: 1; }
+.inner { width: 100%; max-width: 1040px; margin: 0 auto; padding: 0 24px; }
+
+/* ---------- hero ---------- */
 .hero { background: var(--pacs-surround); color: #e6ebef; border-bottom: 1px solid #0d0f11; }
 .heroInner {
   max-width: 1040px;
   margin: 0 auto;
-  padding: 44px 24px 40px;
+  padding: 64px 24px 60px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
-  gap: 48px;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 64px;
   align-items: center;
 }
-.title { font-size: var(--fs-5); font-weight: 700; letter-spacing: -0.015em; margin: 0 0 10px; color: #f3f5f6; }
-.what { font-size: var(--fs-2); line-height: 1.55; margin: 0 0 22px; color: #c9d1d8; max-width: 36em; }
-.lines { border-left: 3px solid var(--grease-amber); padding: 2px 0 2px 16px; margin: 0 0 28px; }
-.lines p { margin: 5px 0; line-height: 1.45; color: #c9d1d8; }
-.lines p:first-child { font-size: var(--fs-4); font-weight: 700; color: #f3f5f6; line-height: 1.25; margin-bottom: 10px; text-wrap: balance; }
+.heroCopy { min-width: 0; }
+.name { font-size: var(--fs-2); font-weight: 700; color: #9aa5af; margin: 0 0 16px; letter-spacing: 0.01em; }
+.title {
+  font-size: var(--fs-5);
+  font-weight: 700;
+  line-height: 1.18;
+  letter-spacing: -0.015em;
+  margin: 0 0 18px;
+  color: #f3f5f6;
+  max-width: 17em;
+  text-wrap: balance;
+}
+.support { font-size: var(--fs-3); line-height: 1.45; color: #c9d1d8; margin: 0 0 30px; max-width: 30em; text-wrap: pretty; }
 
 .welcome { margin: 0 0 14px; color: #f3f5f6; font-size: var(--fs-2); }
-.ctaRow { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
-.cta, .ctaSecond {
+.ctaRow { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.cta, .ctaSecond, .ctaInk, .cardButton {
   display: inline-block;
   padding: 12px 26px;
   border-radius: var(--radius);
   font: inherit;
   font-weight: 700;
+  line-height: 1.3;
   cursor: pointer;
   text-decoration: none;
+  transition: background-color 120ms ease, border-color 120ms ease;
 }
 .cta { border: 1px solid var(--report-paper); background: var(--report-paper); color: var(--report-ink); }
 .cta:hover { background: #fff; }
 .ctaSecond { border: 1px solid #6b7680; background: transparent; color: #f3f5f6; }
 .ctaSecond:hover { border-color: #c9d1d8; }
 .ctaSecond:disabled { opacity: 0.6; cursor: default; }
-.cta:focus-visible, .ctaSecond:focus-visible, .heroLink:focus-visible { outline: 2px solid var(--grease-amber); outline-offset: 3px; }
-.ctaNote { color: #9aa5af; font-size: var(--fs-1); line-height: 1.5; margin: 14px 0 0; max-width: 40em; }
+.cta:focus-visible, .ctaSecond:focus-visible, .heroLink:focus-visible, .ctaInk:focus-visible, .cardButton:focus-visible, .inner a:focus-visible {
+  outline: 2px solid var(--grease-amber);
+  outline-offset: 3px;
+}
+.ctaNote { color: #9aa5af; font-size: var(--fs-1); line-height: 1.5; margin: 16px 0 0; max-width: 40em; }
 .heroLink { background: none; border: none; padding: 0; font: inherit; color: #e6ebef; text-decoration: underline; cursor: pointer; }
 .heroError { margin: 14px 0 0; color: #f3f5f6; font-size: var(--fs-1); border-left: 3px solid var(--grease-amber); padding-left: 10px; }
 
@@ -43,47 +62,92 @@
 .cyan { color: var(--lightbox-cyan); font-weight: 700; }
 .amber { color: var(--grease-amber); font-weight: 700; }
 
-/* Below the hero, the same grid as the hero: the steps under the copy, the options and links under the film. */
-.below { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 48px; align-items: start; }
-.side { border-left: 1px solid var(--report-rule); padding-left: 24px; margin-left: -24px; }
-.section { border-top: 1px solid var(--report-rule); padding: 22px 0 10px; }
-.below > .section, .side .section:first-child { border-top: none; padding-top: 0; }
-.h2 { font-size: var(--fs-3); font-weight: 700; margin: 0 0 14px; }
+/* ---------- paper sections ---------- */
+.band { padding: 64px 0; }
+.band + .band { padding-top: 0; }
+/* The rule between sections runs the content width (inside the gutters), not the padded box. */
+.band + .band .inner::before { content: ''; display: block; border-top: 1px solid var(--report-rule); margin-bottom: 64px; }
+.h2 { font-size: var(--fs-4); font-weight: 700; line-height: 1.2; letter-spacing: -0.01em; margin: 0 0 10px; }
+.lede { font-size: var(--fs-2); line-height: 1.5; color: var(--report-ink-muted); margin: 0 0 36px; max-width: 46em; }
+.three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 40px; list-style: none; margin: 0; padding: 0; }
 
-/* How it works: a numbered list with hanging numerals, ruled between steps. */
-.steps { list-style: none; margin: 0; padding: 0; counter-reset: step; }
-.steps li { counter-increment: step; position: relative; padding: 12px 0 12px 40px; border-top: 1px solid var(--report-rule); }
-.steps li:first-child { border-top: none; padding-top: 0; }
-.steps li::before {
-  content: counter(step);
-  position: absolute; left: 0; top: 12px;
-  font-size: var(--fs-3); font-weight: 700; color: var(--report-ink-muted); font-variant-numeric: tabular-nums; line-height: 1.2;
+/* Why this exists: three ruled facts, each one line plus its source. */
+.fact { border-top: 2px solid var(--report-ink); padding-top: 16px; }
+.factLead { font-size: var(--fs-3); font-weight: 700; line-height: 1.25; margin: 0 0 8px; text-wrap: balance; }
+.factText { margin: 0 0 10px; line-height: 1.5; }
+.factSource { margin: 0; font-size: 14px; color: var(--report-ink-muted); line-height: 1.45; }
+.factSource a { color: inherit; }
+
+/* How it works: numbered steps with a drawn glyph each. */
+.step { min-width: 0; }
+.glyph { margin-bottom: 16px; line-height: 0; }
+.glyph svg { border-radius: 8px; box-shadow: 0 0 0 1px #0d0f11; }
+.stepTitle { font-size: var(--fs-3); font-weight: 700; line-height: 1.25; margin: 0 0 8px; display: flex; align-items: baseline; gap: 10px; }
+.stepNum { color: var(--report-ink-muted); font-variant-numeric: tabular-nums; font-weight: 700; }
+.stepText { margin: 0; line-height: 1.5; }
+.caveat { margin: 12px 0 0; font-size: 14px; line-height: 1.45; color: var(--report-ink-muted); border-left: 2px solid var(--report-rule); padding-left: 10px; }
+
+/* What you can read: three cards. */
+.cards { gap: 24px; align-items: stretch; }
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 24px;
+  border: 1px solid var(--report-rule);
+  border-radius: 8px;
+  background: #fff;
+  min-width: 0;
 }
-.steps li:first-child::before { top: 0; }
-.steps h3 { font-size: var(--fs-2); font-weight: 700; margin: 0 0 4px; }
-.steps p { margin: 0; line-height: 1.55; max-width: 60ch; }
-.fine { color: var(--report-ink-muted); font-size: var(--fs-1); line-height: 1.5; margin: 14px 0 0; max-width: 60ch; }
+.cardTitle { font-size: var(--fs-3); font-weight: 700; margin: 0; line-height: 1.25; }
+.cardCount { margin: 0; font-weight: 700; color: var(--report-ink); font-variant-numeric: tabular-nums; }
+.cardText { margin: 0; line-height: 1.5; font-size: var(--fs-1); }
+.provList { list-style: none; margin: 2px 0 0; padding: 0; font-size: 14px; line-height: 1.45; color: var(--report-ink-muted); }
+.provList li + li { margin-top: 4px; }
+.cardFoot { margin-top: auto; padding-top: 14px; }
+.cardButton { border: 1px solid var(--report-ink); background: var(--report-ink); color: #fff; padding: 10px 20px; }
+.cardButton:hover { background: #2b333b; }
+.cardNote { font-size: var(--fs-1); color: var(--report-ink-muted); }
+.health { color: var(--report-ink-muted); font-size: 14px; line-height: 1.45; margin: 24px 0 0; }
 
-.options { margin: 0; font-size: var(--fs-1); }
-.options dt { font-weight: 700; margin-top: 10px; }
-.options dt:first-child { margin-top: 0; }
-.options dd { margin: 2px 0 0; color: var(--report-ink-muted); line-height: 1.45; }
+/* Tell us what you think: a tinted band inside the column. */
+.feedback { padding: 0 0 64px; }
+.feedbackGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 48px;
+  padding: 40px;
+  background: #e8edf0;
+  border-radius: 8px;
+}
+.feedbackText { font-size: var(--fs-2); line-height: 1.5; margin: 0 0 22px; max-width: 34em; }
+.ctaInk { border: 1px solid var(--report-ink); background: var(--report-ink); color: #fff; }
+.ctaInk:hover { background: #2b333b; }
+.ctaOr { color: var(--report-ink-muted); font-size: var(--fs-1); }
+.moreLinks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 16px; align-self: center; }
+.moreLinks a { font-weight: 700; color: var(--report-ink); }
+.linkNote { display: block; font-size: var(--fs-1); color: var(--report-ink-muted); margin-top: 2px; line-height: 1.45; }
 
-.links { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; font-size: var(--fs-1); }
-.links a { color: var(--report-ink); }
-.health { color: var(--report-ink-muted); font-size: 14px; line-height: 1.45; margin: 14px 0 0; }
-
-.phone { padding: 14px 16px; background: #e7ecef; border-left: 3px solid var(--grease-amber); border-radius: 0 4px 4px 0; line-height: 1.5; margin: 0 0 22px; }
-
-/* Access gate: the code form sits on paper under the hero. */
-.gateForm { max-width: 560px; }
-.gateLede { font-size: var(--fs-2); line-height: 1.5; margin: 0 0 16px; }
-.gateNote { margin: 20px 0 0; color: var(--report-ink-muted); font-size: var(--fs-1); line-height: 1.5; }
+/* Footer: the disclaimer line and two links. */
+.foot { border-top: 1px solid var(--report-rule); padding: 18px 0 28px; font-size: 14px; color: var(--report-ink-muted); line-height: 1.5; }
+.foot .inner { display: flex; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
+.footText, .footLinks { margin: 0; }
+.footLinks a { color: var(--report-ink-muted); }
 
 @media (max-width: 899.98px) {
-  .heroInner { grid-template-columns: 1fr; gap: 28px; padding: 28px 16px 30px; }
-  .below { grid-template-columns: 1fr; gap: 0; }
-  .side { border-left: none; padding-left: 0; margin-left: 0; }
-  .side .section:first-child { border-top: 1px solid var(--report-rule); padding-top: 22px; margin-top: 12px; }
+  .inner { padding: 0 16px; }
+  .heroInner { grid-template-columns: 1fr; gap: 32px; padding: 36px 16px 36px; }
   .figure { max-width: 320px; }
+  .band { padding: 44px 0; }
+  .band + .band .inner::before { margin-bottom: 44px; }
+  .lede { margin-bottom: 28px; }
+  .three { grid-template-columns: 1fr; gap: 28px; }
+  .feedback { padding-bottom: 44px; }
+  .feedbackGrid { grid-template-columns: 1fr; gap: 28px; padding: 24px 20px; }
+  .ctaRow { gap: 10px; }
+  .ctaOr { display: block; width: 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cta, .ctaSecond, .ctaInk, .cardButton { transition: none; }
 }

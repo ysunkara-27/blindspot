@@ -3,9 +3,9 @@
 // carries one; "other" is sent). The mapping to POST /sessions is api/sessionOptions.ts::toSessionCreate.
 import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api, apiMode, isGateError } from '../api/client';
-import { labelsFor, MODALITIES, MODALITY_DISPLAY } from '../api/labels';
+import { isModality, labelsFor, MODALITIES, MODALITY_DISPLAY } from '../api/labels';
 import {
   addLocalReads, availableModalities, caseNoun, COUNTS, loadLocalReads, loadModality, loadRemembered, nextTest, readPath, readsFor, remember, sameLearner, saveModality,
   TEST_FILMS, TEST_UNAVAILABLE, testAvailable, toSessionCreate, weakSpotsNote, weakSpotsReady,
@@ -33,7 +33,9 @@ export function StartPage() {
   const [name, setName] = useState(remembered?.name ?? '');
   const [editing, setEditing] = useState(!remembered);
   const [practice, setPractice] = useState<Practice>('mixed');
-  const [picked, setModalityState] = useState<Modality>(loadModality);
+  // ?modality=ct (a scan card on the landing) preselects the scan type; otherwise the one remembered on this device.
+  const [params] = useSearchParams();
+  const [picked, setModalityState] = useState<Modality>(() => { const q = params.get('modality'); return isModality(q) ? q : loadModality(); });
   const health = useHealth();
   const mock = apiMode().mode === 'mock';
   const available = mock ? (['cxr'] as Modality[]) : availableModalities(health.data);
